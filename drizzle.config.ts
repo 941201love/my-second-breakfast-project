@@ -34,7 +34,7 @@ export default defineConfig({
   schema: ["./db/schema.ts", "./db/auth-schema.ts"], 
   out: "./drizzle",
   dialect: "postgresql",
-  schemaFilter: ["bf_v9", "drizzle"], 
+  schemaFilter: ["bf_v10", "drizzle"], 
   dbCredentials: {
     url: neonDirectUrl,
   },

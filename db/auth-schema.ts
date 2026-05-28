@@ -1,7 +1,13 @@
 import { boolean, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
 
-// ─── 核心修正：直接寫死 bf_v9，不給環境變數任何裝傻的機會 ─────────────────────
-const appSchema = pgSchema("bf_v9");
+// Better Auth tables must live in the same versioned schema as business tables.
+const schemaName = process.env.PG_SCHEMA || "bf_v10";
+if (schemaName === "public") {
+  throw new Error(
+    'PG_SCHEMA cannot be "public". Use a custom schema name or leave it unset to use the default "bf_v10".',
+  );
+}
+const appSchema = pgSchema(schemaName);
 
 // ─── user ─────────────────────────────────────────────────────────────────────
 export const user = appSchema.table("user", {

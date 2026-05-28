@@ -18,19 +18,20 @@ content-type: application/json
   "price": 65,
   "category": "飲料",
   "description": "使用義式濃縮搭配蒸煮鮮奶，奶泡綿密。",
-  "image_url": "/imgs/menu/hot-latte.webp"
+  "imageUrl": "/imgs/menu/hot-latte.webp"
 }
 
 ###
-PATCH  {{url}}/api/menu/2
+PATCH  {{url}}/api/menu/002
 content-type: application/json
 
 {    
-  "price": 70
+  "changes": { "price": 70 },
+  "reason": "測試調整價格"
 }
 
 ###
-DELETE  {{url}}/api/menu/6
+DELETE  {{url}}/api/menu/006
 
 ###
 GET {{url}}/api/orders
@@ -58,7 +59,7 @@ content-type: application/json
 
 {    
   "userId": "{{userId}}",
-  "itemId": 2,
+  "itemId": "002-01",
   "qty": 3
 }
 

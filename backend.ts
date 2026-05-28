@@ -10,6 +10,7 @@ import {
   getOrderByIdParamsSchema,
   healthResponseSchema,
   menuItemResponseSchema,
+  menuItemVersionHistoryListResponseSchema,
   menuListResponseSchema,
   nullableOrderResponseEnvelopeSchema,
   orderListResponseSchema,
@@ -23,6 +24,7 @@ import {
 } from "./shared/route-schemas.ts";
 import { createStore } from "./store/index.ts";
 import { auth, getCurrentUser } from "./auth/better-auth.ts";
+import { menuRepository } from "./db/repositories/menuRepository.ts";
 
 // 從環境變量獲取配置
 const port = parseInt(process.env.PORT || "3000", 10);
@@ -171,8 +173,7 @@ app.post(
 app.patch(
   "/api/menu/:id",
   async ({ params, body, set }) => {
-    const menuId = parseInt(params.id);
-    const menuItem = await store.updateMenuItem(menuId, body);
+    const menuItem = await store.updateMenuItem(params.id, body);
 
     if (!menuItem) {
       set.status = 404;
@@ -196,11 +197,29 @@ app.patch(
   },
 );
 
+app.get(
+  "/api/menu/:id/history",
+  async ({ params }) => {
+    const history = await menuRepository.getMenuVersionHistory(params.id);
+    return { data: history };
+  },
+  {
+    params: updateMenuItemParamsSchema,
+    detail: {
+      tags: ["menu"],
+      summary: "List menu item version history",
+      description: "Return version history for a logical menu item id.",
+    },
+    response: {
+      200: menuItemVersionHistoryListResponseSchema,
+    },
+  },
+);
+
 app.delete(
   "/api/menu/:id",
   async ({ params, set }) => {
-    const menuId = parseInt(params.id);
-    const removedMenuItem = await store.deleteMenuItem(menuId);
+    const removedMenuItem = await store.deleteMenuItem(params.id);
 
     if (!removedMenuItem) {
       set.status = 404;
@@ -435,6 +454,14 @@ app.post(
     if (!result.ok && result.code === "EMPTY_ORDER") {
       set.status = 400;
       return { error: "Empty order cannot be submitted" };
+    }
+
+    if (!result.ok && result.code === "MENU_VERSION_STALE") {
+      set.status = 409;
+      return {
+        error: "Menu item version is stale",
+        message: "購物車中有品項已更新，請重新確認菜單後再送出。",
+      };
     }
 
     if (!result.ok) {

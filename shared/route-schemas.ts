@@ -1,6 +1,10 @@
 import { z } from "zod";
 import type { Order } from "./contracts.ts";
-import { menuItemSchema, orderSchema } from "./contracts.ts";
+import {
+  menuItemSchema,
+  menuItemVersionHistorySchema,
+  orderSchema,
+} from "./contracts.ts";
 import toTaipeiDateTime from "../util.ts";
 
 export type { Order };
@@ -37,29 +41,37 @@ export function toOrderResponse(order: Order): OrderResponse {
 
 /** POST /api/menu */
 export const createMenuItemBodySchema = z.object({
+  logicalId: z.string().min(1).optional(),
   name: z.string().min(1),
   price: z.number().int().min(0),
   category: z.string().min(1),
   description: z.string().min(1),
-  image_url: z.string().min(1),
+  imageUrl: z.string().min(1),
 });
 
 /** PATCH /api/menu/:id */
 export const updateMenuItemParamsSchema = z.object({
-  id: z.string().regex(/^[0-9]+$/),
+  id: z.string().min(1),
 });
 
 export const updateMenuItemBodySchema = z.object({
-  name: z.string().min(1).optional(),
-  price: z.number().int().min(0).optional(),
-  category: z.string().min(1).optional(),
-  description: z.string().min(1).optional(),
-  image_url: z.string().min(1).optional(),
+  changes: z
+    .object({
+      name: z.string().min(1).optional(),
+      price: z.number().int().min(0).optional(),
+      category: z.string().min(1).optional(),
+      description: z.string().min(1).optional(),
+      imageUrl: z.string().min(1).optional(),
+    })
+    .refine((changes) => Object.keys(changes).length > 0, {
+      message: "At least one field must be changed",
+    }),
+  reason: z.string().min(1),
 });
 
 /** DELETE /api/menu/:id */
 export const deleteMenuItemParamsSchema = z.object({
-  id: z.string().regex(/^[0-9]+$/),
+  id: z.string().min(1),
 });
 
 /** GET /api/orders/:id */
@@ -73,7 +85,7 @@ export const updateOrderParamsSchema = z.object({
 });
 
 export const updateOrderBodySchema = z.object({
-  itemId: z.number().int().min(1),
+  itemId: z.string().min(1),
   qty: z.number().min(0),
 });
 
@@ -90,6 +102,10 @@ export const menuListResponseSchema = z.object({
 
 export const menuItemResponseSchema = z.object({
   data: menuItemSchema,
+});
+
+export const menuItemVersionHistoryListResponseSchema = z.object({
+  data: z.array(menuItemVersionHistorySchema),
 });
 
 export const orderListResponseSchema = z.object({

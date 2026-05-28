@@ -10,30 +10,37 @@ export type SubmitOrderErrorCode =
   | "ORDER_NOT_FOUND"
   | "ORDER_NOT_OWNED"
   | "ORDER_NOT_EDITABLE"
-  | "EMPTY_ORDER";
+  | "EMPTY_ORDER"
+  | "MENU_VERSION_STALE";
 
 export interface Store {
   init(): Promise<void>;
 
   getMenu(): ReadonlyArray<MenuItem>;
   createMenuItem(input: {
+    logicalId?: string;
     name: string;
     price: number;
     category: string;
     description: string;
-    image_url: string;
+    imageUrl: string;
+    createdBy?: string;
   }): Promise<MenuItem>;
   updateMenuItem(
-    menuId: number,
+    menuId: string,
     patch: {
-      name?: string;
-      price?: number;
-      category?: string;
-      description?: string;
-      image_url?: string;
+      changes: {
+        name?: string;
+        price?: number;
+        category?: string;
+        description?: string;
+        imageUrl?: string;
+      };
+      reason: string;
+      userId?: string;
     },
   ): Promise<MenuItem | null>;
-  deleteMenuItem(menuId: number): Promise<MenuItem | null>;
+  deleteMenuItem(menuId: string): Promise<MenuItem | null>;
 
   getOrders(): ReadonlyArray<Order>;
   getCurrentOrderByUserId(userId: string): Order | undefined;
@@ -44,7 +51,7 @@ export interface Store {
     orderId: number,
     input: {
       userId: string;
-      itemId: number;
+      itemId: string;
       qty: number;
     },
   ): Promise<

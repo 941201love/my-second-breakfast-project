@@ -24,10 +24,10 @@ export default function App() {
   const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [cartQtyByItemId, setCartQtyByItemId] = useState<
-    Record<number, number>
+    Record<string, number>
   >({});
   const [cartTotal, setCartTotal] = useState(0);
-  const [activeItemId, setActiveItemId] = useState<number | null>(null);
+  const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isClearingCart, setIsClearingCart] = useState(false);
@@ -36,10 +36,10 @@ export default function App() {
   function syncCartFromOrder(order: Order) {
     const nextQtyByItemId = order.items.reduce(
       (acc, orderItem) => {
-        acc[orderItem.item.id] = orderItem.qty;
+        acc[orderItem.menuItemId] = orderItem.qty;
         return acc;
       },
-      {} as Record<number, number>,
+      {} as Record<string, number>,
     );
 
     setCartQtyByItemId(nextQtyByItemId);
@@ -195,7 +195,7 @@ export default function App() {
 
     return Object.entries(cartQtyByItemId)
       .map(([itemIdText, qty]) => {
-        const itemId = Number(itemIdText);
+        const itemId = itemIdText;
         const item = itemById.get(itemId);
         if (!item || qty <= 0) {
           return null;
@@ -368,7 +368,7 @@ export default function App() {
           const retryOrderId = recoveredOrder?.id ?? (await ensureOrder());
           const recoveredQty =
             recoveredOrder?.items.find(
-              (orderItem) => orderItem.item.id === item.id,
+              (orderItem) => orderItem.menuItemId === item.id,
             )?.qty ?? 0;
           const retryQty = recoveredQty + 1;
 
@@ -391,7 +391,7 @@ export default function App() {
         try {
           const recoveredOrder = await loadCurrentOrder();
           const recoveredQty = recoveredOrder?.items.find(
-            (orderItem) => orderItem.item.id === item.id,
+            (orderItem) => orderItem.menuItemId === item.id,
           )?.qty;
 
           if (typeof recoveredQty === "number" && recoveredQty > 0) {
@@ -587,7 +587,7 @@ export default function App() {
                   >
                     <figure className="h-44 overflow-hidden bg-base-300">
                       <img
-                        src={item.image_url}
+                        src={item.imageUrl}
                         alt={item.name}
                         className="w-full h-full object-cover"
                         loading="lazy"
@@ -655,8 +655,8 @@ export default function App() {
                       </p>
                       <ul className="text-sm list-disc pl-5 space-y-1">
                         {order.items.map((detail) => (
-                          <li key={`${order.id}-${detail.item.id}`}>
-                            {detail.item.name} x {detail.qty}
+                          <li key={`${order.id}-${detail.menuItemId}`}>
+                            {detail.menuItemName} x {detail.qty}
                           </li>
                         ))}
                       </ul>

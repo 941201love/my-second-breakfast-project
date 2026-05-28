@@ -5,12 +5,29 @@ import { z } from "zod";
 // 型別（TypeScript type）由 Zod schema 自動推導，不需要手動維護兩份。
 
 export const menuItemSchema = z.object({
-  id: z.number().int().min(1),
+  id: z.string().min(1),
+  entityId: z.string().min(1),
+  logicalId: z.string().min(1),
+  version: z.number().int().min(1),
   name: z.string().min(1),
   price: z.number().min(0),
   category: z.string().min(1),
   description: z.string(),
-  image_url: z.string().min(1),
+  imageUrl: z.string().min(1),
+  isCurrentVersion: z.boolean(),
+  isRecentlyUpdated: z.boolean().optional(),
+  priceChanged: z.boolean().optional(),
+  previousPrice: z.number().optional(),
+});
+
+export const menuItemVersionHistorySchema = z.object({
+  version: z.number().int().min(1),
+  id: z.string().min(1),
+  name: z.string().min(1),
+  price: z.number().min(0),
+  changeReason: z.string().nullable().optional(),
+  createdAt: z.string().min(1),
+  createdBy: z.string().nullable().optional(),
 });
 
 // ─── User schemas（業務層）──────────────────────────────────────────────────
@@ -36,7 +53,9 @@ export const sessionUserSchema = userSchema.pick({
 });
 
 export const orderItemSchema = z.object({
-  item: menuItemSchema,
+  menuItemId: z.string().min(1),
+  menuItemName: z.string().min(1),
+  menuItemPrice: z.number().min(0),
   qty: z.number().min(0),
 });
 
@@ -52,6 +71,9 @@ export const orderSchema = z.object({
 
 // ─── Derived TypeScript Types（自動推導，永不過時）───────────────────────────
 export type MenuItem = z.infer<typeof menuItemSchema>;
+export type MenuItemVersionHistory = z.infer<
+  typeof menuItemVersionHistorySchema
+>;
 export type User = z.infer<typeof userSchema>;
 export type SessionUser = z.infer<typeof sessionUserSchema>;
 export type OrderItem = z.infer<typeof orderItemSchema>;

@@ -37,6 +37,8 @@ export const menuItemsTable = appSchema.table(
     entityId: text("entity_id").notNull(),
     logicalId: text("logical_id").notNull(),
     version: integer("version").notNull().default(1),
+    majorVersion: integer("major_version").notNull().default(1),
+    minorVersion: integer("minor_version").notNull().default(0),
     name: text("name").notNull(),
     price: integer("price").notNull(),
     category: text("category").notNull(),
@@ -46,6 +48,7 @@ export const menuItemsTable = appSchema.table(
     supersedes: text("supersedes").references(
       (): AnyPgColumn => menuItemsTable.id,
     ),
+    testGroup: text("test_group").notNull().default("default"),
     changeReason: text("change_reason"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -63,6 +66,34 @@ export const menuItemsTable = appSchema.table(
     ),
   }),
 );
+
+export const menuDisplayOrderTable = appSchema.table(
+  "menu_display_order",
+  {
+    logicalId: text("logical_id").primaryKey(),
+    displayOrder: integer("display_order").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    displayOrderIdx: index("menu_display_order_display_order_idx").on(
+      table.displayOrder,
+    ),
+  }),
+);
+
+export const promotionsTable = appSchema.table("promotions", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  name: text("name").notNull(),
+  menuItemLogicalId: text("menu_item_logical_id").notNull(),
+  discountType: text("discount_type").notNull().default("amount"),
+  discountValue: integer("discount_value").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+});
 
 export const ordersTable = appSchema.table("orders", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),

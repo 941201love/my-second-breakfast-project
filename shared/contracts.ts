@@ -9,12 +9,24 @@ export const menuItemSchema = z.object({
   entityId: z.string().min(1),
   logicalId: z.string().min(1),
   version: z.number().int().min(1),
+  majorVersion: z.number().int().min(1),
+  minorVersion: z.number().int().min(0),
   name: z.string().min(1),
   price: z.number().min(0),
   category: z.string().min(1),
   description: z.string(),
   imageUrl: z.string().min(1),
   isCurrentVersion: z.boolean(),
+  testGroup: z.string().min(1),
+  displayOrder: z.number().int().min(0).optional(),
+  activePromotion: z
+    .object({
+      id: z.number().int().min(1),
+      name: z.string().min(1),
+      discountType: z.enum(["amount", "percent"]),
+      discountValue: z.number().int().min(1),
+    })
+    .optional(),
   isRecentlyUpdated: z.boolean().optional(),
   priceChanged: z.boolean().optional(),
   previousPrice: z.number().optional(),
@@ -22,6 +34,8 @@ export const menuItemSchema = z.object({
 
 export const menuItemVersionHistorySchema = z.object({
   version: z.number().int().min(1),
+  majorVersion: z.number().int().min(1),
+  minorVersion: z.number().int().min(0),
   id: z.string().min(1),
   name: z.string().min(1),
   price: z.number().min(0),
@@ -29,9 +43,32 @@ export const menuItemVersionHistorySchema = z.object({
   description: z.string(),
   imageUrl: z.string().min(1),
   isCurrentVersion: z.boolean(),
+  testGroup: z.string().min(1),
   changeReason: z.string().nullable().optional(),
   createdAt: z.string().min(1),
   createdBy: z.string().nullable().optional(),
+});
+
+export const activePromotionSchema = z.object({
+  id: z.number().int().min(1),
+  name: z.string().min(1),
+  menuItemLogicalId: z.string().min(1),
+  discountType: z.enum(["amount", "percent"]),
+  discountValue: z.number().int().min(1),
+  startsAt: z.string().min(1),
+  endsAt: z.string().min(1),
+});
+
+export const priceSensitivitySchema = z.object({
+  logicalId: z.string().min(1),
+  name: z.string().min(1),
+  version: z.number().int().min(1),
+  majorVersion: z.number().int().min(1),
+  minorVersion: z.number().int().min(0),
+  testGroup: z.string().min(1),
+  price: z.number().min(0),
+  totalQty: z.number().min(0),
+  totalRevenue: z.number().min(0),
 });
 
 export const staleCartItemSchema = z.object({
@@ -88,6 +125,8 @@ export type MenuItem = z.infer<typeof menuItemSchema>;
 export type MenuItemVersionHistory = z.infer<
   typeof menuItemVersionHistorySchema
 >;
+export type ActivePromotion = z.infer<typeof activePromotionSchema>;
+export type PriceSensitivity = z.infer<typeof priceSensitivitySchema>;
 export type StaleCartItem = z.infer<typeof staleCartItemSchema>;
 export type User = z.infer<typeof userSchema>;
 export type SessionUser = z.infer<typeof sessionUserSchema>;

@@ -4,6 +4,7 @@ import { cors } from "@elysia/cors";
 import { existsSync } from "node:fs";
 import toTaipeiDateTime from "./util.ts";
 import {
+  activePromotionListResponseSchema,
   apiErrorResponseSchema,
   createMenuItemBodySchema,
   deleteMenuItemParamsSchema,
@@ -15,8 +16,10 @@ import {
   nullableOrderResponseEnvelopeSchema,
   orderListResponseSchema,
   orderResponseEnvelopeSchema,
+  priceSensitivityListResponseSchema,
   submitOrderParamsSchema,
   toOrderResponse,
+  updateMenuDisplayOrderBodySchema,
   updateMenuItemBodySchema,
   updateMenuItemParamsSchema,
   updateOrderBodySchema,
@@ -171,6 +174,25 @@ app.post(
 );
 
 app.patch(
+  "/api/menu/display-order",
+  async ({ body }) => {
+    await menuRepository.updateDisplayOrder(body.items);
+    return { data: await menuRepository.getCurrentMenu() };
+  },
+  {
+    body: updateMenuDisplayOrderBodySchema,
+    detail: {
+      tags: ["menu"],
+      summary: "Update menu display order",
+      description: "Reorder current menu items by logical id.",
+    },
+    response: {
+      200: menuListResponseSchema,
+    },
+  },
+);
+
+app.patch(
   "/api/menu/:id",
   async ({ params, body, set }) => {
     const menuItem = await store.updateMenuItem(params.id, body);
@@ -193,6 +215,37 @@ app.patch(
     response: {
       200: menuItemResponseSchema,
       404: apiErrorResponseSchema,
+    },
+  },
+);
+
+app.get(
+  "/api/menu/analytics/price-sensitivity",
+  async () => ({ data: await menuRepository.getPriceSensitivity() }),
+  {
+    detail: {
+      tags: ["menu"],
+      summary: "Price sensitivity analytics",
+      description:
+        "Return submitted-order quantity and revenue grouped by menu version and price.",
+    },
+    response: {
+      200: priceSensitivityListResponseSchema,
+    },
+  },
+);
+
+app.get(
+  "/api/promotions/active",
+  async () => ({ data: await menuRepository.getActivePromotions() }),
+  {
+    detail: {
+      tags: ["menu"],
+      summary: "List active promotions",
+      description: "Return promotions that are currently active.",
+    },
+    response: {
+      200: activePromotionListResponseSchema,
     },
   },
 );

@@ -42,48 +42,64 @@ const defaultMenu: MenuItem[] = [
     entityId: "json-001",
     logicalId: "001",
     version: 1,
+    majorVersion: 1,
+    minorVersion: 0,
     name: "火腿蛋吐司",
     price: 40,
     category: "餐點",
     description: "現煎雞蛋搭配火腿與生菜，使用微烤白吐司，口感清爽不油膩。",
     imageUrl: "/imgs/menu/ham-egg-toast.webp",
     isCurrentVersion: true,
+    testGroup: "default",
+    displayOrder: 1,
   },
   {
     id: "002-01",
     entityId: "json-002",
     logicalId: "002",
     version: 1,
+    majorVersion: 1,
+    minorVersion: 0,
     name: "起司豬排堡",
     price: 65,
     category: "餐點",
     description: "厚切豬排搭配起司與生菜，外酥內嫩，適合喜歡有咬勁的你。",
     imageUrl: "/imgs/menu/cheese-pork-burger.webp",
     isCurrentVersion: true,
+    testGroup: "default",
+    displayOrder: 2,
   },
   {
     id: "003-01",
     entityId: "json-003",
     logicalId: "003",
     version: 1,
+    majorVersion: 1,
+    minorVersion: 0,
     name: "鮪魚蛋吐司",
     price: 45,
     category: "餐點",
     description: "自調鮪魚沙拉配上煎蛋與生菜，口味濃郁但不會太鹹。",
     imageUrl: "/imgs/menu/tuna-egg-toast.webp",
     isCurrentVersion: true,
+    testGroup: "default",
+    displayOrder: 3,
   },
   {
     id: "004-01",
     entityId: "json-004",
     logicalId: "004",
     version: 1,
+    majorVersion: 1,
+    minorVersion: 0,
     name: "培根蛋餅",
     price: 45,
     category: "餐點",
     description: "煎到微酥的蛋餅皮包裹煙燻培根與雞蛋，是經典台式早餐選擇。",
     imageUrl: "/imgs/menu/bacon-egg-roll.webp",
     isCurrentVersion: true,
+    testGroup: "default",
+    displayOrder: 4,
   },
 ];
 
@@ -119,12 +135,16 @@ function normalizeMenuItem(item: LegacyMenuItem): MenuItem {
     entityId: item.entityId ?? `json-${logicalId}`,
     logicalId,
     version,
+    majorVersion: item.majorVersion ?? 1,
+    minorVersion: item.minorVersion ?? Math.max(0, version - 1),
     name: item.name ?? "",
     price: item.price ?? 0,
     category: item.category ?? "",
     description: item.description ?? "",
     imageUrl: item.imageUrl ?? item.image_url ?? "",
     isCurrentVersion: item.isCurrentVersion ?? true,
+    testGroup: item.testGroup ?? "default",
+    displayOrder: item.displayOrder ?? Number(logicalId),
   };
 }
 
@@ -256,7 +276,14 @@ export class JsonFileStore implements Store {
   }
 
   getMenu(): ReadonlyArray<MenuItem> {
-    return this.menu.filter((item) => item.isCurrentVersion);
+    return this.menu
+      .filter((item) => item.isCurrentVersion)
+      .sort(
+        (a, b) =>
+          (a.displayOrder ?? Number.MAX_SAFE_INTEGER) -
+            (b.displayOrder ?? Number.MAX_SAFE_INTEGER) ||
+          a.logicalId.localeCompare(b.logicalId),
+      );
   }
 
   async createMenuItem(input: {
@@ -275,12 +302,16 @@ export class JsonFileStore implements Store {
       entityId: crypto.randomUUID(),
       logicalId,
       version: 1,
+      majorVersion: 1,
+      minorVersion: 0,
       name: input.name,
       price: input.price,
       category: input.category,
       description: input.description,
       imageUrl: input.imageUrl,
       isCurrentVersion: true,
+      testGroup: "default",
+      displayOrder: Number(logicalId),
     };
 
     this.menu.push(newMenuItem);
@@ -298,8 +329,10 @@ export class JsonFileStore implements Store {
         category?: string;
         description?: string;
         imageUrl?: string;
+        testGroup?: string;
       };
       reason: string;
+      versionLevel?: "major" | "minor";
       userId?: string;
     },
   ): Promise<MenuItem | null> {
@@ -312,15 +345,23 @@ export class JsonFileStore implements Store {
 
     menuItem.isCurrentVersion = false;
     const newVersion = menuItem.version + 1;
+    const versionLevel = patch.versionLevel ?? "minor";
     const next: MenuItem = {
       ...menuItem,
       id: `${menuItem.logicalId}-${String(newVersion).padStart(2, "0")}`,
       version: newVersion,
+      majorVersion:
+        versionLevel === "major"
+          ? menuItem.majorVersion + 1
+          : menuItem.majorVersion,
+      minorVersion:
+        versionLevel === "major" ? 0 : menuItem.minorVersion + 1,
       name: patch.changes.name ?? menuItem.name,
       price: patch.changes.price ?? menuItem.price,
       category: patch.changes.category ?? menuItem.category,
       description: patch.changes.description ?? menuItem.description,
       imageUrl: patch.changes.imageUrl ?? menuItem.imageUrl,
+      testGroup: patch.changes.testGroup ?? menuItem.testGroup,
       isCurrentVersion: true,
     };
     this.menu.push(next);
@@ -500,7 +541,7 @@ export class JsonFileStore implements Store {
     });
     if (staleItem) {
       const staleItems = order.items
-        .map((orderItem) => {
+        .map((orderItem): StaleCartItem | null => {
           const menuItem = this.menu.find(
             (item) => item.id === orderItem.menuItemId,
           );
@@ -519,9 +560,13 @@ export class JsonFileStore implements Store {
             menuItemName: orderItem.menuItemName,
             menuItemPrice: orderItem.menuItemPrice,
             qty: orderItem.qty,
-            currentMenuItemId: current?.id,
-            currentMenuItemName: current?.name,
-            currentMenuItemPrice: current?.price,
+            ...(current
+              ? {
+                  currentMenuItemId: current.id,
+                  currentMenuItemName: current.name,
+                  currentMenuItemPrice: current.price,
+                }
+              : {}),
           };
         })
         .filter((item): item is StaleCartItem => item !== null);

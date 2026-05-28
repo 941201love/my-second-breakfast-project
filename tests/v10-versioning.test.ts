@@ -34,10 +34,34 @@ test("menu updates create a new current version", async () => {
   expect(updated).not.toBeNull();
   expect(updated!.logicalId).toBe(before!.logicalId);
   expect(updated!.version).toBe(before!.version + 1);
+  expect(updated!.majorVersion).toBe(before!.majorVersion);
+  expect(updated!.minorVersion).toBe(before!.minorVersion + 1);
   expect(updated!.isCurrentVersion).toBe(true);
   expect(store.getMenu().filter((item) => item.isCurrentVersion)).toHaveLength(
     4,
   );
+});
+
+test("major menu updates reset the minor version and keep test group", async () => {
+  const store = new JsonFileStore({
+    dataFilePath: join(tempDir, "store.json"),
+  });
+  await store.init();
+
+  const before = store.getMenu()[0];
+  expect(before).toBeDefined();
+
+  const updated = await store.updateMenuItem(before!.id, {
+    changes: { testGroup: "variant-a" },
+    reason: "A/B test",
+    versionLevel: "major",
+    userId: "tester",
+  });
+
+  expect(updated).not.toBeNull();
+  expect(updated!.majorVersion).toBe(before!.majorVersion + 1);
+  expect(updated!.minorVersion).toBe(0);
+  expect(updated!.testGroup).toBe("variant-a");
 });
 
 test("submitting an order with a stale menu version is rejected", async () => {

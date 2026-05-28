@@ -671,10 +671,20 @@ export default function App() {
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="card-title text-lg">{item.name}</h3>
                         <span className="badge badge-ghost shrink-0">
-                          v{item.version}
+                          v{item.majorVersion}.{item.minorVersion}
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-2 min-h-6">
+                        {item.testGroup !== "default" ? (
+                          <span className="badge badge-secondary badge-sm">
+                            {item.testGroup}
+                          </span>
+                        ) : null}
+                        {item.activePromotion ? (
+                          <span className="badge badge-accent badge-sm">
+                            {item.activePromotion.name}
+                          </span>
+                        ) : null}
                         {item.isRecentlyUpdated ? (
                           <span className="badge badge-info badge-sm">
                             最近更新
@@ -730,7 +740,8 @@ export default function App() {
                                 >
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="font-semibold">
-                                      v{history.version}・${history.price}
+                                      v{history.majorVersion}.
+                                      {history.minorVersion}・${history.price}
                                     </span>
                                     {history.isCurrentVersion ? (
                                       <span className="badge badge-success badge-xs">

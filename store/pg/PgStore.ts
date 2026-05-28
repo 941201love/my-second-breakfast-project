@@ -94,8 +94,10 @@ export class PgStore implements Store {
         category?: string;
         description?: string;
         imageUrl?: string;
+        testGroup?: string;
       };
       reason: string;
+      versionLevel?: "major" | "minor";
       userId?: string;
     },
   ): Promise<MenuItem | null> {
@@ -103,6 +105,7 @@ export class PgStore implements Store {
       menuId,
       patch.changes,
       patch.reason,
+      patch.versionLevel,
       patch.userId,
     );
 
@@ -130,12 +133,15 @@ export class PgStore implements Store {
           entityId: updated.entityId,
           logicalId: updated.logicalId,
           version: updated.version,
+          majorVersion: updated.majorVersion,
+          minorVersion: updated.minorVersion,
           name: updated.name,
           price: updated.price,
           category: updated.category,
           description: updated.description,
           imageUrl: updated.imageUrl,
           isCurrentVersion: updated.isCurrentVersion,
+          testGroup: updated.testGroup,
         }
       : null;
   }

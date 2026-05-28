@@ -29,6 +29,13 @@
       "when": 1779952140000,
       "tag": "0003_add_menu_versioning",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779954300000,
+      "tag": "0004_v10_advanced_features",
+      "breakpoints": true
     }
   ]
 }

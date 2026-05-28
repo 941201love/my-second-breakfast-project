@@ -41,8 +41,10 @@ export interface Store {
         category?: string;
         description?: string;
         imageUrl?: string;
+        testGroup?: string;
       };
       reason: string;
+      versionLevel?: "major" | "minor";
       userId?: string;
     },
   ): Promise<MenuItem | null>;

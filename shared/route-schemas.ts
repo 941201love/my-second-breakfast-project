@@ -1,9 +1,11 @@
 import { z } from "zod";
 import type { Order } from "./contracts.ts";
 import {
+  activePromotionSchema,
   menuItemSchema,
   menuItemVersionHistorySchema,
   orderSchema,
+  priceSensitivitySchema,
   staleCartItemSchema,
 } from "./contracts.ts";
 import toTaipeiDateTime from "../util.ts";
@@ -64,11 +66,23 @@ export const updateMenuItemBodySchema = z.object({
       category: z.string().min(1).optional(),
       description: z.string().min(1).optional(),
       imageUrl: z.string().min(1).optional(),
+      testGroup: z.string().min(1).optional(),
     })
     .refine((changes) => Object.keys(changes).length > 0, {
       message: "At least one field must be changed",
     }),
   reason: z.string().min(1),
+  versionLevel: z.enum(["major", "minor"]).default("minor"),
+});
+
+/** PATCH /api/menu/display-order */
+export const updateMenuDisplayOrderBodySchema = z.object({
+  items: z.array(
+    z.object({
+      logicalId: z.string().min(1),
+      displayOrder: z.number().int().min(0),
+    }),
+  ),
 });
 
 /** DELETE /api/menu/:id */
@@ -108,6 +122,14 @@ export const menuItemResponseSchema = z.object({
 
 export const menuItemVersionHistoryListResponseSchema = z.object({
   data: z.array(menuItemVersionHistorySchema),
+});
+
+export const activePromotionListResponseSchema = z.object({
+  data: z.array(activePromotionSchema),
+});
+
+export const priceSensitivityListResponseSchema = z.object({
+  data: z.array(priceSensitivitySchema),
 });
 
 export const orderListResponseSchema = z.object({

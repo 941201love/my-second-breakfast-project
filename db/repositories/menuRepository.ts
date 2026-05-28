@@ -1,7 +1,18 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "../client.ts";
-import { menuItemsTable } from "../schema.ts";
-import type { MenuItem, StaleCartItem } from "../../shared/contracts.ts";
+import {
+  menuDisplayOrderTable,
+  menuItemsTable,
+  orderItemsTable,
+  ordersTable,
+  promotionsTable,
+} from "../schema.ts";
+import type {
+  ActivePromotion,
+  MenuItem,
+  PriceSensitivity,
+  StaleCartItem,
+} from "../../shared/contracts.ts";
 
 type MenuRow = typeof menuItemsTable.$inferSelect;
 
@@ -11,6 +22,7 @@ export interface MenuItemChanges {
   category?: string;
   description?: string;
   imageUrl?: string;
+  testGroup?: string;
 }
 
 function toMenuItem(row: MenuRow): MenuItem {
@@ -19,12 +31,29 @@ function toMenuItem(row: MenuRow): MenuItem {
     entityId: row.entityId,
     logicalId: row.logicalId,
     version: row.version,
+    majorVersion: row.majorVersion,
+    minorVersion: row.minorVersion,
     name: row.name,
     price: row.price,
     category: row.category,
     description: row.description,
     imageUrl: row.imageUrl,
     isCurrentVersion: row.isCurrentVersion,
+    testGroup: row.testGroup,
+  };
+}
+
+function toPromotion(
+  row: typeof promotionsTable.$inferSelect,
+): ActivePromotion {
+  return {
+    id: row.id,
+    name: row.name,
+    menuItemLogicalId: row.menuItemLogicalId,
+    discountType: row.discountType === "percent" ? "percent" : "amount",
+    discountValue: row.discountValue,
+    startsAt: row.startsAt.toISOString(),
+    endsAt: row.endsAt.toISOString(),
   };
 }
 
@@ -40,6 +69,20 @@ export class MenuRepository {
       .where(eq(menuItemsTable.isCurrentVersion, true))
       .orderBy(asc(menuItemsTable.logicalId));
 
+    const displayRows = await db
+      .select()
+      .from(menuDisplayOrderTable)
+      .where(eq(menuDisplayOrderTable.isActive, true))
+      .orderBy(asc(menuDisplayOrderTable.displayOrder));
+    const orderByLogicalId = new Map(
+      displayRows.map((row) => [row.logicalId, row.displayOrder]),
+    );
+
+    const promotionRows = await this.getActivePromotionRows();
+    const promotionByLogicalId = new Map(
+      promotionRows.map((row) => [row.menuItemLogicalId, row]),
+    );
+
     const previousIds = rows
       .map((row) => row.supersedes)
       .filter((id): id is string => Boolean(id));
@@ -53,17 +96,38 @@ export class MenuRepository {
     const previousById = new Map(previousRows.map((row) => [row.id, row]));
 
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    return rows.map((row) => {
-      const previous = row.supersedes ? previousById.get(row.supersedes) : null;
-      const priceChanged = Boolean(previous && previous.price !== row.price);
+    return rows
+      .map((row) => {
+        const previous = row.supersedes
+          ? previousById.get(row.supersedes)
+          : null;
+        const priceChanged = Boolean(previous && previous.price !== row.price);
+        const activePromotion = promotionByLogicalId.get(row.logicalId);
+        const discountType: "amount" | "percent" =
+          activePromotion?.discountType === "percent" ? "percent" : "amount";
 
-      return {
-        ...toMenuItem(row),
-        isRecentlyUpdated: row.createdAt.getTime() >= sevenDaysAgo,
-        priceChanged,
-        previousPrice: priceChanged ? previous?.price : undefined,
-      };
-    });
+        return {
+          ...toMenuItem(row),
+          displayOrder: orderByLogicalId.get(row.logicalId),
+          activePromotion: activePromotion
+            ? {
+                id: activePromotion.id,
+                name: activePromotion.name,
+                discountType,
+                discountValue: activePromotion.discountValue,
+              }
+            : undefined,
+          isRecentlyUpdated: row.createdAt.getTime() >= sevenDaysAgo,
+          priceChanged,
+          previousPrice: priceChanged ? previous?.price : undefined,
+        };
+      })
+      .sort(
+        (a, b) =>
+          (a.displayOrder ?? Number.MAX_SAFE_INTEGER) -
+            (b.displayOrder ?? Number.MAX_SAFE_INTEGER) ||
+          a.logicalId.localeCompare(b.logicalId),
+      );
   }
 
   async getMenuVersion(id: string): Promise<MenuItem | null> {
@@ -85,6 +149,8 @@ export class MenuRepository {
 
     return rows.map((row) => ({
       version: row.version,
+      majorVersion: row.majorVersion,
+      minorVersion: row.minorVersion,
       id: row.id,
       name: row.name,
       price: row.price,
@@ -92,6 +158,7 @@ export class MenuRepository {
       description: row.description,
       imageUrl: row.imageUrl,
       isCurrentVersion: row.isCurrentVersion,
+      testGroup: row.testGroup,
       changeReason: row.changeReason,
       createdAt: row.createdAt.toISOString(),
       createdBy: row.createdBy,
@@ -115,12 +182,15 @@ export class MenuRepository {
         entityId: crypto.randomUUID(),
         logicalId: input.logicalId,
         version: 1,
+        majorVersion: 1,
+        minorVersion: 0,
         name: input.name,
         price: input.price,
         category: input.category,
         description: input.description,
         imageUrl: input.imageUrl,
         isCurrentVersion: true,
+        testGroup: "default",
         changeReason: "Initial creation",
         createdAt: now,
         createdBy: input.createdBy,
@@ -135,6 +205,7 @@ export class MenuRepository {
     idOrLogicalId: string,
     changes: MenuItemChanges,
     reason: string,
+    versionLevel: "major" | "minor" = "minor",
     userId?: string,
   ): Promise<MenuItem | null> {
     return await db.transaction(async (tx) => {
@@ -159,6 +230,12 @@ export class MenuRepository {
         .where(eq(menuItemsTable.id, current.id));
 
       const nextVersion = current.version + 1;
+      const nextMajorVersion =
+        versionLevel === "major"
+          ? current.majorVersion + 1
+          : current.majorVersion;
+      const nextMinorVersion =
+        versionLevel === "major" ? 0 : current.minorVersion + 1;
       const [inserted] = await tx
         .insert(menuItemsTable)
         .values({
@@ -166,6 +243,8 @@ export class MenuRepository {
           entityId: current.entityId,
           logicalId: current.logicalId,
           version: nextVersion,
+          majorVersion: nextMajorVersion,
+          minorVersion: nextMinorVersion,
           name: changes.name ?? current.name,
           price: changes.price ?? current.price,
           category: changes.category ?? current.category,
@@ -173,6 +252,7 @@ export class MenuRepository {
           imageUrl: changes.imageUrl ?? current.imageUrl,
           isCurrentVersion: true,
           supersedes: current.id,
+          testGroup: changes.testGroup ?? current.testGroup,
           changeReason: reason,
           createdBy: userId,
         })
@@ -181,6 +261,93 @@ export class MenuRepository {
       if (!inserted) throw new Error("Failed to insert menu item version");
       return toMenuItem(inserted);
     });
+  }
+
+  async updateDisplayOrder(
+    items: { logicalId: string; displayOrder: number }[],
+  ): Promise<void> {
+    if (items.length === 0) return;
+
+    await db.transaction(async (tx) => {
+      for (const item of items) {
+        await tx
+          .insert(menuDisplayOrderTable)
+          .values({
+            logicalId: item.logicalId,
+            displayOrder: item.displayOrder,
+            isActive: true,
+            updatedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: menuDisplayOrderTable.logicalId,
+            set: {
+              displayOrder: item.displayOrder,
+              isActive: true,
+              updatedAt: new Date(),
+            },
+          });
+      }
+    });
+  }
+
+  async getActivePromotions(): Promise<ActivePromotion[]> {
+    const rows = await this.getActivePromotionRows();
+    return rows.map(toPromotion);
+  }
+
+  async getPriceSensitivity(): Promise<PriceSensitivity[]> {
+    const rows = await db
+      .select({
+        logicalId: menuItemsTable.logicalId,
+        name: menuItemsTable.name,
+        version: menuItemsTable.version,
+        majorVersion: menuItemsTable.majorVersion,
+        minorVersion: menuItemsTable.minorVersion,
+        testGroup: menuItemsTable.testGroup,
+        price: menuItemsTable.price,
+        totalQty: sql<number>`coalesce(sum(${orderItemsTable.qty}), 0)`,
+        totalRevenue: sql<number>`coalesce(sum(${orderItemsTable.qty} * ${menuItemsTable.price}), 0)`,
+      })
+      .from(orderItemsTable)
+      .innerJoin(
+        menuItemsTable,
+        eq(orderItemsTable.menuItemId, menuItemsTable.id),
+      )
+      .innerJoin(ordersTable, eq(orderItemsTable.orderId, ordersTable.id))
+      .where(eq(ordersTable.status, "submitted"))
+      .groupBy(
+        menuItemsTable.logicalId,
+        menuItemsTable.name,
+        menuItemsTable.version,
+        menuItemsTable.majorVersion,
+        menuItemsTable.minorVersion,
+        menuItemsTable.testGroup,
+        menuItemsTable.price,
+      )
+      .orderBy(desc(sql<number>`sum(${orderItemsTable.qty})`));
+
+    return rows.map((row) => ({
+      ...row,
+      totalQty: Number(row.totalQty),
+      totalRevenue: Number(row.totalRevenue),
+    }));
+  }
+
+  private async getActivePromotionRows(): Promise<
+    (typeof promotionsTable.$inferSelect)[]
+  > {
+    const now = new Date();
+    return await db
+      .select()
+      .from(promotionsTable)
+      .where(
+        and(
+          eq(promotionsTable.isActive, true),
+          lte(promotionsTable.startsAt, now),
+          gte(promotionsTable.endsAt, now),
+        ),
+      )
+      .orderBy(asc(promotionsTable.endsAt), asc(promotionsTable.id));
   }
 
   async validateMenuItemsAreCurrent(menuItemIds: string[]): Promise<{

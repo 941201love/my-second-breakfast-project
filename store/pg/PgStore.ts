@@ -1,5 +1,10 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
-import type { MenuItem, Order, OrderItem } from "../../shared/contracts.ts";
+import type {
+  MenuItem,
+  Order,
+  OrderItem,
+  StaleCartItem,
+} from "../../shared/contracts.ts";
 import { db } from "../../db/client.ts";
 import { menuRepository } from "../../db/repositories/menuRepository.ts";
 import {
@@ -273,6 +278,7 @@ export class PgStore implements Store {
           | "ORDER_NOT_EDITABLE"
           | "EMPTY_ORDER"
           | "MENU_VERSION_STALE";
+        staleItems?: StaleCartItem[];
       }
   > {
     const order = this.orders.find((o) => o.id === orderId);
@@ -286,7 +292,19 @@ export class PgStore implements Store {
     const validation = await menuRepository.validateMenuItemsAreCurrent(
       order.items.map((item) => item.menuItemId),
     );
-    if (!validation.valid) return { ok: false, code: "MENU_VERSION_STALE" };
+    if (!validation.valid) {
+      const qtyById = new Map(
+        order.items.map((item) => [item.menuItemId, item.qty]),
+      );
+      return {
+        ok: false,
+        code: "MENU_VERSION_STALE",
+        staleItems: validation.staleItems.map((item) => ({
+          ...item,
+          qty: qtyById.get(item.menuItemId) ?? item.qty,
+        })),
+      };
+    }
 
     const submittedAt = new Date().toISOString();
     await db

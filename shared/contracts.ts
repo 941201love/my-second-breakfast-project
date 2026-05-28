@@ -25,9 +25,23 @@ export const menuItemVersionHistorySchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   price: z.number().min(0),
+  category: z.string().min(1),
+  description: z.string(),
+  imageUrl: z.string().min(1),
+  isCurrentVersion: z.boolean(),
   changeReason: z.string().nullable().optional(),
   createdAt: z.string().min(1),
   createdBy: z.string().nullable().optional(),
+});
+
+export const staleCartItemSchema = z.object({
+  menuItemId: z.string().min(1),
+  menuItemName: z.string().min(1),
+  menuItemPrice: z.number().min(0),
+  qty: z.number().min(0),
+  currentMenuItemId: z.string().min(1).optional(),
+  currentMenuItemName: z.string().min(1).optional(),
+  currentMenuItemPrice: z.number().min(0).optional(),
 });
 
 // ─── User schemas（業務層）──────────────────────────────────────────────────
@@ -74,6 +88,7 @@ export type MenuItem = z.infer<typeof menuItemSchema>;
 export type MenuItemVersionHistory = z.infer<
   typeof menuItemVersionHistorySchema
 >;
+export type StaleCartItem = z.infer<typeof staleCartItemSchema>;
 export type User = z.infer<typeof userSchema>;
 export type SessionUser = z.infer<typeof sessionUserSchema>;
 export type OrderItem = z.infer<typeof orderItemSchema>;

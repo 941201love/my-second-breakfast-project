@@ -3,8 +3,10 @@ import "./App.css";
 import type {
   ApiDataResponse,
   MenuItem,
+  MenuItemVersionHistory,
   Order,
   SessionUser,
+  StaleCartItem,
 } from "../../shared/contracts.ts";
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
@@ -29,6 +31,11 @@ export default function App() {
   const [cartTotal, setCartTotal] = useState(0);
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
+  const [staleCartItems, setStaleCartItems] = useState<StaleCartItem[]>([]);
+  const [versionHistoryByLogicalId, setVersionHistoryByLogicalId] = useState<
+    Record<string, MenuItemVersionHistory[]>
+  >({});
+  const [loadingHistoryId, setLoadingHistoryId] = useState<string | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isClearingCart, setIsClearingCart] = useState(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
@@ -50,7 +57,18 @@ export default function App() {
     setOrderId(null);
     setCartQtyByItemId({});
     setCartTotal(0);
+    setStaleCartItems([]);
     setIsCartOpen(false);
+  }
+
+  async function loadMenu(): Promise<void> {
+    const response = await fetch(buildApiUrl("/api/menu"));
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const payload = (await response.json()) as ApiDataResponse<MenuItem[]>;
+    setItems(Array.isArray(payload?.data) ? payload.data : []);
   }
 
   async function loadCurrentOrder(): Promise<Order | null> {
@@ -119,18 +137,10 @@ export default function App() {
     }
     void restoreSession();
 
-    async function loadMenu() {
+    async function loadInitialMenu() {
       try {
-        const response = await fetch(buildApiUrl("/api/menu"));
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const payload = (await response.json()) as ApiDataResponse<MenuItem[]>;
-        const fetchedItems = Array.isArray(payload?.data) ? payload.data : [];
-
         if (mounted) {
-          setItems(fetchedItems);
+          await loadMenu();
         }
       } catch (fetchError) {
         if (mounted) {
@@ -144,7 +154,7 @@ export default function App() {
       }
     }
 
-    void loadMenu();
+    void loadInitialMenu();
 
     return () => {
       mounted = false;
@@ -306,8 +316,46 @@ export default function App() {
     resetCartState();
   }
 
+  async function loadVersionHistory(logicalId: string): Promise<void> {
+    if (versionHistoryByLogicalId[logicalId]) {
+      setVersionHistoryByLogicalId((current) => {
+        const next = { ...current };
+        delete next[logicalId];
+        return next;
+      });
+      return;
+    }
+
+    setLoadingHistoryId(logicalId);
+    setActionError("");
+
+    try {
+      const response = await fetch(
+        buildApiUrl(`/api/menu/${logicalId}/history`),
+        { credentials: "include" },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Load menu history failed: HTTP ${response.status}`);
+      }
+
+      const payload =
+        (await response.json()) as ApiDataResponse<MenuItemVersionHistory[]>;
+      setVersionHistoryByLogicalId((current) => ({
+        ...current,
+        [logicalId]: Array.isArray(payload?.data) ? payload.data : [],
+      }));
+    } catch (historyError) {
+      setActionError("讀取版本歷史失敗，請稍後再試。");
+      console.error(historyError);
+    } finally {
+      setLoadingHistoryId(null);
+    }
+  }
+
   async function addToCart(item: MenuItem): Promise<void> {
     setActionError("");
+    setStaleCartItems([]);
     setActiveItemId(item.id);
 
     try {
@@ -415,6 +463,7 @@ export default function App() {
     }
 
     setActionError("");
+    setStaleCartItems([]);
     setIsClearingCart(true);
 
     try {
@@ -450,6 +499,7 @@ export default function App() {
     }
 
     setActionError("");
+    setStaleCartItems([]);
     setIsSubmittingOrder(true);
 
     try {
@@ -464,6 +514,25 @@ export default function App() {
       );
 
       if (!response.ok) {
+        const errorPayload = (await response
+          .clone()
+          .json()
+          .catch(() => null)) as {
+          message?: string;
+          staleItems?: StaleCartItem[];
+        } | null;
+
+        if (response.status === 409 && errorPayload?.staleItems?.length) {
+          setStaleCartItems(errorPayload.staleItems);
+          setActionError(
+            errorPayload.message ??
+              "購物車中有品項已更新，請重新確認菜單後再送出。",
+          );
+          setIsCartOpen(true);
+          await loadMenu();
+          return;
+        }
+
         throw new Error(`Submit order failed: HTTP ${response.status}`);
       }
 
@@ -599,7 +668,25 @@ export default function App() {
                       />
                     </figure>
                     <div className="card-body">
-                      <h3 className="card-title text-lg">{item.name}</h3>
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="card-title text-lg">{item.name}</h3>
+                        <span className="badge badge-ghost shrink-0">
+                          v{item.version}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 min-h-6">
+                        {item.isRecentlyUpdated ? (
+                          <span className="badge badge-info badge-sm">
+                            最近更新
+                          </span>
+                        ) : null}
+                        {item.priceChanged &&
+                        typeof item.previousPrice === "number" ? (
+                          <span className="badge badge-warning badge-sm">
+                            ${item.previousPrice} → ${item.price}
+                          </span>
+                        ) : null}
+                      </div>
                       <p className="text-sm opacity-80 line-clamp-2 min-h-[2.75rem]">
                         {item.description}
                       </p>
@@ -618,6 +705,47 @@ export default function App() {
                             ? "加入中..."
                             : `加入購物車${cartQtyByItemId[item.id] ? ` (${cartQtyByItemId[item.id]})` : ""}`}
                         </button>
+                      </div>
+                      <div className="pt-2 border-t border-base-300">
+                        <button
+                          className="btn btn-xs btn-ghost"
+                          onClick={() => {
+                            void loadVersionHistory(item.logicalId);
+                          }}
+                          disabled={loadingHistoryId === item.logicalId}
+                        >
+                          {loadingHistoryId === item.logicalId
+                            ? "讀取版本..."
+                            : versionHistoryByLogicalId[item.logicalId]
+                              ? "收合版本歷史"
+                              : "版本歷史"}
+                        </button>
+                        {versionHistoryByLogicalId[item.logicalId] ? (
+                          <ul className="mt-2 space-y-2 text-xs">
+                            {versionHistoryByLogicalId[item.logicalId].map(
+                              (history) => (
+                                <li
+                                  key={history.id}
+                                  className="rounded bg-base-200 p-2"
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-semibold">
+                                      v{history.version}・${history.price}
+                                    </span>
+                                    {history.isCurrentVersion ? (
+                                      <span className="badge badge-success badge-xs">
+                                        目前
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <p className="opacity-70">
+                                    {history.changeReason || "未記錄變更原因"}
+                                  </p>
+                                </li>
+                              ),
+                            )}
+                          </ul>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -695,6 +823,24 @@ export default function App() {
             </div>
 
             <div className="p-4 flex-1 overflow-auto">
+              {staleCartItems.length > 0 ? (
+                <div className="alert alert-warning mb-4 items-start">
+                  <div>
+                    <p className="font-semibold">購物車有品項已更新</p>
+                    <ul className="mt-2 space-y-1 text-sm">
+                      {staleCartItems.map((item) => (
+                        <li key={item.menuItemId}>
+                          {item.menuItemName} x {item.qty}：
+                          ${item.menuItemPrice}
+                          {typeof item.currentMenuItemPrice === "number"
+                            ? ` → $${item.currentMenuItemPrice}`
+                            : "，目前版本不存在"}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ) : null}
               {cartDetails.length === 0 ? (
                 <div className="alert">
                   <span>購物車目前是空的。</span>

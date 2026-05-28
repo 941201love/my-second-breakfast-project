@@ -62,8 +62,14 @@ test("submitting an order with a stale menu version is rejected", async () => {
   });
 
   const submitResult = await store.submitOrder(order.id, { userId: "user-1" });
-  expect(submitResult).toEqual({
-    ok: false,
-    code: "MENU_VERSION_STALE",
-  });
+  expect(submitResult.ok).toBe(false);
+  if (!submitResult.ok) {
+    expect(submitResult.code).toBe("MENU_VERSION_STALE");
+    expect(submitResult.staleItems).toHaveLength(1);
+    expect(submitResult.staleItems?.[0]?.menuItemId).toBe(item.id);
+    expect(submitResult.staleItems?.[0]?.qty).toBe(1);
+    expect(submitResult.staleItems?.[0]?.currentMenuItemPrice).toBe(
+      item.price + 10,
+    );
+  }
 });

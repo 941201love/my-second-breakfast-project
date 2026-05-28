@@ -461,6 +461,7 @@ app.post(
       return {
         error: "Menu item version is stale",
         message: "購物車中有品項已更新，請重新確認菜單後再送出。",
+        staleItems: result.staleItems ?? [],
       };
     }
 

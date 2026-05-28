@@ -1,5 +1,10 @@
 import { mkdir, rename } from "node:fs/promises";
-import type { MenuItem, Order, OrderItem } from "../../shared/contracts.ts";
+import type {
+  MenuItem,
+  Order,
+  OrderItem,
+  StaleCartItem,
+} from "../../shared/contracts.ts";
 import type { Store } from "../Store.ts";
 
 interface StoredUser {
@@ -469,6 +474,7 @@ export class JsonFileStore implements Store {
           | "ORDER_NOT_EDITABLE"
           | "EMPTY_ORDER"
           | "MENU_VERSION_STALE";
+        staleItems?: StaleCartItem[];
       }
   > {
     const order = this.orders.find((targetOrder) => targetOrder.id === orderId);
@@ -493,7 +499,34 @@ export class JsonFileStore implements Store {
       return !menuItem?.isCurrentVersion;
     });
     if (staleItem) {
-      return { ok: false, code: "MENU_VERSION_STALE" };
+      const staleItems = order.items
+        .map((orderItem) => {
+          const menuItem = this.menu.find(
+            (item) => item.id === orderItem.menuItemId,
+          );
+          if (menuItem?.isCurrentVersion) return null;
+
+          const current = menuItem
+            ? this.menu.find(
+                (item) =>
+                  item.logicalId === menuItem.logicalId &&
+                  item.isCurrentVersion,
+              )
+            : undefined;
+
+          return {
+            menuItemId: orderItem.menuItemId,
+            menuItemName: orderItem.menuItemName,
+            menuItemPrice: orderItem.menuItemPrice,
+            qty: orderItem.qty,
+            currentMenuItemId: current?.id,
+            currentMenuItemName: current?.name,
+            currentMenuItemPrice: current?.price,
+          };
+        })
+        .filter((item): item is StaleCartItem => item !== null);
+
+      return { ok: false, code: "MENU_VERSION_STALE", staleItems };
     }
 
     order.status = "submitted";

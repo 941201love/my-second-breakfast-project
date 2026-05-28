@@ -4,6 +4,7 @@ import {
   menuItemSchema,
   menuItemVersionHistorySchema,
   orderSchema,
+  staleCartItemSchema,
 } from "./contracts.ts";
 import toTaipeiDateTime from "../util.ts";
 
@@ -14,6 +15,7 @@ export type { Order };
 export const apiErrorResponseSchema = z.object({
   error: z.string(),
   message: z.string().optional(),
+  staleItems: z.array(staleCartItemSchema).optional(),
 });
 
 export type ApiErrorResponse = z.infer<typeof apiErrorResponseSchema>;

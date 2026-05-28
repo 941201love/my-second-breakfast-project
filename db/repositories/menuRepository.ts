@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../client.ts";
 import { menuItemsTable } from "../schema.ts";
-import type { MenuItem } from "../../shared/contracts.ts";
+import type { MenuItem, StaleCartItem } from "../../shared/contracts.ts";
 
 type MenuRow = typeof menuItemsTable.$inferSelect;
 
@@ -40,11 +40,30 @@ export class MenuRepository {
       .where(eq(menuItemsTable.isCurrentVersion, true))
       .orderBy(asc(menuItemsTable.logicalId));
 
+    const previousIds = rows
+      .map((row) => row.supersedes)
+      .filter((id): id is string => Boolean(id));
+    const previousRows =
+      previousIds.length > 0
+        ? await db
+            .select()
+            .from(menuItemsTable)
+            .where(inArray(menuItemsTable.id, previousIds))
+        : [];
+    const previousById = new Map(previousRows.map((row) => [row.id, row]));
+
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    return rows.map((row) => ({
-      ...toMenuItem(row),
-      isRecentlyUpdated: row.createdAt.getTime() >= sevenDaysAgo,
-    }));
+    return rows.map((row) => {
+      const previous = row.supersedes ? previousById.get(row.supersedes) : null;
+      const priceChanged = Boolean(previous && previous.price !== row.price);
+
+      return {
+        ...toMenuItem(row),
+        isRecentlyUpdated: row.createdAt.getTime() >= sevenDaysAgo,
+        priceChanged,
+        previousPrice: priceChanged ? previous?.price : undefined,
+      };
+    });
   }
 
   async getMenuVersion(id: string): Promise<MenuItem | null> {
@@ -69,6 +88,10 @@ export class MenuRepository {
       id: row.id,
       name: row.name,
       price: row.price,
+      category: row.category,
+      description: row.description,
+      imageUrl: row.imageUrl,
+      isCurrentVersion: row.isCurrentVersion,
       changeReason: row.changeReason,
       createdAt: row.createdAt.toISOString(),
       createdBy: row.createdBy,
@@ -163,27 +186,56 @@ export class MenuRepository {
   async validateMenuItemsAreCurrent(menuItemIds: string[]): Promise<{
     valid: boolean;
     outdatedIds: string[];
+    staleItems: StaleCartItem[];
   }> {
     const uniqueIds = Array.from(new Set(menuItemIds));
-    if (uniqueIds.length === 0) return { valid: true, outdatedIds: [] };
+    if (uniqueIds.length === 0) {
+      return { valid: true, outdatedIds: [], staleItems: [] };
+    }
 
     const rows = await db
-      .select({
-        id: menuItemsTable.id,
-        isCurrentVersion: menuItemsTable.isCurrentVersion,
-      })
+      .select()
       .from(menuItemsTable)
       .where(inArray(menuItemsTable.id, uniqueIds));
 
     const found = new Set(rows.map((row) => row.id));
     const missingIds = uniqueIds.filter((id) => !found.has(id));
-    const outdatedIds = rows
-      .filter((row) => !row.isCurrentVersion)
-      .map((row) => row.id);
+    const outdatedRows = rows.filter((row) => !row.isCurrentVersion);
+    const outdatedIds = outdatedRows.map((row) => row.id);
+    const currentRows =
+      outdatedRows.length > 0
+        ? await db
+            .select()
+            .from(menuItemsTable)
+            .where(
+              inArray(
+                menuItemsTable.logicalId,
+                outdatedRows.map((row) => row.logicalId),
+              ),
+            )
+        : [];
+    const currentByLogicalId = new Map(
+      currentRows
+        .filter((row) => row.isCurrentVersion)
+        .map((row) => [row.logicalId, row]),
+    );
+    const staleItems = outdatedRows.map((row) => {
+      const current = currentByLogicalId.get(row.logicalId);
+      return {
+        menuItemId: row.id,
+        menuItemName: row.name,
+        menuItemPrice: row.price,
+        qty: 0,
+        currentMenuItemId: current?.id,
+        currentMenuItemName: current?.name,
+        currentMenuItemPrice: current?.price,
+      };
+    });
 
     return {
       valid: missingIds.length === 0 && outdatedIds.length === 0,
       outdatedIds: [...missingIds, ...outdatedIds],
+      staleItems,
     };
   }
 }

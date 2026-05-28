@@ -20,15 +20,22 @@ export default defineConfig({
 
 import { defineConfig } from "drizzle-kit";
 
-// ⚠️ 大絕招：直接把你在 Neon 複製的「直連網址（沒有 -pooler、結尾有 ?sslmode=require）」貼在下面
-// 範例：'postgresql://keboxiang_owner:xxx@ep-cool-pool-123456.ap-southeast-1.neon.tech/neondb?sslmode=require'
-const neonDirectUrl = "postgresql://neondb_owner:npg_xacCIrKiA4Z9@ep-patient-math-ao1tmpof.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+const neonDirectUrl =
+  process.env.DATABASE_URL_MIGRATION ?? process.env.DATABASE_URL;
+
+if (!neonDirectUrl) {
+  throw new Error(
+    "DATABASE_URL_MIGRATION or DATABASE_URL is required for drizzle-kit.",
+  );
+}
 
 export default defineConfig({
-  schema: ["./db/schema.ts", "./db/auth-schema.ts"],
+  // 🎯 拿掉萬用字元，直接把兩支檔案的路徑硬指給它！
+  schema: ["./db/schema.ts", "./db/auth-schema.ts"], 
   out: "./drizzle",
   dialect: "postgresql",
+  schemaFilter: ["bf_v9", "drizzle"], 
   dbCredentials: {
-    url: neonDirectUrl, // 直接指路給它，不讀環境變數
+    url: neonDirectUrl,
   },
 });

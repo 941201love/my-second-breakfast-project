@@ -87,7 +87,7 @@
         "approve": true,
         "matchCommandLine": true,
       },
-      "/^export DATABASE_URL=postgresql://neondb_owner:npg_kxE2nTCWcv6A@ep-old-night-aojlczr3-pooler\\.c-2\\.ap-southeast-1\\.aws\\.neon\\.tech/neondb\\?sslmode=require && export DATABASE_URL_MIGRATION=postgresql://neondb_owner:npg_kxE2nTCWcv6A@ep-old-night-aojlczr3\\.c-2\\.ap-southeast-1\\.aws\\.neon\\.tech/neondb\\?sslmode=require && bun run db:migrate$/": {
+      "/^export DATABASE_URL=postgresql://USER:PASSWORD@HOST/neondb\\?sslmode=require && export DATABASE_URL_MIGRATION=postgresql://USER:PASSWORD@HOST/neondb\\?sslmode=require && bun run db:migrate$/": {
         "approve": true,
         "matchCommandLine": true,
       },

@@ -2,9 +2,11 @@ import { useEffect, useState, useMemo } from "react";
 import "./App.css";
 import type {
   ApiDataResponse,
+  ActivePromotion,
   MenuItem,
   MenuItemVersionHistory,
   Order,
+  PriceSensitivity,
   SessionUser,
   StaleCartItem,
 } from "../../shared/contracts.ts";
@@ -15,7 +17,13 @@ function buildApiUrl(path: string) {
   return `${apiBaseUrl}${path}`;
 }
 
+function versionChangeLabel(history: MenuItemVersionHistory) {
+  if (history.version === 1) return "初版";
+  return history.minorVersion === 0 ? "主版更新" : "修訂更新";
+}
+
 export default function App() {
+  const isAdminPage = window.location.pathname.startsWith("/admin");
   const [user, setUser] = useState<SessionUser | null>(null);
   const [authError, setAuthError] = useState("");
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
@@ -36,6 +44,14 @@ export default function App() {
     Record<string, MenuItemVersionHistory[]>
   >({});
   const [loadingHistoryId, setLoadingHistoryId] = useState<string | null>(null);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminError, setAdminError] = useState("");
+  const [priceSensitivity, setPriceSensitivity] = useState<
+    PriceSensitivity[]
+  >([]);
+  const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>(
+    [],
+  );
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isClearingCart, setIsClearingCart] = useState(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
@@ -195,6 +211,12 @@ export default function App() {
     return { groupedItems, categories };
   }, [items]);
 
+  useEffect(() => {
+    if (!isAdminPage || loading || items.length === 0) return;
+
+    void loadAdminData();
+  }, [isAdminPage, loading, items]);
+
   const cartItemCount = useMemo(
     () => Object.values(cartQtyByItemId).reduce((sum, qty) => sum + qty, 0),
     [cartQtyByItemId],
@@ -350,6 +372,68 @@ export default function App() {
       console.error(historyError);
     } finally {
       setLoadingHistoryId(null);
+    }
+  }
+
+  async function loadAdminData(): Promise<void> {
+    setAdminLoading(true);
+    setAdminError("");
+
+    try {
+      const [analyticsResponse, promotionsResponse] = await Promise.all([
+        fetch(buildApiUrl("/api/menu/analytics/price-sensitivity"), {
+          credentials: "include",
+        }),
+        fetch(buildApiUrl("/api/promotions/active"), {
+          credentials: "include",
+        }),
+      ]);
+
+      if (!analyticsResponse.ok || !promotionsResponse.ok) {
+        throw new Error("Admin API failed");
+      }
+
+      const analyticsPayload =
+        (await analyticsResponse.json()) as ApiDataResponse<
+          PriceSensitivity[]
+        >;
+      const promotionsPayload =
+        (await promotionsResponse.json()) as ApiDataResponse<
+          ActivePromotion[]
+        >;
+
+      setPriceSensitivity(
+        Array.isArray(analyticsPayload?.data) ? analyticsPayload.data : [],
+      );
+      setActivePromotions(
+        Array.isArray(promotionsPayload?.data) ? promotionsPayload.data : [],
+      );
+
+      const histories = await Promise.all(
+        items.map(async (item) => {
+          const response = await fetch(
+            buildApiUrl(`/api/menu/${item.logicalId}/history`),
+            { credentials: "include" },
+          );
+          if (!response.ok) return [item.logicalId, []] as const;
+
+          const payload =
+            (await response.json()) as ApiDataResponse<
+              MenuItemVersionHistory[]
+            >;
+          return [
+            item.logicalId,
+            Array.isArray(payload?.data) ? payload.data : [],
+          ] as const;
+        }),
+      );
+
+      setVersionHistoryByLogicalId(Object.fromEntries(histories));
+    } catch (adminDataError) {
+      setAdminError("管理資料讀取失敗，請稍後再試。");
+      console.error(adminDataError);
+    } finally {
+      setAdminLoading(false);
     }
   }
 
@@ -563,6 +647,219 @@ export default function App() {
     );
   }
 
+  if (isAdminPage) {
+    return (
+      <div className="min-h-screen bg-base-200">
+        <div className="navbar bg-base-100 shadow-lg">
+          <div className="flex-1">
+            <a className="btn btn-ghost normal-case text-2xl" href="/admin">
+              早餐店管理後台
+            </a>
+          </div>
+          <div className="flex-none flex flex-wrap gap-2">
+            <a className="btn btn-sm btn-outline" href="/">
+              前台
+            </a>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={() => {
+                void loadAdminData();
+              }}
+              disabled={adminLoading}
+            >
+              {adminLoading ? "更新中..." : "重新整理"}
+            </button>
+          </div>
+        </div>
+
+        <main className="container mx-auto p-6 space-y-6">
+          {adminError ? (
+            <div className="alert alert-warning">
+              <span>{adminError}</span>
+            </div>
+          ) : null}
+
+          <section className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="stats shadow bg-base-100">
+              <div className="stat">
+                <div className="stat-title">目前品項</div>
+                <div className="stat-value text-primary">{items.length}</div>
+              </div>
+            </div>
+            <div className="stats shadow bg-base-100">
+              <div className="stat">
+                <div className="stat-title">分類數</div>
+                <div className="stat-value text-secondary">
+                  {grouped.categories.length}
+                </div>
+              </div>
+            </div>
+            <div className="stats shadow bg-base-100">
+              <div className="stat">
+                <div className="stat-title">促銷中</div>
+                <div className="stat-value text-accent">
+                  {activePromotions.length}
+                </div>
+              </div>
+            </div>
+            <div className="stats shadow bg-base-100">
+              <div className="stat">
+                <div className="stat-title">分析資料</div>
+                <div className="stat-value text-success">
+                  {priceSensitivity.length}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-bold mb-3">菜單版本管理</h2>
+            <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
+              <table className="table table-zebra">
+                <thead>
+                  <tr>
+                    <th>順序</th>
+                    <th>品項</th>
+                    <th>分級版本</th>
+                    <th>A/B</th>
+                    <th>促銷</th>
+                    <th>價格</th>
+                    <th>歷史</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item) => {
+                    const histories =
+                      versionHistoryByLogicalId[item.logicalId] ?? [];
+
+                    return (
+                      <tr key={item.id}>
+                        <td>{item.displayOrder ?? "-"}</td>
+                        <td>
+                          <div className="font-semibold">{item.name}</div>
+                          <div className="text-xs opacity-60">
+                            {item.logicalId} / {item.id}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="flex flex-wrap gap-1">
+                            <span className="badge badge-primary badge-sm">
+                              主版 {item.majorVersion}
+                            </span>
+                            <span className="badge badge-ghost badge-sm">
+                              修訂 {item.minorVersion}
+                            </span>
+                            <span className="badge badge-outline badge-sm">
+                              v{item.majorVersion}.{item.minorVersion}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className="badge badge-secondary badge-sm">
+                            {item.testGroup}
+                          </span>
+                        </td>
+                        <td>
+                          {item.activePromotion ? (
+                            <span className="badge badge-accent badge-sm">
+                              {item.activePromotion.name}
+                            </span>
+                          ) : (
+                            <span className="text-sm opacity-50">無</span>
+                          )}
+                        </td>
+                        <td>${item.price}</td>
+                        <td>
+                          <div className="flex flex-wrap gap-1">
+                            {histories.slice(0, 3).map((history) => (
+                              <span
+                                key={history.id}
+                                className="badge badge-outline badge-sm"
+                              >
+                                {versionChangeLabel(history)} v
+                                {history.majorVersion}.{history.minorVersion}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <h2 className="text-2xl font-bold mb-3">價格敏感度分析</h2>
+              <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
+                <table className="table table-zebra">
+                  <thead>
+                    <tr>
+                      <th>品項</th>
+                      <th>版本</th>
+                      <th>價格</th>
+                      <th>銷量</th>
+                      <th>營收</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {priceSensitivity.map((row) => (
+                      <tr
+                        key={`${row.logicalId}-${row.version}-${row.price}-${row.testGroup}`}
+                      >
+                        <td>{row.name}</td>
+                        <td>
+                          v{row.majorVersion}.{row.minorVersion}
+                        </td>
+                        <td>${row.price}</td>
+                        <td>{row.totalQty}</td>
+                        <td>${row.totalRevenue}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <h2 className="text-2xl font-bold mb-3">目前促銷</h2>
+              <div className="space-y-3">
+                {activePromotions.length === 0 ? (
+                  <div className="alert bg-base-100">
+                    <span>目前沒有啟用中的促銷。</span>
+                  </div>
+                ) : (
+                  activePromotions.map((promotion) => (
+                    <article
+                      key={promotion.id}
+                      className="card bg-base-100 shadow"
+                    >
+                      <div className="card-body p-4">
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="font-bold">{promotion.name}</h3>
+                          <span className="badge badge-accent">
+                            {promotion.discountType === "percent"
+                              ? `${promotion.discountValue}%`
+                              : `$${promotion.discountValue}`}
+                          </span>
+                        </div>
+                        <p className="text-sm opacity-70">
+                          適用品項：{promotion.menuItemLogicalId}
+                        </p>
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-base-200">
       <div className="navbar bg-base-100 shadow-lg flex-col items-stretch gap-2 md:flex-row md:items-center">
@@ -670,21 +967,13 @@ export default function App() {
                     <div className="card-body">
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="card-title text-lg">{item.name}</h3>
-                        <span className="badge badge-ghost shrink-0">
-                          v{item.majorVersion}.{item.minorVersion}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2 min-h-6">
-                        {item.testGroup !== "default" ? (
-                          <span className="badge badge-secondary badge-sm">
-                            {item.testGroup}
-                          </span>
-                        ) : null}
                         {item.activePromotion ? (
-                          <span className="badge badge-accent badge-sm">
+                          <span className="badge badge-accent shrink-0">
                             {item.activePromotion.name}
                           </span>
                         ) : null}
+                      </div>
+                      <div className="flex flex-wrap gap-2 min-h-6">
                         {item.isRecentlyUpdated ? (
                           <span className="badge badge-info badge-sm">
                             最近更新
@@ -715,48 +1004,6 @@ export default function App() {
                             ? "加入中..."
                             : `加入購物車${cartQtyByItemId[item.id] ? ` (${cartQtyByItemId[item.id]})` : ""}`}
                         </button>
-                      </div>
-                      <div className="pt-2 border-t border-base-300">
-                        <button
-                          className="btn btn-xs btn-ghost"
-                          onClick={() => {
-                            void loadVersionHistory(item.logicalId);
-                          }}
-                          disabled={loadingHistoryId === item.logicalId}
-                        >
-                          {loadingHistoryId === item.logicalId
-                            ? "讀取版本..."
-                            : versionHistoryByLogicalId[item.logicalId]
-                              ? "收合版本歷史"
-                              : "版本歷史"}
-                        </button>
-                        {versionHistoryByLogicalId[item.logicalId] ? (
-                          <ul className="mt-2 space-y-2 text-xs">
-                            {versionHistoryByLogicalId[item.logicalId].map(
-                              (history) => (
-                                <li
-                                  key={history.id}
-                                  className="rounded bg-base-200 p-2"
-                                >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="font-semibold">
-                                      v{history.majorVersion}.
-                                      {history.minorVersion}・${history.price}
-                                    </span>
-                                    {history.isCurrentVersion ? (
-                                      <span className="badge badge-success badge-xs">
-                                        目前
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                  <p className="opacity-70">
-                                    {history.changeReason || "未記錄變更原因"}
-                                  </p>
-                                </li>
-                              ),
-                            )}
-                          </ul>
-                        ) : null}
                       </div>
                     </div>
                   </div>

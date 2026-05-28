@@ -102,8 +102,11 @@ export const ordersTable = appSchema.table("orders", {
     .references(() => user.id),
   total: integer("total").notNull().default(0),
   status: text("status").notNull().default("pending"),
+  paymentMethod: text("payment_method"),
+  note: text("note"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
 });
 
 export const orderItemsTable = appSchema.table(
@@ -117,6 +120,9 @@ export const orderItemsTable = appSchema.table(
       .notNull()
       .references(() => menuItemsTable.id),
     qty: integer("qty").notNull(),
+    sugarLevel: text("sugar_level"),
+    iceLevel: text("ice_level"),
+    note: text("note"),
   },
   (table) => ({
     orderMenuUniqueIdx: uniqueIndex("order_items_order_menu_idx").on(

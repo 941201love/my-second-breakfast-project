@@ -6,6 +6,8 @@ import type {
   MenuItem,
   MenuItemVersionHistory,
   Order,
+  OrderItem,
+  OrderProgress,
   PriceSensitivity,
   SessionUser,
   StaleCartItem,
@@ -22,6 +24,10 @@ function versionChangeLabel(history: MenuItemVersionHistory) {
   return history.minorVersion === 0 ? "主版更新" : "修訂更新";
 }
 
+function isDrink(item: MenuItem) {
+  return item.category.includes("飲") || item.category.includes("茶");
+}
+
 export default function App() {
   const isAdminPage = window.location.pathname.startsWith("/admin");
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -36,7 +42,19 @@ export default function App() {
   const [cartQtyByItemId, setCartQtyByItemId] = useState<
     Record<string, number>
   >({});
+  const [cartOrderItemById, setCartOrderItemById] = useState<
+    Record<string, OrderItem>
+  >({});
   const [cartTotal, setCartTotal] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("cash");
+  const [orderNote, setOrderNote] = useState("");
+  const [lastSubmittedOrder, setLastSubmittedOrder] = useState<Order | null>(
+    null,
+  );
+  const [orderProgress, setOrderProgress] = useState<OrderProgress>({
+    latestSubmittedOrderId: null,
+    latestCompletedOrderId: null,
+  });
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
   const [staleCartItems, setStaleCartItems] = useState<StaleCartItem[]>([]);
@@ -52,6 +70,7 @@ export default function App() {
   const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>(
     [],
   );
+  const [adminOrders, setAdminOrders] = useState<Order[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isClearingCart, setIsClearingCart] = useState(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
@@ -64,15 +83,25 @@ export default function App() {
       },
       {} as Record<string, number>,
     );
+    const nextOrderItemById = order.items.reduce(
+      (acc, orderItem) => {
+        acc[orderItem.menuItemId] = orderItem;
+        return acc;
+      },
+      {} as Record<string, OrderItem>,
+    );
 
     setCartQtyByItemId(nextQtyByItemId);
+    setCartOrderItemById(nextOrderItemById);
     setCartTotal(order.total);
   }
 
   function resetCartState() {
     setOrderId(null);
     setCartQtyByItemId({});
+    setCartOrderItemById({});
     setCartTotal(0);
+    setOrderNote("");
     setStaleCartItems([]);
     setIsCartOpen(false);
   }
@@ -128,6 +157,14 @@ export default function App() {
     }
   }
 
+  async function loadOrderProgress(): Promise<void> {
+    const response = await fetch(buildApiUrl("/api/orders/progress"));
+    if (!response.ok) return;
+
+    const payload = (await response.json()) as ApiDataResponse<OrderProgress>;
+    if (payload?.data) setOrderProgress(payload.data);
+  }
+
   async function refreshUserOrders(): Promise<void> {
     await Promise.all([loadCurrentOrder(), loadOrderHistory()]);
   }
@@ -171,9 +208,14 @@ export default function App() {
     }
 
     void loadInitialMenu();
+    void loadOrderProgress();
+    const progressTimer = window.setInterval(() => {
+      void loadOrderProgress();
+    }, 10000);
 
     return () => {
       mounted = false;
+      window.clearInterval(progressTimer);
     };
   }, []);
 
@@ -237,11 +279,59 @@ export default function App() {
           itemId,
           qty,
           item,
+          orderItem: cartOrderItemById[itemId],
           subtotal: item.price * qty,
         };
       })
       .filter((entry) => entry !== null);
-  }, [cartQtyByItemId, items]);
+  }, [cartOrderItemById, cartQtyByItemId, items]);
+
+  const todayAdminStats = useMemo(() => {
+    const today = new Date().toLocaleDateString("sv-SE", {
+      timeZone: "Asia/Taipei",
+    });
+    const submittedToday = adminOrders.filter((order) => {
+      const sourceDate = order.submittedAt ?? order.createdAt;
+      return (
+        new Date(sourceDate).toLocaleDateString("sv-SE", {
+          timeZone: "Asia/Taipei",
+        }) === today && order.status !== "pending"
+      );
+    });
+    const revenue = submittedToday.reduce((sum, order) => sum + order.total, 0);
+    const itemSales = new Map<string, { name: string; qty: number }>();
+    const hourlySales = new Map<number, number>();
+
+    for (const order of submittedToday) {
+      const hour = new Date(order.submittedAt ?? order.createdAt).getHours();
+      hourlySales.set(hour, (hourlySales.get(hour) ?? 0) + 1);
+
+      for (const item of order.items) {
+        const current = itemSales.get(item.menuItemId) ?? {
+          name: item.menuItemName,
+          qty: 0,
+        };
+        current.qty += item.qty;
+        itemSales.set(item.menuItemId, current);
+      }
+    }
+
+    return {
+      submittedToday,
+      revenue,
+      pendingCount: adminOrders.filter((order) => order.status === "submitted")
+        .length,
+      completedCount: submittedToday.filter(
+        (order) => order.status === "completed",
+      ).length,
+      itemRanking: Array.from(itemSales.values()).sort(
+        (a, b) => b.qty - a.qty,
+      ),
+      hourlyRanking: Array.from(hourlySales.entries())
+        .map(([hour, count]) => ({ hour, count }))
+        .sort((a, b) => a.hour - b.hour),
+    };
+  }, [adminOrders]);
 
   async function ensureOrder(): Promise<number> {
     if (!user) {
@@ -380,16 +470,24 @@ export default function App() {
     setAdminError("");
 
     try {
-      const [analyticsResponse, promotionsResponse] = await Promise.all([
-        fetch(buildApiUrl("/api/menu/analytics/price-sensitivity"), {
-          credentials: "include",
-        }),
-        fetch(buildApiUrl("/api/promotions/active"), {
-          credentials: "include",
-        }),
-      ]);
+      const [analyticsResponse, promotionsResponse, ordersResponse] =
+        await Promise.all([
+          fetch(buildApiUrl("/api/menu/analytics/price-sensitivity"), {
+            credentials: "include",
+          }),
+          fetch(buildApiUrl("/api/promotions/active"), {
+            credentials: "include",
+          }),
+          fetch(buildApiUrl("/api/orders"), {
+            credentials: "include",
+          }),
+        ]);
 
-      if (!analyticsResponse.ok || !promotionsResponse.ok) {
+      if (
+        !analyticsResponse.ok ||
+        !promotionsResponse.ok ||
+        !ordersResponse.ok
+      ) {
         throw new Error("Admin API failed");
       }
 
@@ -401,12 +499,17 @@ export default function App() {
         (await promotionsResponse.json()) as ApiDataResponse<
           ActivePromotion[]
         >;
+      const ordersPayload =
+        (await ordersResponse.json()) as ApiDataResponse<Order[]>;
 
       setPriceSensitivity(
         Array.isArray(analyticsPayload?.data) ? analyticsPayload.data : [],
       );
       setActivePromotions(
         Array.isArray(promotionsPayload?.data) ? promotionsPayload.data : [],
+      );
+      setAdminOrders(
+        Array.isArray(ordersPayload?.data) ? ordersPayload.data : [],
       );
 
       const histories = await Promise.all(
@@ -435,6 +538,20 @@ export default function App() {
     } finally {
       setAdminLoading(false);
     }
+  }
+
+  async function completeAdminOrder(orderId: number): Promise<void> {
+    const response = await fetch(buildApiUrl(`/api/orders/${orderId}/complete`), {
+      method: "PATCH",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      setAdminError("完成訂單失敗，請稍後再試。");
+      return;
+    }
+
+    await Promise.all([loadAdminData(), loadOrderProgress()]);
   }
 
   async function addToCart(item: MenuItem): Promise<void> {
@@ -541,6 +658,38 @@ export default function App() {
     }
   }
 
+  async function updateCartItemOptions(
+    itemId: string,
+    next: { sugarLevel?: string; iceLevel?: string; note?: string },
+  ): Promise<void> {
+    if (!user || orderId === null) return;
+
+    const qty = cartQtyByItemId[itemId] ?? 0;
+    if (qty <= 0) return;
+
+    const current = cartOrderItemById[itemId];
+    const response = await fetch(buildApiUrl(`/api/orders/${orderId}`), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        itemId,
+        qty,
+        sugarLevel: next.sugarLevel ?? current?.sugarLevel,
+        iceLevel: next.iceLevel ?? current?.iceLevel,
+        note: next.note ?? current?.note,
+      }),
+    });
+
+    if (!response.ok) {
+      setActionError("更新品項選項失敗，請稍後再試。");
+      return;
+    }
+
+    const payload = (await response.json()) as ApiDataResponse<Order>;
+    if (payload?.data) syncCartFromOrder(payload.data);
+  }
+
   async function clearCart(): Promise<void> {
     if (!user || orderId === null || cartDetails.length === 0) {
       return;
@@ -568,6 +717,7 @@ export default function App() {
       }
 
       setCartQtyByItemId({});
+      setCartOrderItemById({});
       setCartTotal(0);
     } catch (clearError) {
       setActionError("清空購物車失敗，請稍後再試。");
@@ -593,7 +743,10 @@ export default function App() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({}),
+          body: JSON.stringify({
+            paymentMethod,
+            note: orderNote.trim() || undefined,
+          }),
         },
       );
 
@@ -620,8 +773,11 @@ export default function App() {
         throw new Error(`Submit order failed: HTTP ${response.status}`);
       }
 
+      const payload = (await response.json()) as ApiDataResponse<Order>;
+      setLastSubmittedOrder(payload.data);
       resetCartState();
       setIsCartOpen(false);
+      await loadOrderProgress();
       await loadOrderHistory();
     } catch (submitError) {
       setActionError("送出訂單失敗，請稍後再試。");
@@ -682,32 +838,164 @@ export default function App() {
           <section className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="stats shadow bg-base-100">
               <div className="stat">
-                <div className="stat-title">目前品項</div>
-                <div className="stat-value text-primary">{items.length}</div>
+                <div className="stat-title">今日單量</div>
+                <div className="stat-value text-primary">
+                  {todayAdminStats.submittedToday.length}
+                </div>
               </div>
             </div>
             <div className="stats shadow bg-base-100">
               <div className="stat">
-                <div className="stat-title">分類數</div>
+                <div className="stat-title">今日營業額</div>
                 <div className="stat-value text-secondary">
-                  {grouped.categories.length}
+                  ${todayAdminStats.revenue}
                 </div>
               </div>
             </div>
             <div className="stats shadow bg-base-100">
               <div className="stat">
-                <div className="stat-title">促銷中</div>
+                <div className="stat-title">待完成</div>
                 <div className="stat-value text-accent">
-                  {activePromotions.length}
+                  {todayAdminStats.pendingCount}
                 </div>
               </div>
             </div>
             <div className="stats shadow bg-base-100">
               <div className="stat">
-                <div className="stat-title">分析資料</div>
+                <div className="stat-title">已完成</div>
                 <div className="stat-value text-success">
-                  {priceSensitivity.length}
+                  {todayAdminStats.completedCount}
                 </div>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-bold mb-3">POS 訂單看板</h2>
+            <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
+              <table className="table table-zebra">
+                <thead>
+                  <tr>
+                    <th>單號</th>
+                    <th>狀態</th>
+                    <th>付款</th>
+                    <th>品項</th>
+                    <th>備註</th>
+                    <th>金額</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminOrders
+                    .filter((order) => order.status !== "pending")
+                    .slice(0, 20)
+                    .map((order) => (
+                      <tr key={order.id}>
+                        <td className="font-bold">#{order.id}</td>
+                        <td>
+                          <span
+                            className={`badge ${order.status === "completed" ? "badge-success" : "badge-warning"}`}
+                          >
+                            {order.status === "completed" ? "已完成" : "製作中"}
+                          </span>
+                        </td>
+                        <td>{order.paymentMethod === "card" ? "刷卡" : "現金"}</td>
+                        <td>
+                          <ul className="space-y-1 text-sm">
+                            {order.items.map((item) => (
+                              <li key={`${order.id}-${item.menuItemId}`}>
+                                {item.menuItemName} x {item.qty}
+                                {item.sugarLevel || item.iceLevel ? (
+                                  <span className="opacity-60">
+                                    {" "}
+                                    ({item.sugarLevel || "預設糖"} /{" "}
+                                    {item.iceLevel || "預設冰"})
+                                  </span>
+                                ) : null}
+                                {item.note ? (
+                                  <span className="opacity-60">
+                                    {" "}
+                                    - {item.note}
+                                  </span>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                        <td className="text-sm">{order.note || "-"}</td>
+                        <td className="font-semibold">${order.total}</td>
+                        <td>
+                          {order.status === "submitted" ? (
+                            <button
+                              className="btn btn-xs btn-success"
+                              onClick={() => {
+                                void completeAdminOrder(order.id);
+                              }}
+                            >
+                              完成
+                            </button>
+                          ) : (
+                            <span className="text-xs opacity-50">完成時間已記錄</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <h2 className="text-2xl font-bold mb-3">每日品項銷售排行</h2>
+              <div className="bg-base-100 rounded-lg shadow p-4">
+                {todayAdminStats.itemRanking.length === 0 ? (
+                  <p className="opacity-60">今日尚無已送出訂單。</p>
+                ) : (
+                  <ol className="space-y-2">
+                    {todayAdminStats.itemRanking.slice(0, 10).map((item, index) => (
+                      <li
+                        key={item.name}
+                        className="flex items-center justify-between border-b border-base-300 pb-2"
+                      >
+                        <span>
+                          {index + 1}. {item.name}
+                        </span>
+                        <span className="badge badge-primary">{item.qty} 份</span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h2 className="text-2xl font-bold mb-3">下單時段統計</h2>
+              <div className="bg-base-100 rounded-lg shadow p-4">
+                {todayAdminStats.hourlyRanking.length === 0 ? (
+                  <p className="opacity-60">今日尚無時段資料。</p>
+                ) : (
+                  <div className="space-y-2">
+                    {todayAdminStats.hourlyRanking.map((row) => (
+                      <div
+                        key={row.hour}
+                        className="flex items-center justify-between"
+                      >
+                        <span>{String(row.hour).padStart(2, "0")}:00</span>
+                        <progress
+                          className="progress progress-primary mx-3 flex-1"
+                          value={row.count}
+                          max={Math.max(
+                            ...todayAdminStats.hourlyRanking.map(
+                              (item) => item.count,
+                            ),
+                          )}
+                        />
+                        <span className="w-12 text-right">{row.count} 單</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -880,6 +1168,14 @@ export default function App() {
               購物車 {cartItemCount} 件
             </div>
             <div className="badge badge-accent">總計 ${cartTotal}</div>
+            <div className="badge badge-outline">
+              目前做到 #
+              {orderProgress.latestCompletedOrderId ?? "-"}
+            </div>
+            <div className="badge badge-outline">
+              最新單 #
+              {orderProgress.latestSubmittedOrderId ?? "-"}
+            </div>
             <button
               className="btn btn-sm btn-outline"
               onClick={() => {
@@ -932,6 +1228,15 @@ export default function App() {
         {actionError ? (
           <div className="alert alert-warning mb-4">
             <span>{actionError}</span>
+          </div>
+        ) : null}
+
+        {lastSubmittedOrder ? (
+          <div className="alert alert-success mb-4">
+            <span>
+              訂單 #{lastSubmittedOrder.id} 已送出，請留意目前做到 #
+              {orderProgress.latestCompletedOrderId ?? "-"}。
+            </span>
           </div>
         ) : null}
 
@@ -1034,7 +1339,11 @@ export default function App() {
                     <div className="card-body p-4">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <h3 className="font-semibold">訂單 #{order.id}</h3>
-                        <span className="badge badge-success">已送出</span>
+                        <span
+                          className={`badge ${order.status === "completed" ? "badge-success" : "badge-warning"}`}
+                        >
+                          {order.status === "completed" ? "已完成" : "製作中"}
+                        </span>
                       </div>
                       <p className="text-sm opacity-70">
                         建立時間：{order.createdAt}
@@ -1043,6 +1352,13 @@ export default function App() {
                         {order.items.map((detail) => (
                           <li key={`${order.id}-${detail.menuItemId}`}>
                             {detail.menuItemName} x {detail.qty}
+                            {detail.sugarLevel || detail.iceLevel ? (
+                              <span className="opacity-60">
+                                {" "}
+                                ({detail.sugarLevel || "預設糖"} /{" "}
+                                {detail.iceLevel || "預設冰"})
+                              </span>
+                            ) : null}
                           </li>
                         ))}
                       </ul>
@@ -1108,15 +1424,65 @@ export default function App() {
                   {cartDetails.map((detail) => (
                     <li
                       key={detail.itemId}
-                      className="p-3 rounded-lg bg-base-200 flex items-center justify-between"
+                      className="p-3 rounded-lg bg-base-200 space-y-3"
                     >
-                      <div>
-                        <p className="font-semibold">{detail.item.name}</p>
-                        <p className="text-sm opacity-70">
-                          單價 ${detail.item.price} x {detail.qty}
-                        </p>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold">{detail.item.name}</p>
+                          <p className="text-sm opacity-70">
+                            單價 ${detail.item.price} x {detail.qty}
+                          </p>
+                        </div>
+                        <p className="font-bold">${detail.subtotal}</p>
                       </div>
-                      <p className="font-bold">${detail.subtotal}</p>
+                      {isDrink(detail.item) ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            className="select select-sm select-bordered"
+                            value={detail.orderItem?.sugarLevel ?? ""}
+                            onChange={(event) => {
+                              void updateCartItemOptions(detail.itemId, {
+                                sugarLevel: event.currentTarget.value,
+                              });
+                            }}
+                          >
+                            <option value="">正常糖</option>
+                            <option value="無糖">無糖</option>
+                            <option value="微糖">微糖</option>
+                            <option value="半糖">半糖</option>
+                            <option value="少糖">少糖</option>
+                            <option value="正常糖">正常糖</option>
+                          </select>
+                          <select
+                            className="select select-sm select-bordered"
+                            value={detail.orderItem?.iceLevel ?? ""}
+                            onChange={(event) => {
+                              void updateCartItemOptions(detail.itemId, {
+                                iceLevel: event.currentTarget.value,
+                              });
+                            }}
+                          >
+                            <option value="">正常冰</option>
+                            <option value="去冰">去冰</option>
+                            <option value="微冰">微冰</option>
+                            <option value="少冰">少冰</option>
+                            <option value="正常冰">正常冰</option>
+                            <option value="熱飲">熱飲</option>
+                          </select>
+                        </div>
+                      ) : null}
+                      <label className="form-control">
+                        <input
+                          className="input input-sm input-bordered"
+                          placeholder="品項備註，例如：不要醬、吐司烤焦一點"
+                          value={detail.orderItem?.note ?? ""}
+                          onChange={(event) => {
+                            void updateCartItemOptions(detail.itemId, {
+                              note: event.currentTarget.value,
+                            });
+                          }}
+                        />
+                      </label>
                     </li>
                   ))}
                 </ul>
@@ -1132,6 +1498,32 @@ export default function App() {
                 <span>總金額</span>
                 <span>${cartTotal}</span>
               </div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300 p-3">
+                  <input
+                    type="radio"
+                    className="radio radio-sm"
+                    checked={paymentMethod === "cash"}
+                    onChange={() => setPaymentMethod("cash")}
+                  />
+                  <span>現金</span>
+                </label>
+                <label className="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300 p-3">
+                  <input
+                    type="radio"
+                    className="radio radio-sm"
+                    checked={paymentMethod === "card"}
+                    onChange={() => setPaymentMethod("card")}
+                  />
+                  <span>刷卡</span>
+                </label>
+              </div>
+              <textarea
+                className="textarea textarea-bordered w-full"
+                placeholder="整張訂單備註，例如：餐點分開裝、到店再做"
+                value={orderNote}
+                onChange={(event) => setOrderNote(event.currentTarget.value)}
+              />
               <button
                 className="btn btn-error btn-outline w-full"
                 onClick={() => {

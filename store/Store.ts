@@ -61,12 +61,16 @@ export interface Store {
       userId: string;
       itemId: string;
       qty: number;
+      sugarLevel?: string;
+      iceLevel?: string;
+      note?: string;
     },
   ): Promise<
     { ok: true; order: Order } | { ok: false; code: UpdateOrderItemErrorCode }
   >;
   submitOrder(
     orderId: number,
-    input: { userId: string },
+    input: { userId: string; paymentMethod?: "cash" | "card"; note?: string },
   ): Promise<{ ok: true; order: Order } | SubmitOrderError>;
+  completeOrder(orderId: number): Promise<Order | null>;
 }

@@ -163,7 +163,7 @@ export class PgStore implements Store {
 
   getOrderHistoryByUserId(userId: string): ReadonlyArray<Order> {
     return this.orders
-      .filter((o) => o.userId === userId && o.status === "submitted")
+      .filter((o) => o.userId === userId && o.status !== "pending")
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
@@ -198,7 +198,14 @@ export class PgStore implements Store {
 
   async updateOrderItem(
     orderId: number,
-    input: { userId: string; itemId: string; qty: number },
+    input: {
+      userId: string;
+      itemId: string;
+      qty: number;
+      sugarLevel?: string;
+      iceLevel?: string;
+      note?: string;
+    },
   ): Promise<
     | { ok: true; order: Order }
     | {
@@ -238,7 +245,12 @@ export class PgStore implements Store {
       } else {
         await db
           .update(orderItemsTable)
-          .set({ qty: input.qty })
+          .set({
+            qty: input.qty,
+            sugarLevel: input.sugarLevel,
+            iceLevel: input.iceLevel,
+            note: input.note,
+          })
           .where(
             and(
               eq(orderItemsTable.orderId, orderId),
@@ -246,19 +258,30 @@ export class PgStore implements Store {
             ),
           );
         const target = order.items[existingIdx];
-        if (target) target.qty = input.qty;
+        if (target) {
+          target.qty = input.qty;
+          target.sugarLevel = input.sugarLevel;
+          target.iceLevel = input.iceLevel;
+          target.note = input.note;
+        }
       }
     } else if (input.qty > 0) {
       await db.insert(orderItemsTable).values({
         orderId,
         menuItemId: menuItem.id,
         qty: input.qty,
+        sugarLevel: input.sugarLevel,
+        iceLevel: input.iceLevel,
+        note: input.note,
       });
       order.items.push({
         menuItemId: menuItem.id,
         menuItemName: menuItem.name,
         menuItemPrice: menuItem.price,
         qty: input.qty,
+        sugarLevel: input.sugarLevel,
+        iceLevel: input.iceLevel,
+        note: input.note,
       });
     }
 
@@ -273,7 +296,7 @@ export class PgStore implements Store {
 
   async submitOrder(
     orderId: number,
-    input: { userId: string },
+    input: { userId: string; paymentMethod?: "cash" | "card"; note?: string },
   ): Promise<
     | { ok: true; order: Order }
     | {
@@ -315,13 +338,35 @@ export class PgStore implements Store {
     const submittedAt = new Date().toISOString();
     await db
       .update(ordersTable)
-      .set({ status: "submitted", submittedAt: new Date(submittedAt) })
+      .set({
+        status: "submitted",
+        paymentMethod: input.paymentMethod ?? "cash",
+        note: input.note,
+        submittedAt: new Date(submittedAt),
+      })
       .where(eq(ordersTable.id, orderId));
 
     order.status = "submitted";
+    order.paymentMethod = input.paymentMethod ?? "cash";
+    order.note = input.note;
     order.submittedAt = submittedAt;
 
     return { ok: true, order };
+  }
+
+  async completeOrder(orderId: number): Promise<Order | null> {
+    const order = this.orders.find((o) => o.id === orderId);
+    if (!order || order.status === "pending") return null;
+
+    const completedAt = new Date().toISOString();
+    await db
+      .update(ordersTable)
+      .set({ status: "completed", completedAt: new Date(completedAt) })
+      .where(eq(ordersTable.id, orderId));
+
+    order.status = "completed";
+    order.completedAt = completedAt;
+    return order;
   }
 
   private async seedFromJsonIfEmpty(): Promise<void> {
@@ -364,6 +409,9 @@ export class PgStore implements Store {
         orderId: orderItemsTable.orderId,
         menuItemId: orderItemsTable.menuItemId,
         qty: orderItemsTable.qty,
+        sugarLevel: orderItemsTable.sugarLevel,
+        iceLevel: orderItemsTable.iceLevel,
+        note: orderItemsTable.note,
         menuItemName: menuItemsTable.name,
         menuItemPrice: menuItemsTable.price,
       })
@@ -382,6 +430,9 @@ export class PgStore implements Store {
         menuItemName: row.menuItemName,
         menuItemPrice: row.menuItemPrice,
         qty: row.qty,
+        sugarLevel: row.sugarLevel ?? undefined,
+        iceLevel: row.iceLevel ?? undefined,
+        note: row.note ?? undefined,
       });
       itemsByOrderId.set(row.orderId, items);
     }
@@ -391,9 +442,20 @@ export class PgStore implements Store {
       userId: row.userId,
       items: itemsByOrderId.get(row.id) ?? [],
       total: row.total,
-      status: row.status === "submitted" ? "submitted" : "pending",
+      status:
+        row.status === "completed"
+          ? "completed"
+          : row.status === "submitted"
+            ? "submitted"
+            : "pending",
+      paymentMethod:
+        row.paymentMethod === "card" || row.paymentMethod === "cash"
+          ? row.paymentMethod
+          : undefined,
+      note: row.note ?? undefined,
       createdAt: toIsoString(row.createdAt),
       submittedAt: row.submittedAt ? toIsoString(row.submittedAt) : undefined,
+      completedAt: row.completedAt ? toIsoString(row.completedAt) : undefined,
     }));
   }
 

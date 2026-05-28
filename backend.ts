@@ -15,9 +15,11 @@ import {
   menuListResponseSchema,
   nullableOrderResponseEnvelopeSchema,
   orderListResponseSchema,
+  orderProgressResponseSchema,
   orderResponseEnvelopeSchema,
   priceSensitivityListResponseSchema,
   submitOrderParamsSchema,
+  submitOrderBodySchema,
   toOrderResponse,
   updateMenuDisplayOrderBodySchema,
   updateMenuItemBodySchema,
@@ -386,6 +388,68 @@ app.post(
   },
 );
 
+app.get(
+  "/api/orders/progress",
+  () => {
+    const submittedOrders = store
+      .getOrders()
+      .filter((order) => order.status !== "pending");
+    const completedOrders = store
+      .getOrders()
+      .filter((order) => order.status === "completed");
+
+    return {
+      data: {
+        latestSubmittedOrderId:
+          submittedOrders.length > 0
+            ? Math.max(...submittedOrders.map((order) => order.id))
+            : null,
+        latestCompletedOrderId:
+          completedOrders.length > 0
+            ? Math.max(...completedOrders.map((order) => order.id))
+            : null,
+      },
+    };
+  },
+  {
+    detail: {
+      tags: ["orders"],
+      summary: "Get order progress",
+      description: "Return latest submitted order id and latest completed id.",
+    },
+    response: {
+      200: orderProgressResponseSchema,
+    },
+  },
+);
+
+app.patch(
+  "/api/orders/:id/complete",
+  async ({ params, set }) => {
+    const orderId = parseInt(params.id, 10);
+    const order = await store.completeOrder(orderId);
+
+    if (!order) {
+      set.status = 404;
+      return { error: "Order not found or cannot be completed" };
+    }
+
+    return { data: toOrderResponse(order) };
+  },
+  {
+    params: updateOrderParamsSchema,
+    detail: {
+      tags: ["orders"],
+      summary: "Complete order",
+      description: "Mark a submitted order as completed from POS admin.",
+    },
+    response: {
+      200: orderResponseEnvelopeSchema,
+      404: apiErrorResponseSchema,
+    },
+  },
+);
+
 // 獲取單筆訂單
 app.get(
   "/api/orders/:id",
@@ -433,6 +497,9 @@ app.patch(
       userId: user.id,
       itemId: body.itemId,
       qty: body.qty,
+      sugarLevel: body.sugarLevel,
+      iceLevel: body.iceLevel,
+      note: body.note,
     });
 
     if (!result.ok && result.code === "ORDER_NOT_FOUND") {
@@ -484,10 +551,14 @@ app.patch(
 // 送出訂單
 app.post(
   "/api/orders/:id/submit",
-  async ({ params, request, set }) => {
+  async ({ params, body, request, set }) => {
     const user = await requireUser(request);
     const orderId = parseInt(params.id, 10);
-    const result = await store.submitOrder(orderId, { userId: user.id });
+    const result = await store.submitOrder(orderId, {
+      userId: user.id,
+      paymentMethod: body.paymentMethod,
+      note: body.note,
+    });
 
     if (!result.ok && result.code === "ORDER_NOT_FOUND") {
       set.status = 404;
@@ -527,6 +598,7 @@ app.post(
   },
   {
     params: submitOrderParamsSchema,
+    body: submitOrderBodySchema,
     detail: {
       tags: ["orders"],
       summary: "Submit order",

@@ -259,9 +259,23 @@ export class JsonFileStore implements Store {
           items: order.items.map((orderItem) =>
             normalizeOrderItem(orderItem as LegacyOrderItem),
           ),
-          status: order.status === "submitted" ? "submitted" : "pending",
+          status:
+            order.status === "completed"
+              ? "completed"
+              : order.status === "submitted"
+                ? "submitted"
+                : "pending",
+          paymentMethod:
+            order.paymentMethod === "card" || order.paymentMethod === "cash"
+              ? order.paymentMethod
+              : undefined,
+          note: order.note,
           submittedAt:
-            order.status === "submitted" ? order.submittedAt : undefined,
+            order.status === "submitted" || order.status === "completed"
+              ? order.submittedAt
+              : undefined,
+          completedAt:
+            order.status === "completed" ? order.completedAt : undefined,
         })),
         userIdCounter: parsed.userIdCounter ?? 0,
         menuIdCounter: parsed.menuIdCounter ?? 0,
@@ -407,7 +421,7 @@ export class JsonFileStore implements Store {
   getOrderHistoryByUserId(userId: string): ReadonlyArray<Order> {
     return this.orders
       .filter(
-        (order) => order.userId === userId && order.status === "submitted",
+        (order) => order.userId === userId && order.status !== "pending",
       )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
@@ -443,6 +457,9 @@ export class JsonFileStore implements Store {
       userId: string;
       itemId: string;
       qty: number;
+      sugarLevel?: string;
+      iceLevel?: string;
+      note?: string;
     },
   ): Promise<
     | { ok: true; order: Order }
@@ -486,6 +503,9 @@ export class JsonFileStore implements Store {
         order.items.splice(existingItemIndex, 1);
       } else if (existingOrderItem) {
         existingOrderItem.qty = input.qty;
+        existingOrderItem.sugarLevel = input.sugarLevel;
+        existingOrderItem.iceLevel = input.iceLevel;
+        existingOrderItem.note = input.note;
       }
     } else if (input.qty > 0) {
       order.items.push({
@@ -493,6 +513,9 @@ export class JsonFileStore implements Store {
         menuItemName: menuItem.name,
         menuItemPrice: menuItem.price,
         qty: input.qty,
+        sugarLevel: input.sugarLevel,
+        iceLevel: input.iceLevel,
+        note: input.note,
       });
     }
 
@@ -504,7 +527,7 @@ export class JsonFileStore implements Store {
 
   async submitOrder(
     orderId: number,
-    input: { userId: string },
+    input: { userId: string; paymentMethod?: "cash" | "card"; note?: string },
   ): Promise<
     | { ok: true; order: Order }
     | {
@@ -575,10 +598,24 @@ export class JsonFileStore implements Store {
     }
 
     order.status = "submitted";
+    order.paymentMethod = input.paymentMethod ?? "cash";
+    order.note = input.note;
     order.submittedAt = new Date().toISOString();
     await this.persist();
 
     return { ok: true, order };
+  }
+
+  async completeOrder(orderId: number): Promise<Order | null> {
+    const order = this.orders.find((targetOrder) => targetOrder.id === orderId);
+    if (!order || order.status === "pending") {
+      return null;
+    }
+
+    order.status = "completed";
+    order.completedAt = new Date().toISOString();
+    await this.persist();
+    return order;
   }
 
   private createInitialStore(): DataStore {

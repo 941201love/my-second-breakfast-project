@@ -5,6 +5,7 @@ import {
   menuItemSchema,
   menuItemVersionHistorySchema,
   orderSchema,
+  orderProgressSchema,
   priceSensitivitySchema,
   staleCartItemSchema,
 } from "./contracts.ts";
@@ -103,11 +104,19 @@ export const updateOrderParamsSchema = z.object({
 export const updateOrderBodySchema = z.object({
   itemId: z.string().min(1),
   qty: z.number().min(0),
+  sugarLevel: z.string().optional(),
+  iceLevel: z.string().optional(),
+  note: z.string().optional(),
 });
 
 /** POST /api/orders/:id/submit */
 export const submitOrderParamsSchema = z.object({
   id: z.string().regex(/^[0-9]+$/),
+});
+
+export const submitOrderBodySchema = z.object({
+  paymentMethod: z.enum(["cash", "card"]).default("cash"),
+  note: z.string().optional(),
 });
 
 // ─── Response Schemas（API envelope 層）─────────────────────────────────
@@ -142,6 +151,10 @@ export const orderResponseEnvelopeSchema = z.object({
 
 export const nullableOrderResponseEnvelopeSchema = z.object({
   data: orderResponseSchema.nullable(),
+});
+
+export const orderProgressResponseSchema = z.object({
+  data: orderProgressSchema,
 });
 
 export const healthResponseSchema = z.object({

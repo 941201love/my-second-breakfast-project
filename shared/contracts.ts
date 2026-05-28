@@ -108,6 +108,9 @@ export const orderItemSchema = z.object({
   menuItemName: z.string().min(1),
   menuItemPrice: z.number().min(0),
   qty: z.number().min(0),
+  sugarLevel: z.string().optional(),
+  iceLevel: z.string().optional(),
+  note: z.string().optional(),
 });
 
 export const orderSchema = z.object({
@@ -115,9 +118,17 @@ export const orderSchema = z.object({
   userId: z.string().min(1),
   items: z.array(orderItemSchema),
   total: z.number().min(0),
-  status: z.enum(["pending", "submitted"]),
+  status: z.enum(["pending", "submitted", "completed"]),
+  paymentMethod: z.enum(["cash", "card"]).optional(),
+  note: z.string().optional(),
   createdAt: z.string().min(1),
   submittedAt: z.string().min(1).optional(),
+  completedAt: z.string().min(1).optional(),
+});
+
+export const orderProgressSchema = z.object({
+  latestSubmittedOrderId: z.number().int().min(1).nullable(),
+  latestCompletedOrderId: z.number().int().min(1).nullable(),
 });
 
 // ─── Derived TypeScript Types（自動推導，永不過時）───────────────────────────
@@ -132,6 +143,7 @@ export type User = z.infer<typeof userSchema>;
 export type SessionUser = z.infer<typeof sessionUserSchema>;
 export type OrderItem = z.infer<typeof orderItemSchema>;
 export type Order = z.infer<typeof orderSchema>;
+export type OrderProgress = z.infer<typeof orderProgressSchema>;
 
 export interface ApiDataResponse<T> {
   data: T;

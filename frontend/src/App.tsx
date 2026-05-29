@@ -29,6 +29,34 @@ function isDrink(item: MenuItem) {
   return item.category.includes("飲") || item.category.includes("茶");
 }
 
+function formatTaipeiDateTime(value?: string) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString("zh-TW", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function orderStatusLabel(status: Order["status"]) {
+  if (status === "completed") return "已完成";
+  if (status === "submitted") return "製作中";
+  return "購物車";
+}
+
+function orderStatusBadgeClass(status: Order["status"]) {
+  if (status === "completed") return "badge-success";
+  if (status === "submitted") return "badge-warning";
+  return "badge-ghost";
+}
+
 const sugarOptions = ["正常糖", "少糖", "半糖", "微糖", "無糖"];
 const iceOptions = ["正常冰", "少冰", "微冰", "去冰", "熱飲"];
 
@@ -43,6 +71,7 @@ export default function App() {
   const [orderId, setOrderId] = useState<number | null>(null);
   const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [cartQtyByItemId, setCartQtyByItemId] = useState<
     Record<string, number>
   >({});
@@ -264,6 +293,7 @@ export default function App() {
   useEffect(() => {
     if (!user) {
       setHistoryOrders([]);
+      setIsHistoryOpen(false);
       setIsCartOpen(false);
       resetCartState();
       return;
@@ -1156,9 +1186,9 @@ export default function App() {
                         </td>
                         <td>
                           <span
-                            className={`badge ${order.status === "completed" ? "badge-success" : "badge-warning"}`}
+                            className={`badge ${orderStatusBadgeClass(order.status)}`}
                           >
-                            {order.status === "completed" ? "已完成" : "製作中"}
+                            {orderStatusLabel(order.status)}
                           </span>
                         </td>
                         <td>{order.paymentMethod === "card" ? "刷卡" : "現金"}</td>
@@ -1193,11 +1223,11 @@ export default function App() {
                             取餐：{order.pickupTime || "-"}
                           </div>
                           <div className="opacity-60">
-                            下單：{order.submittedAt ?? "-"}
+                            下單：{formatTaipeiDateTime(order.submittedAt)}
                           </div>
                           {order.completedAt ? (
                             <div className="opacity-60">
-                              完成：{order.completedAt}
+                              完成：{formatTaipeiDateTime(order.completedAt)}
                             </div>
                           ) : null}
                         </td>
@@ -1565,6 +1595,16 @@ export default function App() {
             >
               購物車明細
             </button>
+            <button
+              className="btn btn-sm btn-outline"
+              onClick={() => {
+                setIsHistoryOpen(true);
+                void loadOrderHistory();
+              }}
+              disabled={!user}
+            >
+              歷史訂單
+            </button>
             {user ? (
               <button
                 className="btn btn-sm"
@@ -1694,38 +1734,73 @@ export default function App() {
         )}
 
         {user ? (
-          <section className="mt-10">
-            <h2 className="text-2xl font-bold mb-4">我的訂單歷史</h2>
-            {historyLoading ? (
-              <div className="alert">
-                <span>讀取中...</span>
-              </div>
-            ) : historyOrders.length === 0 ? (
-              <div className="alert alert-info">
-                <span>目前尚無歷史訂單。</span>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {historyOrders.map((order) => (
-                  <article
-                    key={order.id}
-                    className="card bg-base-100 shadow-sm border border-base-300"
-                  >
-                    <div className="card-body p-4">
+          <section className="mt-10 flex justify-center">
+            <button
+              className="btn btn-outline"
+              onClick={() => {
+                setIsHistoryOpen(true);
+                void loadOrderHistory();
+              }}
+            >
+              查看歷史訂單
+            </button>
+          </section>
+        ) : null}
+      </main>
+
+      {user && isHistoryOpen ? (
+        <>
+          <button
+            className="fixed inset-0 bg-black/35 z-20"
+            aria-label="close order history"
+            onClick={() => setIsHistoryOpen(false)}
+          />
+          <section className="fixed right-0 top-0 z-30 h-full w-full max-w-lg bg-base-100 shadow-2xl flex flex-col">
+            <div className="p-4 border-b border-base-300 flex items-center justify-between">
+              <h2 className="text-xl font-bold">歷史訂單</h2>
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => setIsHistoryOpen(false)}
+              >
+                關閉
+              </button>
+            </div>
+            <div className="p-4 flex-1 overflow-auto">
+              {historyLoading ? (
+                <div className="alert">
+                  <span>讀取中...</span>
+                </div>
+              ) : historyOrders.length === 0 ? (
+                <div className="alert alert-info">
+                  <span>目前尚無歷史訂單。</span>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {historyOrders.map((order) => (
+                    <article
+                      key={order.id}
+                      className="rounded-lg bg-base-200 p-4 space-y-3"
+                    >
                       <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <h3 className="font-semibold">訂單 #{order.id}</h3>
+                        <h3 className="font-semibold">
+                          訂單 #{order.dailySequence ?? order.id}
+                        </h3>
                         <span
-                          className={`badge ${order.status === "completed" ? "badge-success" : "badge-warning"}`}
+                          className={`badge ${orderStatusBadgeClass(order.status)}`}
                         >
-                          {order.status === "completed" ? "已完成" : "製作中"}
+                          {orderStatusLabel(order.status)}
                         </span>
                       </div>
-                      <p className="text-sm opacity-70">
-                        建立時間：{order.createdAt}
-                      </p>
+                      <div className="text-sm opacity-70 space-y-1">
+                        <p>建立時間：{formatTaipeiDateTime(order.createdAt)}</p>
+                        <p>下單時間：{formatTaipeiDateTime(order.submittedAt)}</p>
+                        {order.completedAt ? (
+                          <p>完成時間：{formatTaipeiDateTime(order.completedAt)}</p>
+                        ) : null}
+                      </div>
                       <ul className="text-sm list-disc pl-5 space-y-1">
                         {order.items.map((detail) => (
-                          <li key={`${order.id}-${detail.menuItemId}`}>
+                          <li key={`${order.id}-${detail.menuItemId}-${detail.id ?? detail.menuItemName}`}>
                             {detail.menuItemName} x {detail.qty}
                             {detail.sugarLevel || detail.iceLevel ? (
                               <span className="opacity-60">
@@ -1737,17 +1812,18 @@ export default function App() {
                           </li>
                         ))}
                       </ul>
-                      <p className="font-bold text-right">
-                        總額 ${order.total}
-                      </p>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
+                      <div className="flex items-center justify-between font-semibold">
+                        <span>{order.paymentMethod === "card" ? "刷卡" : "現金"}</span>
+                        <span>總額 ${order.total}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
           </section>
-        ) : null}
-      </main>
+        </>
+      ) : null}
 
       {customizingItem ? (
         <>

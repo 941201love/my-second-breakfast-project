@@ -65,6 +65,15 @@ type UserProfile = {
 
 const sugarOptions = ["正常糖", "少糖", "半糖", "微糖", "無糖"];
 const iceOptions = ["正常冰", "少冰", "微冰", "去冰", "熱飲"];
+const languageOptions: Array<{
+  value: UserProfile["language"];
+  label: string;
+}> = [
+  { value: "zh-TW", label: "中文" },
+  { value: "en", label: "English" },
+  { value: "ja", label: "日本語" },
+  { value: "ko", label: "한국어" },
+];
 
 export default function App() {
   const isAdminPage = window.location.pathname.startsWith("/admin");
@@ -1993,21 +2002,26 @@ export default function App() {
                   }))
                 }
               />
-              <select
-                className="select select-bordered w-full"
-                value={profile.language}
-                onChange={(event) =>
-                  setProfile((current) => ({
-                    ...current,
-                    language: event.currentTarget.value as UserProfile["language"],
-                  }))
-                }
-              >
-                <option value="zh-TW">中文</option>
-                <option value="en">English</option>
-                <option value="ja">日本語</option>
-                <option value="ko">한국어</option>
-              </select>
+              <div className="grid grid-cols-2 gap-2">
+                {languageOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    className={`btn btn-sm ${
+                      profile.language === option.value
+                        ? "btn-primary"
+                        : "btn-outline"
+                    }`}
+                    onClick={() =>
+                      setProfile((current) => ({
+                        ...current,
+                        language: option.value,
+                      }))
+                    }
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
               <p className="text-xs opacity-60">
                 語言設定先儲存偏好；自動翻譯會在多語系模組接上。
               </p>

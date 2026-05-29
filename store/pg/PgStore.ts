@@ -75,6 +75,7 @@ export class PgStore implements Store {
 
   async init(): Promise<void> {
     await db.execute(sql`select 1`);
+    await this.ensureCouponRuleColumns();
     await this.seedFromJsonIfEmpty();
     await this.reloadFromDatabase();
   }
@@ -429,7 +430,12 @@ export class PgStore implements Store {
     }
     const discountTotal = coupon
       ? coupon.discountType === "percent"
-        ? Math.floor((order.total * coupon.discountValue) / 100)
+        ? Math.min(
+            coupon.maxDiscount && coupon.maxDiscount > 0
+              ? coupon.maxDiscount
+              : order.total,
+            Math.floor((order.total * (100 - coupon.discountValue)) / 100),
+          )
         : Math.min(order.total, coupon.discountValue)
       : 0;
     order.total = Math.max(0, order.total - discountTotal);
@@ -490,6 +496,7 @@ export class PgStore implements Store {
         ...input,
         code: input.code.toUpperCase(),
         minSpend: input.minSpend ?? 0,
+        maxDiscount: input.maxDiscount ?? 0,
         usageLimitPerUser: input.usageLimitPerUser ?? 1,
         expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
       })
@@ -500,6 +507,7 @@ export class PgStore implements Store {
           discountType: input.discountType,
           discountValue: input.discountValue,
           minSpend: input.minSpend ?? 0,
+          maxDiscount: input.maxDiscount ?? 0,
           usageLimitPerUser: input.usageLimitPerUser ?? 1,
           expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
           isActive: input.isActive,
@@ -514,6 +522,7 @@ export class PgStore implements Store {
       discountType: row?.discountType === "percent" ? "percent" : "amount",
       discountValue: row?.discountValue ?? input.discountValue,
       minSpend: row?.minSpend ?? input.minSpend ?? 0,
+      maxDiscount: row?.maxDiscount ?? input.maxDiscount ?? 0,
       usageLimitPerUser: row?.usageLimitPerUser ?? input.usageLimitPerUser ?? 1,
       expiresAt: row?.expiresAt?.toISOString() ?? input.expiresAt,
       isActive: row?.isActive ?? input.isActive,
@@ -664,10 +673,30 @@ export class PgStore implements Store {
       discountType: row.discountType === "percent" ? "percent" : "amount",
       discountValue: row.discountValue,
       minSpend: row.minSpend,
+      maxDiscount: row.maxDiscount,
       usageLimitPerUser: row.usageLimitPerUser,
       expiresAt: row.expiresAt?.toISOString(),
       isActive: row.isActive,
     }));
+  }
+
+  private async ensureCouponRuleColumns(): Promise<void> {
+    await db.execute(sql`
+      ALTER TABLE "bf_v10"."coupons"
+        ADD COLUMN IF NOT EXISTS "min_spend" integer DEFAULT 0 NOT NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE "bf_v10"."coupons"
+        ADD COLUMN IF NOT EXISTS "max_discount" integer DEFAULT 0 NOT NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE "bf_v10"."coupons"
+        ADD COLUMN IF NOT EXISTS "usage_limit_per_user" integer DEFAULT 1 NOT NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE "bf_v10"."coupons"
+        ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone
+    `);
   }
 
   private canUseCoupon(

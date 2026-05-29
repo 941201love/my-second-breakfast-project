@@ -68,7 +68,10 @@ function isTaiwanMobilePhone(phone: string) {
 function calculateCouponDiscount(coupon: Coupon | null, amount: number) {
   if (!coupon) return 0;
   if (coupon.discountType === "percent") {
-    return Math.min(amount, Math.floor((amount * coupon.discountValue) / 100));
+    const discount = Math.floor((amount * (100 - coupon.discountValue)) / 100);
+    return coupon.maxDiscount && coupon.maxDiscount > 0
+      ? Math.min(discount, coupon.maxDiscount)
+      : Math.min(amount, discount);
   }
 
   return Math.min(amount, coupon.discountValue);
@@ -184,6 +187,18 @@ const categoryLabels: Record<UserProfile["language"], Record<string, string>> = 
     未分類: "기타",
   },
 };
+const breakfastCategoryOptions = [
+  "飲料",
+  "主餐",
+  "蛋餅",
+  "吐司",
+  "漢堡",
+  "飯糰",
+  "麵食",
+  "點心",
+  "套餐",
+  "其他",
+];
 const builtInMenuTranslations: Record<
   string,
   NonNullable<MenuItem["translations"]>
@@ -753,6 +768,7 @@ export default function App() {
     discountType: "amount" as "amount" | "percent",
     discountValue: 10,
     minSpend: 0,
+    maxDiscount: 0,
     usageLimitPerUser: 1,
     expiresAt: "",
   });
@@ -1502,6 +1518,21 @@ export default function App() {
     await loadCoupons();
   }
 
+  function loadMenuImageFile(file: File | null): void {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      const imageUrl = typeof reader.result === "string" ? reader.result : "";
+      if (!imageUrl) return;
+      setNewMenuItem((current) => ({
+        ...current,
+        imageUrl,
+      }));
+    });
+    reader.readAsDataURL(file);
+  }
+
   async function deleteAdminCoupon(code: string): Promise<void> {
     const response = await fetch(buildApiUrl(`/api/coupons/${code}`), {
       method: "DELETE",
@@ -2161,45 +2192,79 @@ export default function App() {
                   </button>
                 </div>
                 <div className="p-4 flex-1 overflow-auto space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <input
-                      className="input input-bordered"
-                      type="number"
-                      min="0"
-                      value={newMenuItem.price}
-                      onChange={(event) => {
-                        const price = Number(event.currentTarget.value);
-                        setNewMenuItem((current) => ({
-                          ...current,
-                          price,
-                        }));
-                      }}
-                      placeholder="價格"
-                    />
-                    <input
-                      className="input input-bordered"
-                      value={newMenuItem.category}
-                      onChange={(event) => {
-                        const category = event.currentTarget.value;
-                        setNewMenuItem((current) => ({
-                          ...current,
-                          category,
-                        }));
-                      }}
-                      placeholder="分類，例如 飲料 / 主餐 / 點心"
-                    />
-                    <input
-                      className="input input-bordered"
-                      value={newMenuItem.imageUrl}
-                      onChange={(event) => {
-                        const imageUrl = event.currentTarget.value;
-                        setNewMenuItem((current) => ({
-                          ...current,
-                          imageUrl,
-                        }));
-                      }}
-                      placeholder="圖片網址"
-                    />
+                  <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr_1.2fr] gap-3">
+                    <label className="form-control">
+                      <span className="label-text mb-1">價格（NT）</span>
+                      <input
+                        className="input input-bordered"
+                        type="number"
+                        min="0"
+                        value={newMenuItem.price}
+                        onChange={(event) => {
+                          const price = Number(event.currentTarget.value);
+                          setNewMenuItem((current) => ({
+                            ...current,
+                            price,
+                          }));
+                        }}
+                        placeholder="例如 50"
+                      />
+                    </label>
+                    <div>
+                      <span className="label-text mb-1 block">分類</span>
+                      <details className="dropdown w-full">
+                        <summary className="btn btn-outline w-full justify-between">
+                          {newMenuItem.category}
+                          <span>⌄</span>
+                        </summary>
+                        <ul className="menu dropdown-content z-[60] mt-2 w-full rounded-lg bg-base-100 p-2 shadow border border-base-300">
+                          {breakfastCategoryOptions.map((category) => (
+                            <li key={category}>
+                              <button
+                                onClick={() =>
+                                  setNewMenuItem((current) => ({
+                                    ...current,
+                                    category,
+                                  }))
+                                }
+                              >
+                                {category}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    </div>
+                    <div className="space-y-2">
+                      <span className="label-text block">照片</span>
+                      <input
+                        className="file-input file-input-bordered w-full"
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => {
+                          loadMenuImageFile(event.currentTarget.files?.[0] ?? null);
+                        }}
+                      />
+                      <input
+                        className="input input-bordered w-full"
+                        value={newMenuItem.imageUrl}
+                        onChange={(event) => {
+                          const imageUrl = event.currentTarget.value;
+                          setNewMenuItem((current) => ({
+                            ...current,
+                            imageUrl,
+                          }));
+                        }}
+                        placeholder="或貼圖片網址"
+                      />
+                      {newMenuItem.imageUrl ? (
+                        <img
+                          src={newMenuItem.imageUrl}
+                          alt="商品預覽"
+                          className="h-28 w-full rounded-lg object-cover border border-base-300"
+                        />
+                      ) : null}
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {menuLanguageOptions.map((option) => (
@@ -2620,7 +2685,7 @@ export default function App() {
                           }))
                         }
                       >
-                        折抵金額
+                        金額 NT
                       </button>
                       <button
                         className={`btn join-item flex-1 ${
@@ -2635,12 +2700,14 @@ export default function App() {
                         }))
                       }
                       >
-                        百分比
+                        百分比 %
                       </button>
                     </div>
                     <input
                       className="input input-bordered"
                       type="number"
+                      min="1"
+                      max={newCoupon.discountType === "percent" ? "100" : undefined}
                       value={newCoupon.discountValue}
                       onChange={(event) => {
                         const discountValue = Number(event.currentTarget.value);
@@ -2651,7 +2718,10 @@ export default function App() {
                       }}
                     />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <p className="text-xs opacity-60">
+                    百分比請輸入實付比例，例如 80% 代表打八折；金額為 NT 折抵。
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                     <input
                       className="input input-bordered"
                       type="number"
@@ -2664,7 +2734,21 @@ export default function App() {
                           minSpend,
                         }));
                       }}
-                      placeholder="低消金額"
+                      placeholder="滿多少才折"
+                    />
+                    <input
+                      className="input input-bordered"
+                      type="number"
+                      min="0"
+                      value={newCoupon.maxDiscount}
+                      onChange={(event) => {
+                        const maxDiscount = Number(event.currentTarget.value);
+                        setNewCoupon((current) => ({
+                          ...current,
+                          maxDiscount,
+                        }));
+                      }}
+                      placeholder="最多折多少（0 不限）"
                     />
                     <input
                       className="input input-bordered"
@@ -2721,6 +2805,9 @@ export default function App() {
                         <p className="text-xs opacity-70">
                           低消 {formatMoney(coupon.minSpend ?? 0)} · 每帳號{" "}
                           {coupon.usageLimitPerUser ?? 1} 次
+                          {coupon.maxDiscount
+                            ? ` · 最高折 ${formatMoney(coupon.maxDiscount)}`
+                            : ""}
                           {coupon.expiresAt
                             ? ` · 到期 ${formatTaipeiDateTime(coupon.expiresAt)}`
                             : ""}

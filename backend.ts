@@ -359,6 +359,7 @@ app.post(
       discountType: body.discountType,
       discountValue: body.discountValue,
       minSpend: body.minSpend,
+      maxDiscount: body.maxDiscount,
       usageLimitPerUser: body.usageLimitPerUser,
       expiresAt: body.expiresAt,
       isActive: body.isActive,

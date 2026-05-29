@@ -103,6 +103,7 @@ export const couponsTable = appSchema.table("coupons", {
   discountType: text("discount_type").notNull().default("amount"),
   discountValue: integer("discount_value").notNull(),
   minSpend: integer("min_spend").notNull().default(0),
+  maxDiscount: integer("max_discount").notNull().default(0),
   usageLimitPerUser: integer("usage_limit_per_user").notNull().default(1),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   isActive: boolean("is_active").notNull().default(true),

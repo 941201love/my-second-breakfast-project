@@ -395,11 +395,12 @@ export class JsonFileStore implements Store {
                 coupon.discountType === "percent" ? "percent" : "amount",
               discountValue: coupon.discountValue,
               minSpend: coupon.minSpend ?? 0,
+              maxDiscount: coupon.maxDiscount ?? 0,
               usageLimitPerUser: coupon.usageLimitPerUser ?? 1,
               expiresAt: coupon.expiresAt,
               isActive: coupon.isActive,
             }))
-          : [{ code: "BREAKFAST10", name: "早餐折 10 元", discountType: "amount", discountValue: 10, minSpend: 0, usageLimitPerUser: 1, isActive: true }],
+          : [{ code: "BREAKFAST10", name: "早餐折 10 元", discountType: "amount", discountValue: 10, minSpend: 0, maxDiscount: 0, usageLimitPerUser: 1, isActive: true }],
         userIdCounter: parsed.userIdCounter ?? 0,
         menuIdCounter: parsed.menuIdCounter ?? 0,
         orderIdCounter: parsed.orderIdCounter ?? 0,
@@ -791,7 +792,12 @@ export class JsonFileStore implements Store {
     }
     const discountTotal = coupon
       ? coupon.discountType === "percent"
-        ? Math.floor((order.total * coupon.discountValue) / 100)
+        ? Math.min(
+            coupon.maxDiscount && coupon.maxDiscount > 0
+              ? coupon.maxDiscount
+              : order.total,
+            Math.floor((order.total * (100 - coupon.discountValue)) / 100),
+          )
         : Math.min(order.total, coupon.discountValue)
       : 0;
     order.total = Math.max(0, order.total - discountTotal);
@@ -831,6 +837,7 @@ export class JsonFileStore implements Store {
       ...input,
       code: input.code.toUpperCase(),
       minSpend: input.minSpend ?? 0,
+      maxDiscount: input.maxDiscount ?? 0,
       usageLimitPerUser: input.usageLimitPerUser ?? 1,
       expiresAt: input.expiresAt || undefined,
     };

@@ -752,6 +752,7 @@ app.post(
       paymentMethod: body.paymentMethod,
       note: body.note,
       couponCode: body.couponCode,
+      customerName: body.customerName,
       customerPhone: body.customerPhone,
       pickupTime: body.pickupTime,
     });

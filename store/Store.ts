@@ -84,6 +84,7 @@ export interface Store {
       paymentMethod?: "cash" | "card";
       note?: string;
       couponCode?: string;
+      customerName?: string;
       customerPhone?: string;
       pickupTime?: string;
     },

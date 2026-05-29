@@ -57,6 +57,12 @@ function orderStatusBadgeClass(status: Order["status"]) {
   return "badge-ghost";
 }
 
+type UserProfile = {
+  nickname: string;
+  phone: string;
+  language: "zh-TW" | "en" | "ja" | "ko";
+};
+
 const sugarOptions = ["正常糖", "少糖", "半糖", "微糖", "無糖"];
 const iceOptions = ["正常冰", "少冰", "微冰", "去冰", "熱飲"];
 
@@ -72,6 +78,12 @@ export default function App() {
   const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profile, setProfile] = useState<UserProfile>({
+    nickname: "",
+    phone: "",
+    language: "zh-TW",
+  });
   const [cartQtyByItemId, setCartQtyByItemId] = useState<
     Record<string, number>
   >({});
@@ -120,6 +132,7 @@ export default function App() {
     discountValue: 10,
   });
   const [couponCode, setCouponCode] = useState("");
+  const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [pickupTime, setPickupTime] = useState("");
   const [adminOrders, setAdminOrders] = useState<Order[]>([]);
@@ -168,6 +181,7 @@ export default function App() {
     setCartTotal(0);
     setOrderNote("");
     setCouponCode("");
+    setCustomerName("");
     setCustomerPhone("");
     setPickupTime("");
     setStaleCartItems([]);
@@ -298,16 +312,51 @@ export default function App() {
     if (!user) {
       setHistoryOrders([]);
       setIsHistoryOpen(false);
+      setIsProfileOpen(false);
       setIsCartOpen(false);
       resetCartState();
       return;
     }
+
+    const storageKey = `breakfast-profile:${user.id}`;
+    const savedProfile = window.localStorage.getItem(storageKey);
+    let nextProfile: UserProfile = {
+      nickname: user.name,
+      phone: "",
+      language: "zh-TW",
+    };
+    if (savedProfile) {
+      try {
+        nextProfile = {
+          ...nextProfile,
+          ...(JSON.parse(savedProfile) as Partial<UserProfile>),
+        };
+      } catch {
+        window.localStorage.removeItem(storageKey);
+      }
+    }
+    setProfile(nextProfile);
+    setCustomerName(nextProfile.nickname || user.name);
+    setCustomerPhone(nextProfile.phone);
 
     void refreshUserOrders().catch((refreshError) => {
       setActionError("載入使用者訂單資料失敗，請稍後再試。");
       console.error(refreshError);
     });
   }, [user]);
+
+  function saveProfile(nextProfile: UserProfile) {
+    if (!user) return;
+
+    setProfile(nextProfile);
+    setCustomerName(nextProfile.nickname || user.name);
+    setCustomerPhone(nextProfile.phone);
+    window.localStorage.setItem(
+      `breakfast-profile:${user.id}`,
+      JSON.stringify(nextProfile),
+    );
+    setIsProfileOpen(false);
+  }
 
   useEffect(() => {
     if (!completedNoticeOrder) return;
@@ -794,6 +843,7 @@ export default function App() {
               sugarLevel: options.sugarLevel || undefined,
               iceLevel: options.iceLevel || undefined,
               note: options.note?.trim() || undefined,
+              forceNew: true,
             }),
           },
         );
@@ -866,6 +916,51 @@ export default function App() {
     } finally {
       setActiveItemId(null);
       setCustomizingItem(null);
+    }
+  }
+
+  async function buyAgain(order: Order): Promise<void> {
+    if (!user || order.items.length === 0) return;
+
+    setActionError("");
+    setActiveItemId(`order-${order.id}`);
+
+    try {
+      const targetOrderId = await ensureOrder();
+      let latestOrder: Order | null = null;
+
+      for (const orderItem of order.items) {
+        const response = await fetch(buildApiUrl(`/api/orders/${targetOrderId}`), {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            itemId: orderItem.menuItemId,
+            qty: orderItem.qty,
+            sugarLevel: orderItem.sugarLevel,
+            iceLevel: orderItem.iceLevel,
+            note: orderItem.note,
+            forceNew: true,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Buy again failed: HTTP ${response.status}`);
+        }
+
+        const payload = (await response.json()) as ApiDataResponse<Order>;
+        latestOrder = payload.data;
+      }
+
+      if (latestOrder) syncCartFromOrder(latestOrder);
+      setCartView("items");
+      setIsHistoryOpen(false);
+      setIsCartOpen(true);
+    } catch (buyAgainError) {
+      setActionError("重新加入購物車失敗，可能有品項已下架或版本已更新。");
+      console.error(buyAgainError);
+    } finally {
+      setActiveItemId(null);
     }
   }
 
@@ -995,6 +1090,7 @@ export default function App() {
             paymentMethod,
             note: orderNote.trim() || undefined,
             couponCode: couponCode.trim() || undefined,
+            customerName: customerName.trim() || user.name,
             customerPhone: customerPhone.trim() || undefined,
             pickupTime: pickupTime.trim() || undefined,
           }),
@@ -1245,6 +1341,9 @@ export default function App() {
                         </td>
                         <td className="text-sm">
                           <div>{order.note || "-"}</div>
+                          <div className="opacity-70">
+                            訂購人：{order.customerName || "-"}
+                          </div>
                           <div className="opacity-70">
                             電話：{order.customerPhone || "-"}
                           </div>
@@ -1628,6 +1727,14 @@ export default function App() {
             </button>
             {user ? (
               <button
+                className="btn btn-sm btn-outline"
+                onClick={() => setIsProfileOpen(true)}
+              >
+                個人
+              </button>
+            ) : null}
+            {user ? (
+              <button
                 className="btn btn-sm"
                 onClick={() => {
                   void handleLogout();
@@ -1765,7 +1872,7 @@ export default function App() {
             aria-label="close order history"
             onClick={() => setIsHistoryOpen(false)}
           />
-          <section className="fixed right-0 top-0 z-30 h-full w-full max-w-lg bg-base-100 shadow-2xl flex flex-col">
+          <section className="fixed inset-0 z-30 bg-base-100 shadow-2xl flex flex-col">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
               <h2 className="text-xl font-bold">歷史訂單</h2>
               <button
@@ -1802,6 +1909,8 @@ export default function App() {
                         </span>
                       </div>
                       <div className="text-sm opacity-70 space-y-1">
+                        <p>訂購人：{order.customerName || user.name}</p>
+                        <p>電話：{order.customerPhone || "-"}</p>
                         <p>建立時間：{formatTaipeiDateTime(order.createdAt)}</p>
                         <p>下單時間：{formatTaipeiDateTime(order.submittedAt)}</p>
                         {order.completedAt ? (
@@ -1826,10 +1935,88 @@ export default function App() {
                         <span>{order.paymentMethod === "card" ? "刷卡" : "現金"}</span>
                         <span>總額 ${order.total}</span>
                       </div>
+                      <button
+                        className="btn btn-sm btn-outline w-full"
+                        onClick={() => {
+                          void buyAgain(order);
+                        }}
+                        disabled={activeItemId === `order-${order.id}`}
+                      >
+                        {activeItemId === `order-${order.id}` ? "加入中..." : "買一次"}
+                      </button>
                     </article>
                   ))}
                 </div>
               )}
+            </div>
+          </section>
+        </>
+      ) : null}
+
+      {user && isProfileOpen ? (
+        <>
+          <button
+            className="fixed inset-0 bg-black/35 z-20"
+            aria-label="close profile"
+            onClick={() => setIsProfileOpen(false)}
+          />
+          <section className="fixed left-1/2 top-1/2 z-30 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-base-100 shadow-2xl">
+            <div className="p-4 border-b border-base-300 flex items-center justify-between">
+              <h2 className="text-xl font-bold">個人資料</h2>
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => setIsProfileOpen(false)}
+              >
+                關閉
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <input
+                className="input input-bordered w-full"
+                placeholder="暱稱"
+                value={profile.nickname}
+                onChange={(event) =>
+                  setProfile((current) => ({
+                    ...current,
+                    nickname: event.currentTarget.value,
+                  }))
+                }
+              />
+              <input
+                className="input input-bordered w-full"
+                placeholder="電話"
+                value={profile.phone}
+                onChange={(event) =>
+                  setProfile((current) => ({
+                    ...current,
+                    phone: event.currentTarget.value,
+                  }))
+                }
+              />
+              <select
+                className="select select-bordered w-full"
+                value={profile.language}
+                onChange={(event) =>
+                  setProfile((current) => ({
+                    ...current,
+                    language: event.currentTarget.value as UserProfile["language"],
+                  }))
+                }
+              >
+                <option value="zh-TW">中文</option>
+                <option value="en">English</option>
+                <option value="ja">日本語</option>
+                <option value="ko">한국어</option>
+              </select>
+              <p className="text-xs opacity-60">
+                語言設定先儲存偏好；自動翻譯會在多語系模組接上。
+              </p>
+              <button
+                className="btn btn-primary w-full"
+                onClick={() => saveProfile(profile)}
+              >
+                儲存
+              </button>
             </div>
           </section>
         </>
@@ -1972,7 +2159,7 @@ export default function App() {
               setIsCartOpen(false);
             }}
           />
-          <aside className="fixed right-0 top-0 h-full w-full max-w-md bg-base-100 shadow-2xl z-10 flex flex-col">
+          <aside className="fixed inset-0 bg-base-100 shadow-2xl z-10 flex flex-col">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {cartView === "checkout" ? (
@@ -2126,6 +2313,12 @@ export default function App() {
                       <span>${cartTotal}</span>
                     </div>
                   </div>
+                  <input
+                    className="input input-bordered w-full"
+                    placeholder="暱稱，例如 小翔"
+                    value={customerName}
+                    onChange={(event) => setCustomerName(event.currentTarget.value)}
+                  />
                   <input
                     className="input input-bordered w-full"
                     placeholder="電話號碼（必填），例如 0912345678"

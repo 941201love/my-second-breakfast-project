@@ -115,12 +115,14 @@ test("checkout contact details are stored on submitted orders", async () => {
   const submitResult = await store.submitOrder(order.id, {
     userId: "user-1",
     paymentMethod: "cash",
+    customerName: "小翔",
     customerPhone: "0912345678",
     pickupTime: "08:30",
   });
 
   expect(submitResult.ok).toBe(true);
   if (submitResult.ok) {
+    expect(submitResult.order.customerName).toBe("小翔");
     expect(submitResult.order.customerPhone).toBe("0912345678");
     expect(submitResult.order.pickupTime).toBe("08:30");
   }

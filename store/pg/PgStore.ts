@@ -371,6 +371,7 @@ export class PgStore implements Store {
       paymentMethod?: "cash" | "card";
       note?: string;
       couponCode?: string;
+      customerName?: string;
       customerPhone?: string;
       pickupTime?: string;
     },
@@ -436,6 +437,7 @@ export class PgStore implements Store {
         paymentMethod: input.paymentMethod ?? "cash",
         note: input.note,
         couponCode: coupon?.code,
+        customerName: input.customerName,
         customerPhone: input.customerPhone,
         pickupTime: input.pickupTime,
         discountTotal,
@@ -448,6 +450,7 @@ export class PgStore implements Store {
     order.paymentMethod = input.paymentMethod ?? "cash";
     order.note = input.note;
     order.couponCode = coupon?.code;
+    order.customerName = input.customerName;
     order.customerPhone = input.customerPhone;
     order.pickupTime = input.pickupTime;
     order.discountTotal = discountTotal;
@@ -592,6 +595,7 @@ export class PgStore implements Store {
           : undefined,
       note: row.note ?? undefined,
       couponCode: row.couponCode ?? undefined,
+      customerName: row.customerName ?? undefined,
       customerPhone: row.customerPhone ?? undefined,
       pickupTime: row.pickupTime ?? undefined,
       discountTotal: row.discountTotal,

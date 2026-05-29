@@ -290,6 +290,7 @@ export class JsonFileStore implements Store {
           dailySequence: order.dailySequence,
           note: order.note,
           couponCode: order.couponCode,
+          customerName: order.customerName,
           customerPhone: order.customerPhone,
           pickupTime: order.pickupTime,
           discountTotal: order.discountTotal ?? 0,
@@ -612,6 +613,7 @@ export class JsonFileStore implements Store {
       paymentMethod?: "cash" | "card";
       note?: string;
       couponCode?: string;
+      customerName?: string;
       customerPhone?: string;
       pickupTime?: string;
     },
@@ -702,6 +704,7 @@ export class JsonFileStore implements Store {
     order.paymentMethod = input.paymentMethod ?? "cash";
     order.note = input.note;
     order.couponCode = coupon?.code;
+    order.customerName = input.customerName;
     order.customerPhone = input.customerPhone;
     order.pickupTime = input.pickupTime;
     order.discountTotal = discountTotal;

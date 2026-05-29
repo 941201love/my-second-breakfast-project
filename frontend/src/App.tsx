@@ -75,6 +75,249 @@ const languageOptions: Array<{
   { value: "ko", label: "한국어" },
 ];
 
+const uiText: Record<UserProfile["language"], Record<string, string>> = {
+  "zh-TW": {
+    appTitle: "博翔早餐菜單",
+    currentDone: "目前已做到",
+    waitingCount: "等候人數",
+    cartDetails: "購物車明細",
+    orderHistory: "歷史訂單",
+    profile: "個人",
+    logout: "登出",
+    googleTitle: "使用 Google 帳號登入",
+    googleDescription: "點擊下方按鈕，使用您的 Google 帳號登入後即可開始點餐。",
+    googleLoading: "導向 Google 中...",
+    googleLogin: "使用 Google 登入",
+    completedTitle: "餐點已完成，可以取餐",
+    pickupNumber: "取餐編號",
+    addToCart: "加入購物車",
+    adding: "加入中...",
+    loading: "讀取中...",
+    noHistory: "目前尚無歷史訂單。",
+    order: "訂單",
+    pendingCart: "購物車",
+    making: "製作中",
+    completed: "已完成",
+    defaultSugar: "預設糖",
+    defaultIce: "預設冰",
+    close: "關閉",
+    customerName: "訂購人",
+    phone: "電話",
+    createdAt: "建立時間",
+    submittedAt: "下單時間",
+    completedAt: "完成時間",
+    cash: "現金",
+    card: "刷卡",
+    total: "總額",
+    buyAgain: "再買一次",
+    profileTitle: "個人資料",
+    nicknamePlaceholder: "暱稱",
+    phonePlaceholder: "電話",
+    languageHint: "語言設定先儲存偏好；商品內容翻譯會在多語系模組接上。",
+    save: "儲存",
+    qty: "數量",
+    sugar: "糖度",
+    ice: "冰塊",
+    note: "備註",
+    itemNotePlaceholder: "例如：不要醬、餐點分開裝、吐司烤焦一點",
+    back: "返回",
+    checkout: "結帳",
+    cartEmpty: "購物車目前是空的。",
+    staleCart: "購物車有品項已更新",
+    totalItems: "總件數",
+    totalAmount: "總金額",
+    checkoutNamePlaceholder: "暱稱，例如 小翔",
+    checkoutPhonePlaceholder: "電話號碼（必填），例如 0912345678",
+    pickupTimePlaceholder: "大概幾點拿，例如 08:30",
+    orderNotePlaceholder: "整張訂單備註，例如：餐點分開裝、到店再做",
+    couponPlaceholder: "優惠碼，例如 BREAKFAST10",
+    clearing: "清空中...",
+    clearCart: "清空購物車",
+    submitting: "結帳中...",
+    confirmSubmit: "確認送出",
+  },
+  en: {
+    appTitle: "Boxiang Breakfast Menu",
+    currentDone: "Now serving",
+    waitingCount: "Waiting",
+    cartDetails: "Cart",
+    orderHistory: "Order history",
+    profile: "Profile",
+    logout: "Log out",
+    googleTitle: "Sign in with Google",
+    googleDescription: "Sign in with your Google account to start ordering.",
+    googleLoading: "Redirecting to Google...",
+    googleLogin: "Sign in with Google",
+    completedTitle: "Your order is ready for pickup",
+    pickupNumber: "Pickup number",
+    addToCart: "Add to cart",
+    adding: "Adding...",
+    loading: "Loading...",
+    noHistory: "No order history yet.",
+    order: "Order",
+    pendingCart: "Cart",
+    making: "In progress",
+    completed: "Completed",
+    defaultSugar: "Default sugar",
+    defaultIce: "Default ice",
+    close: "Close",
+    customerName: "Name",
+    phone: "Phone",
+    createdAt: "Created",
+    submittedAt: "Submitted",
+    completedAt: "Completed",
+    cash: "Cash",
+    card: "Card",
+    total: "Total",
+    buyAgain: "Order again",
+    profileTitle: "Profile",
+    nicknamePlaceholder: "Nickname",
+    phonePlaceholder: "Phone",
+    languageHint: "Language preference is saved; item translation will come with the i18n module.",
+    save: "Save",
+    qty: "Quantity",
+    sugar: "Sugar",
+    ice: "Ice",
+    note: "Note",
+    itemNotePlaceholder: "e.g. no sauce, separate packaging, toast darker",
+    back: "Back",
+    checkout: "Checkout",
+    cartEmpty: "Your cart is empty.",
+    staleCart: "Some cart items were updated",
+    totalItems: "Items",
+    totalAmount: "Amount",
+    checkoutNamePlaceholder: "Nickname, e.g. Sean",
+    checkoutPhonePlaceholder: "Phone required, e.g. 0912345678",
+    pickupTimePlaceholder: "Pickup time, e.g. 08:30",
+    orderNotePlaceholder: "Order note, e.g. separate packaging",
+    couponPlaceholder: "Coupon code, e.g. BREAKFAST10",
+    clearing: "Clearing...",
+    clearCart: "Clear cart",
+    submitting: "Checking out...",
+    confirmSubmit: "Place order",
+  },
+  ja: {
+    appTitle: "博翔 朝食メニュー",
+    currentDone: "現在提供中",
+    waitingCount: "待ち人数",
+    cartDetails: "カート",
+    orderHistory: "注文履歴",
+    profile: "プロフィール",
+    logout: "ログアウト",
+    googleTitle: "Googleでログイン",
+    googleDescription: "Googleアカウントでログインすると注文できます。",
+    googleLoading: "Googleへ移動中...",
+    googleLogin: "Googleでログイン",
+    completedTitle: "注文ができました。受け取りできます",
+    pickupNumber: "受取番号",
+    addToCart: "カートに追加",
+    adding: "追加中...",
+    loading: "読み込み中...",
+    noHistory: "注文履歴はまだありません。",
+    order: "注文",
+    pendingCart: "カート",
+    making: "調理中",
+    completed: "完了",
+    defaultSugar: "標準の甘さ",
+    defaultIce: "標準の氷",
+    close: "閉じる",
+    customerName: "注文者",
+    phone: "電話",
+    createdAt: "作成時間",
+    submittedAt: "注文時間",
+    completedAt: "完成時間",
+    cash: "現金",
+    card: "カード",
+    total: "合計",
+    buyAgain: "もう一度買う",
+    profileTitle: "個人情報",
+    nicknamePlaceholder: "ニックネーム",
+    phonePlaceholder: "電話",
+    languageHint: "言語設定を保存します。商品翻訳は多言語モジュールで対応します。",
+    save: "保存",
+    qty: "数量",
+    sugar: "甘さ",
+    ice: "氷",
+    note: "メモ",
+    itemNotePlaceholder: "例：ソースなし、別包装、トースト強め",
+    back: "戻る",
+    checkout: "会計",
+    cartEmpty: "カートは空です。",
+    staleCart: "カート内の商品が更新されました",
+    totalItems: "合計点数",
+    totalAmount: "合計金額",
+    checkoutNamePlaceholder: "ニックネーム、例：翔",
+    checkoutPhonePlaceholder: "電話番号（必須）、例：0912345678",
+    pickupTimePlaceholder: "受取予定時刻、例：08:30",
+    orderNotePlaceholder: "注文メモ、例：別包装",
+    couponPlaceholder: "クーポンコード、例：BREAKFAST10",
+    clearing: "削除中...",
+    clearCart: "カートを空にする",
+    submitting: "会計中...",
+    confirmSubmit: "注文を確定",
+  },
+  ko: {
+    appTitle: "보샹 아침 메뉴",
+    currentDone: "현재 완료",
+    waitingCount: "대기 인원",
+    cartDetails: "장바구니",
+    orderHistory: "주문 내역",
+    profile: "프로필",
+    logout: "로그아웃",
+    googleTitle: "Google로 로그인",
+    googleDescription: "Google 계정으로 로그인하면 주문할 수 있습니다.",
+    googleLoading: "Google로 이동 중...",
+    googleLogin: "Google로 로그인",
+    completedTitle: "주문이 준비되었습니다. 픽업하세요",
+    pickupNumber: "픽업 번호",
+    addToCart: "장바구니 담기",
+    adding: "담는 중...",
+    loading: "불러오는 중...",
+    noHistory: "아직 주문 내역이 없습니다.",
+    order: "주문",
+    pendingCart: "장바구니",
+    making: "준비 중",
+    completed: "완료",
+    defaultSugar: "기본 당도",
+    defaultIce: "기본 얼음",
+    close: "닫기",
+    customerName: "주문자",
+    phone: "전화",
+    createdAt: "생성 시간",
+    submittedAt: "주문 시간",
+    completedAt: "완료 시간",
+    cash: "현금",
+    card: "카드",
+    total: "합계",
+    buyAgain: "다시 주문",
+    profileTitle: "개인 정보",
+    nicknamePlaceholder: "닉네임",
+    phonePlaceholder: "전화",
+    languageHint: "언어 설정은 저장됩니다. 상품 번역은 다국어 모듈에서 연결됩니다.",
+    save: "저장",
+    qty: "수량",
+    sugar: "당도",
+    ice: "얼음",
+    note: "메모",
+    itemNotePlaceholder: "예: 소스 빼기, 따로 포장, 토스트 더 굽기",
+    back: "뒤로",
+    checkout: "결제",
+    cartEmpty: "장바구니가 비어 있습니다.",
+    staleCart: "장바구니 상품이 업데이트되었습니다",
+    totalItems: "총 수량",
+    totalAmount: "총 금액",
+    checkoutNamePlaceholder: "닉네임, 예: 샹",
+    checkoutPhonePlaceholder: "전화번호(필수), 예: 0912345678",
+    pickupTimePlaceholder: "픽업 시간, 예: 08:30",
+    orderNotePlaceholder: "주문 메모, 예: 따로 포장",
+    couponPlaceholder: "쿠폰 코드, 예: BREAKFAST10",
+    clearing: "비우는 중...",
+    clearCart: "장바구니 비우기",
+    submitting: "결제 중...",
+    confirmSubmit: "주문 확정",
+  },
+};
+
 export default function App() {
   const isAdminPage = window.location.pathname.startsWith("/admin");
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -159,6 +402,12 @@ export default function App() {
     iceLevel: "",
     note: "",
   });
+  const text = uiText[profile.language] ?? uiText["zh-TW"];
+  const statusText = (status: Order["status"]) => {
+    if (status === "completed") return text.completed;
+    if (status === "submitted") return text.making;
+    return text.pendingCart;
+  };
 
   function syncCartFromOrder(order: Order) {
     const nextQtyByItemId = order.items.reduce(
@@ -1699,18 +1948,18 @@ export default function App() {
       <div className="navbar bg-base-100 shadow-lg flex-col items-stretch gap-2 md:flex-row md:items-center">
         <div className="flex-1 w-full md:w-auto">
           <a className="btn btn-ghost normal-case text-2xl">
-            🍔 博翔早餐菜單
+            🍔 {text.appTitle}
           </a>
         </div>
         <div className="flex-none w-full md:w-auto">
           <div className="flex flex-wrap gap-2 items-center md:justify-end">
             <div className="rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-sm flex flex-wrap gap-x-4 gap-y-1">
               <span>
-                目前已做到：
+                {text.currentDone}：
                 <strong>#{orderProgress.latestCompletedOrderId ?? "-"}</strong>
               </span>
               <span>
-                等候人數：
+                {text.waitingCount}：
                 <strong>{orderProgress.waitingCount ?? 0}</strong>
               </span>
             </div>
@@ -1722,7 +1971,7 @@ export default function App() {
               }}
               disabled={!user}
             >
-              購物車明細
+              {text.cartDetails}
             </button>
             <button
               className="btn btn-sm btn-outline"
@@ -1732,14 +1981,14 @@ export default function App() {
               }}
               disabled={!user}
             >
-              歷史訂單
+              {text.orderHistory}
             </button>
             {user ? (
               <button
                 className="btn btn-sm btn-outline"
                 onClick={() => setIsProfileOpen(true)}
               >
-                個人
+                {text.profile}
               </button>
             ) : null}
             {user ? (
@@ -1749,7 +1998,7 @@ export default function App() {
                   void handleLogout();
                 }}
               >
-                登出
+                {text.logout}
               </button>
             ) : null}
           </div>
@@ -1760,9 +2009,9 @@ export default function App() {
         {!user ? (
           <section className="max-w-xl mx-auto card bg-base-100 shadow-md mb-8">
             <div className="card-body">
-              <h2 className="card-title">使用 Google 帳號登入</h2>
+              <h2 className="card-title">{text.googleTitle}</h2>
               <p className="text-sm opacity-70">
-                點擊下方按鈕，使用您的 Google 帳號登入後即可開始點餐。
+                {text.googleDescription}
               </p>
               {authError ? (
                 <div className="alert alert-error">
@@ -1776,7 +2025,7 @@ export default function App() {
                 }}
                 disabled={isGoogleSigningIn}
               >
-                {isGoogleSigningIn ? "導向 Google 中..." : "使用 Google 登入"}
+                {isGoogleSigningIn ? text.googleLoading : text.googleLogin}
               </button>
             </div>
           </section>
@@ -1791,9 +2040,9 @@ export default function App() {
         {completedNoticeOrder ? (
           <div className="alert alert-info mb-4 max-w-4xl mx-auto">
             <div>
-              <p className="font-semibold">餐點已完成，可以取餐</p>
+              <p className="font-semibold">{text.completedTitle}</p>
               <p className="text-sm">
-                取餐編號：#{completedNoticeOrder.dailySequence ?? completedNoticeOrder.id}
+                {text.pickupNumber}：#{completedNoticeOrder.dailySequence ?? completedNoticeOrder.id}
               </p>
             </div>
           </div>
@@ -1860,8 +2109,8 @@ export default function App() {
                           disabled={activeItemId === item.id}
                         >
                           {activeItemId === item.id
-                            ? "加入中..."
-                            : `加入購物車${cartQtyByItemId[item.id] ? ` (${cartQtyByItemId[item.id]})` : ""}`}
+                            ? text.adding
+                            : `${text.addToCart}${cartQtyByItemId[item.id] ? ` (${cartQtyByItemId[item.id]})` : ""}`}
                         </button>
                       </div>
                     </div>
@@ -1883,22 +2132,22 @@ export default function App() {
           />
           <section className="fixed inset-0 z-30 bg-base-100 shadow-2xl flex flex-col">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
-              <h2 className="text-xl font-bold">歷史訂單</h2>
+              <h2 className="text-xl font-bold">{text.orderHistory}</h2>
               <button
                 className="btn btn-sm btn-ghost"
                 onClick={() => setIsHistoryOpen(false)}
               >
-                關閉
+                {text.close}
               </button>
             </div>
             <div className="p-4 flex-1 overflow-auto">
               {historyLoading ? (
                 <div className="alert">
-                  <span>讀取中...</span>
+                  <span>{text.loading}</span>
                 </div>
               ) : historyOrders.length === 0 ? (
                 <div className="alert alert-info">
-                  <span>目前尚無歷史訂單。</span>
+                  <span>{text.noHistory}</span>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1909,21 +2158,21 @@ export default function App() {
                     >
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <h3 className="font-semibold">
-                          訂單 #{order.dailySequence ?? order.id}
+                          {text.order} #{order.dailySequence ?? order.id}
                         </h3>
                         <span
                           className={`badge ${orderStatusBadgeClass(order.status)}`}
                         >
-                          {orderStatusLabel(order.status)}
+                          {statusText(order.status)}
                         </span>
                       </div>
                       <div className="text-sm opacity-70 space-y-1">
-                        <p>訂購人：{order.customerName || user.name}</p>
-                        <p>電話：{order.customerPhone || "-"}</p>
-                        <p>建立時間：{formatTaipeiDateTime(order.createdAt)}</p>
-                        <p>下單時間：{formatTaipeiDateTime(order.submittedAt)}</p>
+                        <p>{text.customerName}：{order.customerName || user.name}</p>
+                        <p>{text.phone}：{order.customerPhone || "-"}</p>
+                        <p>{text.createdAt}：{formatTaipeiDateTime(order.createdAt)}</p>
+                        <p>{text.submittedAt}：{formatTaipeiDateTime(order.submittedAt)}</p>
                         {order.completedAt ? (
-                          <p>完成時間：{formatTaipeiDateTime(order.completedAt)}</p>
+                          <p>{text.completedAt}：{formatTaipeiDateTime(order.completedAt)}</p>
                         ) : null}
                       </div>
                       <ul className="text-sm list-disc pl-5 space-y-1">
@@ -1933,16 +2182,16 @@ export default function App() {
                             {detail.sugarLevel || detail.iceLevel ? (
                               <span className="opacity-60">
                                 {" "}
-                                ({detail.sugarLevel || "預設糖"} /{" "}
-                                {detail.iceLevel || "預設冰"})
+                                ({detail.sugarLevel || text.defaultSugar} /{" "}
+                                {detail.iceLevel || text.defaultIce})
                               </span>
                             ) : null}
                           </li>
                         ))}
                       </ul>
                       <div className="flex items-center justify-between font-semibold">
-                        <span>{order.paymentMethod === "card" ? "刷卡" : "現金"}</span>
-                        <span>總額 ${order.total}</span>
+                        <span>{order.paymentMethod === "card" ? text.card : text.cash}</span>
+                        <span>{text.total} ${order.total}</span>
                       </div>
                       <button
                         className="btn btn-sm btn-outline w-full"
@@ -1951,7 +2200,7 @@ export default function App() {
                         }}
                         disabled={activeItemId === `order-${order.id}`}
                       >
-                        {activeItemId === `order-${order.id}` ? "加入中..." : "再買一次"}
+                        {activeItemId === `order-${order.id}` ? text.adding : text.buyAgain}
                       </button>
                     </article>
                   ))}
@@ -1971,18 +2220,18 @@ export default function App() {
           />
           <section className="fixed left-1/2 top-1/2 z-30 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-base-100 shadow-2xl">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
-              <h2 className="text-xl font-bold">個人資料</h2>
+              <h2 className="text-xl font-bold">{text.profileTitle}</h2>
               <button
                 className="btn btn-sm btn-ghost"
                 onClick={() => setIsProfileOpen(false)}
               >
-                關閉
+                {text.close}
               </button>
             </div>
             <div className="p-4 space-y-4">
               <input
                 className="input input-bordered w-full"
-                placeholder="暱稱"
+                placeholder={text.nicknamePlaceholder}
                 value={profile.nickname}
                 onChange={(event) =>
                   setProfile((current) => ({
@@ -1993,7 +2242,7 @@ export default function App() {
               />
               <input
                 className="input input-bordered w-full"
-                placeholder="電話"
+                placeholder={text.phonePlaceholder}
                 value={profile.phone}
                 onChange={(event) =>
                   setProfile((current) => ({
@@ -2023,13 +2272,13 @@ export default function App() {
                 ))}
               </div>
               <p className="text-xs opacity-60">
-                語言設定先儲存偏好；自動翻譯會在多語系模組接上。
+                {text.languageHint}
               </p>
               <button
                 className="btn btn-primary w-full"
                 onClick={() => saveProfile(profile)}
               >
-                儲存
+                {text.save}
               </button>
             </div>
           </section>
@@ -2053,13 +2302,13 @@ export default function App() {
                 className="btn btn-sm btn-ghost"
                 onClick={() => setCustomizingItem(null)}
               >
-                關閉
+                {text.close}
               </button>
             </div>
             <div className="p-4 space-y-4">
               <div>
                 <label className="label">
-                  <span className="label-text">數量</span>
+                  <span className="label-text">{text.qty}</span>
                 </label>
                 <div className="join">
                   <button
@@ -2093,7 +2342,7 @@ export default function App() {
               {isDrink(customizingItem) ? (
                 <div className="space-y-3">
                   <div>
-                    <span className="label-text mb-2 block">糖度</span>
+                    <span className="label-text mb-2 block">{text.sugar}</span>
                     <div className="grid grid-cols-3 gap-2">
                       {sugarOptions.map((option) => (
                         <button
@@ -2112,7 +2361,7 @@ export default function App() {
                     </div>
                   </div>
                   <div>
-                    <span className="label-text mb-2 block">冰塊</span>
+                    <span className="label-text mb-2 block">{text.ice}</span>
                     <div className="grid grid-cols-3 gap-2">
                       {iceOptions.map((option) => (
                         <button
@@ -2134,10 +2383,10 @@ export default function App() {
               ) : null}
 
               <label className="form-control">
-                <span className="label-text mb-1">備註</span>
+                <span className="label-text mb-1">{text.note}</span>
                 <textarea
                   className="textarea textarea-bordered"
-                  placeholder="例如：不要醬、餐點分開裝、吐司烤焦一點"
+                  placeholder={text.itemNotePlaceholder}
                   value={cartDraft.note}
                   onChange={(event) =>
                     setCartDraft((current) => ({
@@ -2156,8 +2405,8 @@ export default function App() {
                 }}
               >
                 {activeItemId === customizingItem.id
-                  ? "加入中..."
-                  : `加入購物車 $${customizingItem.price * cartDraft.qty}`}
+                  ? text.adding
+                  : `${text.addToCart} $${customizingItem.price * cartDraft.qty}`}
               </button>
             </div>
           </section>
@@ -2181,15 +2430,15 @@ export default function App() {
                     className="btn btn-sm btn-ghost"
                     onClick={() => setCartView("items")}
                   >
-                    返回
+                    {text.back}
                   </button>
                 ) : null}
                 <h2 className="text-xl font-bold">
-                  {cartView === "checkout" ? "結帳" : "購物車明細"}
+                  {cartView === "checkout" ? text.checkout : text.cartDetails}
                 </h2>
               </div>
               <button className="btn btn-sm btn-ghost" onClick={() => setIsCartOpen(false)}>
-                關閉
+                {text.close}
               </button>
             </div>
 
@@ -2197,7 +2446,7 @@ export default function App() {
               {staleCartItems.length > 0 ? (
                 <div className="alert alert-warning mb-4 items-start">
                   <div>
-                    <p className="font-semibold">購物車有品項已更新</p>
+                    <p className="font-semibold">{text.staleCart}</p>
                     <ul className="mt-2 space-y-1 text-sm">
                       {staleCartItems.map((item) => (
                         <li key={item.menuItemId}>
@@ -2215,7 +2464,7 @@ export default function App() {
               {cartView === "items" ? (
                 cartDetails.length === 0 ? (
                   <div className="alert">
-                    <span>購物車目前是空的。</span>
+                    <span>{text.cartEmpty}</span>
                   </div>
                 ) : (
                   <ul className="space-y-3">
@@ -2228,7 +2477,7 @@ export default function App() {
                           <div>
                             <p className="font-semibold">{detail.item.name}</p>
                             <p className="text-sm opacity-70">
-                              單價 ${detail.item.price} x {detail.qty}
+                            ${detail.item.price} x {detail.qty}
                             </p>
                           </div>
                           <p className="font-bold">${detail.subtotal}</p>
@@ -2300,7 +2549,7 @@ export default function App() {
                         <label className="form-control">
                           <input
                             className="input input-sm input-bordered"
-                            placeholder="品項備註，例如：不要醬、吐司烤焦一點"
+                            placeholder={text.itemNotePlaceholder}
                             value={detail.orderItem?.note ?? ""}
                             onChange={(event) => {
                               void updateCartItemOptions(
@@ -2319,30 +2568,30 @@ export default function App() {
                 <div className="space-y-4">
                   <div className="rounded-lg bg-base-200 p-4 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span>總件數</span>
+                      <span>{text.totalItems}</span>
                       <span className="font-semibold">{cartItemCount}</span>
                     </div>
                     <div className="flex items-center justify-between text-lg font-bold">
-                      <span>總金額</span>
+                      <span>{text.totalAmount}</span>
                       <span>${cartTotal}</span>
                     </div>
                   </div>
                   <input
                     className="input input-bordered w-full"
-                    placeholder="暱稱，例如 小翔"
+                    placeholder={text.checkoutNamePlaceholder}
                     value={customerName}
                     onChange={(event) => setCustomerName(event.currentTarget.value)}
                   />
                   <input
                     className="input input-bordered w-full"
-                    placeholder="電話號碼（必填），例如 0912345678"
+                    placeholder={text.checkoutPhonePlaceholder}
                     value={customerPhone}
                     onChange={(event) => setCustomerPhone(event.currentTarget.value)}
                     required
                   />
                   <input
                     className="input input-bordered w-full"
-                    placeholder="大概幾點拿，例如 08:30"
+                    placeholder={text.pickupTimePlaceholder}
                     value={pickupTime}
                     onChange={(event) => setPickupTime(event.currentTarget.value)}
                   />
@@ -2354,7 +2603,7 @@ export default function App() {
                         checked={paymentMethod === "cash"}
                         onChange={() => setPaymentMethod("cash")}
                       />
-                      <span>現金</span>
+                      <span>{text.cash}</span>
                     </label>
                     <label className="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300 p-3">
                       <input
@@ -2363,18 +2612,18 @@ export default function App() {
                         checked={paymentMethod === "card"}
                         onChange={() => setPaymentMethod("card")}
                       />
-                      <span>刷卡</span>
+                      <span>{text.card}</span>
                     </label>
                   </div>
                   <textarea
                     className="textarea textarea-bordered w-full"
-                    placeholder="整張訂單備註，例如：餐點分開裝、到店再做"
+                    placeholder={text.orderNotePlaceholder}
                     value={orderNote}
                     onChange={(event) => setOrderNote(event.currentTarget.value)}
                   />
                   <input
                     className="input input-bordered w-full"
-                    placeholder="優惠碼，例如 BREAKFAST10"
+                    placeholder={text.couponPlaceholder}
                     value={couponCode}
                     onChange={(event) =>
                       setCouponCode(event.currentTarget.value.toUpperCase())
@@ -2386,11 +2635,11 @@ export default function App() {
 
             <div className="p-4 border-t border-base-300 space-y-3">
               <div className="flex items-center justify-between font-semibold">
-                <span>總件數</span>
+                <span>{text.totalItems}</span>
                 <span>{cartItemCount}</span>
               </div>
               <div className="flex items-center justify-between text-lg font-bold">
-                <span>總金額</span>
+                <span>{text.totalAmount}</span>
                 <span>${cartTotal}</span>
               </div>
               {cartView === "items" ? (
@@ -2402,14 +2651,14 @@ export default function App() {
                     }}
                     disabled={cartDetails.length === 0 || isClearingCart}
                   >
-                    {isClearingCart ? "清空中..." : "清空購物車"}
+                    {isClearingCart ? text.clearing : text.clearCart}
                   </button>
                   <button
                     className="btn btn-primary w-full"
                     onClick={() => setCartView("checkout")}
                     disabled={cartDetails.length === 0}
                   >
-                    結帳
+                    {text.checkout}
                   </button>
                 </>
               ) : (
@@ -2420,7 +2669,7 @@ export default function App() {
                   }}
                   disabled={cartDetails.length === 0 || isSubmittingOrder}
                 >
-                  {isSubmittingOrder ? "結帳中..." : "確認送出"}
+                  {isSubmittingOrder ? text.submitting : text.confirmSubmit}
                 </button>
               )}
             </div>

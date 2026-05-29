@@ -1878,24 +1878,26 @@ export default function App() {
                 <input
                   className="input input-bordered"
                   value={adminLogin.username}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const username = event.currentTarget.value;
                     setAdminLogin((current) => ({
                       ...current,
-                      username: event.currentTarget.value,
-                    }))
-                  }
+                      username,
+                    }));
+                  }}
                   placeholder="帳號"
                 />
                 <input
                   className="input input-bordered"
                   type="password"
                   value={adminLogin.password}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const password = event.currentTarget.value;
                     setAdminLogin((current) => ({
                       ...current,
-                      password: event.currentTarget.value,
-                    }))
-                  }
+                      password,
+                    }));
+                  }}
                   placeholder="密碼"
                 />
                 <p className="text-xs opacity-60">
@@ -1996,34 +1998,37 @@ export default function App() {
                       type="number"
                       min="0"
                       value={newMenuItem.price}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const price = Number(event.currentTarget.value);
                         setNewMenuItem((current) => ({
                           ...current,
-                          price: Number(event.currentTarget.value),
-                        }))
-                      }
+                          price,
+                        }));
+                      }}
                       placeholder="價格"
                     />
                     <input
                       className="input input-bordered"
                       value={newMenuItem.category}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const category = event.currentTarget.value;
                         setNewMenuItem((current) => ({
                           ...current,
-                          category: event.currentTarget.value,
-                        }))
-                      }
+                          category,
+                        }));
+                      }}
                       placeholder="分類，例如 飲料 / 主餐 / 點心"
                     />
                     <input
                       className="input input-bordered"
                       value={newMenuItem.imageUrl}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const imageUrl = event.currentTarget.value;
                         setNewMenuItem((current) => ({
                           ...current,
-                          imageUrl: event.currentTarget.value,
-                        }))
-                      }
+                          imageUrl,
+                        }));
+                      }}
                       placeholder="圖片網址"
                     />
                   </div>
@@ -2037,18 +2042,19 @@ export default function App() {
                         <input
                           className="input input-bordered w-full"
                           value={newMenuItem.translations[option.value].name}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            const name = event.currentTarget.value;
                             setNewMenuItem((current) => ({
                               ...current,
                               translations: {
                                 ...current.translations,
                                 [option.value]: {
                                   ...current.translations[option.value],
-                                  name: event.currentTarget.value,
+                                  name,
                                 },
                               },
-                            }))
-                          }
+                            }));
+                          }}
                           placeholder={`${option.label} 商品名稱`}
                         />
                         <textarea
@@ -2056,18 +2062,19 @@ export default function App() {
                           value={
                             newMenuItem.translations[option.value].description
                           }
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            const description = event.currentTarget.value;
                             setNewMenuItem((current) => ({
                               ...current,
                               translations: {
                                 ...current.translations,
                                 [option.value]: {
                                   ...current.translations[option.value],
-                                  description: event.currentTarget.value,
+                                  description,
                                 },
                               },
-                            }))
-                          }
+                            }));
+                          }}
                           placeholder={`${option.label} 商品介紹`}
                         />
                       </div>
@@ -2408,23 +2415,25 @@ export default function App() {
                   <input
                     className="input input-bordered"
                     value={newCoupon.code}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const code = event.currentTarget.value;
                       setNewCoupon((current) => ({
                         ...current,
-                        code: event.currentTarget.value,
-                      }))
-                    }
+                        code,
+                      }));
+                    }}
                     placeholder="優惠碼"
                   />
                   <input
                     className="input input-bordered"
                     value={newCoupon.name}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const name = event.currentTarget.value;
                       setNewCoupon((current) => ({
                         ...current,
-                        name: event.currentTarget.value,
-                      }))
-                    }
+                        name,
+                      }));
+                    }}
                     placeholder="優惠券名稱"
                   />
                   <div className="grid grid-cols-2 gap-2">
@@ -2464,12 +2473,13 @@ export default function App() {
                       className="input input-bordered"
                       type="number"
                       value={newCoupon.discountValue}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const discountValue = Number(event.currentTarget.value);
                         setNewCoupon((current) => ({
                           ...current,
-                          discountValue: Number(event.currentTarget.value),
-                        }))
-                      }
+                          discountValue,
+                        }));
+                      }}
                     />
                   </div>
                   <button
@@ -2538,7 +2548,7 @@ export default function App() {
               }}
               disabled={!user}
             >
-              {text.cartDetails}
+              {`${text.cartDetails} (${cartItemCount})`}
             </button>
             <button
               className="btn btn-sm btn-outline"
@@ -2803,23 +2813,25 @@ export default function App() {
                 className="input input-bordered w-full"
                 placeholder={text.nicknamePlaceholder}
                 value={profile.nickname}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const nickname = event.currentTarget.value;
                   setProfile((current) => ({
                     ...current,
-                    nickname: event.currentTarget.value,
-                  }))
-                }
+                    nickname,
+                  }));
+                }}
               />
               <input
                 className="input input-bordered w-full"
                 placeholder={text.phonePlaceholder}
                 value={profile.phone}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const phone = event.currentTarget.value;
                   setProfile((current) => ({
                     ...current,
-                    phone: event.currentTarget.value,
-                  }))
-                }
+                    phone,
+                  }));
+                }}
               />
               <div className="grid grid-cols-2 gap-2">
                 {languageOptions.map((option) => (
@@ -2958,12 +2970,13 @@ export default function App() {
                   className="textarea textarea-bordered"
                   placeholder={text.itemNotePlaceholder}
                   value={cartDraft.note}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const note = event.currentTarget.value;
                     setCartDraft((current) => ({
                       ...current,
-                      note: event.currentTarget.value,
-                    }))
-                  }
+                      note,
+                    }));
+                  }}
                 />
               </label>
 
@@ -3172,10 +3185,11 @@ export default function App() {
                                     placeholder={text.itemNotePlaceholder}
                                     value={detail.orderItem.note ?? ""}
                                     onChange={(event) => {
+                                      const note = event.currentTarget.value;
                                       void updateCartItemOptions(
                                         detail.orderItemId,
                                         detail.itemId,
-                                        { note: event.currentTarget.value },
+                                        { note },
                                       );
                                     }}
                                   />

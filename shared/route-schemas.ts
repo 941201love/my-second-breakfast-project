@@ -160,7 +160,14 @@ export const createCouponBodySchema = z.object({
   name: z.string().min(1),
   discountType: z.enum(["amount", "percent"]).default("amount"),
   discountValue: z.number().int().min(1),
+  minSpend: z.number().int().min(0).default(0),
+  usageLimitPerUser: z.number().int().min(1).default(1),
+  expiresAt: z.string().optional(),
   isActive: z.boolean().default(true),
+});
+
+export const couponParamsSchema = z.object({
+  code: z.string().min(1),
 });
 
 // ─── Response Schemas（API envelope 層）─────────────────────────────────

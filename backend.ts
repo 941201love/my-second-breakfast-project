@@ -10,6 +10,7 @@ import {
   adminLoginResponseSchema,
   apiErrorResponseSchema,
   couponListResponseSchema,
+  couponParamsSchema,
   couponResponseSchema,
   createCouponBodySchema,
   createMenuItemBodySchema,
@@ -357,6 +358,9 @@ app.post(
       name: body.name,
       discountType: body.discountType,
       discountValue: body.discountValue,
+      minSpend: body.minSpend,
+      usageLimitPerUser: body.usageLimitPerUser,
+      expiresAt: body.expiresAt,
       isActive: body.isActive,
     });
     return { data: coupon };
@@ -366,6 +370,28 @@ app.post(
     response: {
       200: couponResponseSchema,
       401: apiErrorResponseSchema,
+    },
+  },
+);
+
+app.delete(
+  "/api/coupons/:code",
+  async ({ params, request, set }) => {
+    requireAdmin(request);
+    const coupon = await store.deleteCoupon(params.code);
+    if (!coupon) {
+      set.status = 404;
+      return { error: "Coupon not found" };
+    }
+
+    return { data: coupon };
+  },
+  {
+    params: couponParamsSchema,
+    response: {
+      200: couponResponseSchema,
+      401: apiErrorResponseSchema,
+      404: apiErrorResponseSchema,
     },
   },
 );
@@ -775,6 +801,14 @@ app.post(
     if (!result.ok && result.code === "EMPTY_ORDER") {
       set.status = 400;
       return { error: "Empty order cannot be submitted" };
+    }
+
+    if (!result.ok && result.code === "COUPON_NOT_AVAILABLE") {
+      set.status = 400;
+      return {
+        error: "Coupon not available",
+        message: "優惠券不符合使用條件、已過期或已達使用次數。",
+      };
     }
 
     if (!result.ok && result.code === "MENU_VERSION_STALE") {

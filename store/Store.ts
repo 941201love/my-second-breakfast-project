@@ -16,7 +16,8 @@ export type SubmitOrderErrorCode =
   | "ORDER_NOT_OWNED"
   | "ORDER_NOT_EDITABLE"
   | "EMPTY_ORDER"
-  | "MENU_VERSION_STALE";
+  | "MENU_VERSION_STALE"
+  | "COUPON_NOT_AVAILABLE";
 
 export interface SubmitOrderError {
   ok: false;
@@ -97,4 +98,5 @@ export interface Store {
   completeOrder(orderId: number): Promise<Order | null>;
   getCoupons(): ReadonlyArray<Coupon>;
   createCoupon(input: Coupon): Promise<Coupon>;
+  deleteCoupon(code: string): Promise<Coupon | null>;
 }

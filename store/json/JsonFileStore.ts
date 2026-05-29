@@ -394,9 +394,12 @@ export class JsonFileStore implements Store {
               discountType:
                 coupon.discountType === "percent" ? "percent" : "amount",
               discountValue: coupon.discountValue,
+              minSpend: coupon.minSpend ?? 0,
+              usageLimitPerUser: coupon.usageLimitPerUser ?? 1,
+              expiresAt: coupon.expiresAt,
               isActive: coupon.isActive,
             }))
-          : [{ code: "BREAKFAST10", name: "早餐折 10 元", discountType: "amount", discountValue: 10, isActive: true }],
+          : [{ code: "BREAKFAST10", name: "早餐折 10 元", discountType: "amount", discountValue: 10, minSpend: 0, usageLimitPerUser: 1, isActive: true }],
         userIdCounter: parsed.userIdCounter ?? 0,
         menuIdCounter: parsed.menuIdCounter ?? 0,
         orderIdCounter: parsed.orderIdCounter ?? 0,
@@ -715,7 +718,8 @@ export class JsonFileStore implements Store {
           | "ORDER_NOT_OWNED"
           | "ORDER_NOT_EDITABLE"
           | "EMPTY_ORDER"
-          | "MENU_VERSION_STALE";
+          | "MENU_VERSION_STALE"
+          | "COUPON_NOT_AVAILABLE";
         staleItems?: StaleCartItem[];
       }
   > {
@@ -782,6 +786,9 @@ export class JsonFileStore implements Store {
             item.isActive,
         )
       : undefined;
+    if (input.couponCode && !this.canUseCoupon(coupon, order, input.userId)) {
+      return { ok: false, code: "COUPON_NOT_AVAILABLE" };
+    }
     const discountTotal = coupon
       ? coupon.discountType === "percent"
         ? Math.floor((order.total * coupon.discountValue) / 100)
@@ -820,7 +827,13 @@ export class JsonFileStore implements Store {
   }
 
   async createCoupon(input: Coupon): Promise<Coupon> {
-    const coupon = { ...input, code: input.code.toUpperCase() };
+    const coupon = {
+      ...input,
+      code: input.code.toUpperCase(),
+      minSpend: input.minSpend ?? 0,
+      usageLimitPerUser: input.usageLimitPerUser ?? 1,
+      expiresAt: input.expiresAt || undefined,
+    };
     const index = this.coupons.findIndex((item) => item.code === coupon.code);
     if (index === -1) {
       this.coupons.push(coupon);
@@ -829,6 +842,36 @@ export class JsonFileStore implements Store {
     }
     await this.persist();
     return coupon;
+  }
+
+  async deleteCoupon(code: string): Promise<Coupon | null> {
+    const normalizedCode = code.toUpperCase();
+    const coupon = this.coupons.find((item) => item.code === normalizedCode);
+    if (!coupon) return null;
+
+    this.coupons = this.coupons.filter((item) => item.code !== normalizedCode);
+    await this.persist();
+    return coupon;
+  }
+
+  private canUseCoupon(
+    coupon: Coupon | undefined,
+    order: Order,
+    userId: string,
+  ): coupon is Coupon {
+    if (!coupon || !coupon.isActive) return false;
+    if ((coupon.minSpend ?? 0) > order.total) return false;
+    if (coupon.expiresAt && new Date(coupon.expiresAt).getTime() < Date.now()) {
+      return false;
+    }
+
+    const usedCount = this.orders.filter(
+      (item) =>
+        item.userId === userId &&
+        item.status !== "pending" &&
+        item.couponCode?.toUpperCase() === coupon.code.toUpperCase(),
+    ).length;
+    return usedCount < (coupon.usageLimitPerUser ?? 1);
   }
 
   private createInitialStore(): DataStore {

@@ -385,7 +385,8 @@ export class PgStore implements Store {
           | "ORDER_NOT_OWNED"
           | "ORDER_NOT_EDITABLE"
           | "EMPTY_ORDER"
-          | "MENU_VERSION_STALE";
+          | "MENU_VERSION_STALE"
+          | "COUPON_NOT_AVAILABLE";
         staleItems?: StaleCartItem[];
       }
   > {
@@ -423,6 +424,9 @@ export class PgStore implements Store {
             item.isActive,
         )
       : undefined;
+    if (input.couponCode && !this.canUseCoupon(coupon, order, input.userId)) {
+      return { ok: false, code: "COUPON_NOT_AVAILABLE" };
+    }
     const discountTotal = coupon
       ? coupon.discountType === "percent"
         ? Math.floor((order.total * coupon.discountValue) / 100)
@@ -485,6 +489,9 @@ export class PgStore implements Store {
       .values({
         ...input,
         code: input.code.toUpperCase(),
+        minSpend: input.minSpend ?? 0,
+        usageLimitPerUser: input.usageLimitPerUser ?? 1,
+        expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
       })
       .onConflictDoUpdate({
         target: couponsTable.code,
@@ -492,6 +499,9 @@ export class PgStore implements Store {
           name: input.name,
           discountType: input.discountType,
           discountValue: input.discountValue,
+          minSpend: input.minSpend ?? 0,
+          usageLimitPerUser: input.usageLimitPerUser ?? 1,
+          expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
           isActive: input.isActive,
         },
       })
@@ -503,8 +513,21 @@ export class PgStore implements Store {
       name: row?.name ?? input.name,
       discountType: row?.discountType === "percent" ? "percent" : "amount",
       discountValue: row?.discountValue ?? input.discountValue,
+      minSpend: row?.minSpend ?? input.minSpend ?? 0,
+      usageLimitPerUser: row?.usageLimitPerUser ?? input.usageLimitPerUser ?? 1,
+      expiresAt: row?.expiresAt?.toISOString() ?? input.expiresAt,
       isActive: row?.isActive ?? input.isActive,
     };
+  }
+
+  async deleteCoupon(code: string): Promise<Coupon | null> {
+    const normalizedCode = code.toUpperCase();
+    const coupon = this.coupons.find((item) => item.code === normalizedCode);
+    if (!coupon) return null;
+
+    await db.delete(couponsTable).where(eq(couponsTable.code, normalizedCode));
+    await this.reloadCoupons();
+    return coupon;
   }
 
   private async seedFromJsonIfEmpty(): Promise<void> {
@@ -640,7 +663,30 @@ export class PgStore implements Store {
       name: row.name,
       discountType: row.discountType === "percent" ? "percent" : "amount",
       discountValue: row.discountValue,
+      minSpend: row.minSpend,
+      usageLimitPerUser: row.usageLimitPerUser,
+      expiresAt: row.expiresAt?.toISOString(),
       isActive: row.isActive,
     }));
+  }
+
+  private canUseCoupon(
+    coupon: Coupon | undefined,
+    order: Order,
+    userId: string,
+  ): coupon is Coupon {
+    if (!coupon || !coupon.isActive) return false;
+    if ((coupon.minSpend ?? 0) > order.total) return false;
+    if (coupon.expiresAt && new Date(coupon.expiresAt).getTime() < Date.now()) {
+      return false;
+    }
+
+    const usedCount = this.orders.filter(
+      (item) =>
+        item.userId === userId &&
+        item.status !== "pending" &&
+        item.couponCode?.toUpperCase() === coupon.code.toUpperCase(),
+    ).length;
+    return usedCount < (coupon.usageLimitPerUser ?? 1);
   }
 }

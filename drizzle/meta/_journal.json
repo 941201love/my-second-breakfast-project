@@ -71,6 +71,13 @@
       "when": 1780363200000,
       "tag": "0009_menu_item_translations",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1780449600000,
+      "tag": "0010_coupon_rules",
+      "breakpoints": true
     }
   ]
 }

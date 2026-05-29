@@ -752,6 +752,9 @@ export default function App() {
     name: "早餐折 10 元",
     discountType: "amount" as "amount" | "percent",
     discountValue: 10,
+    minSpend: 0,
+    usageLimitPerUser: 1,
+    expiresAt: "",
   });
   const [newMenuItem, setNewMenuItem] = useState({
     price: 50,
@@ -1068,6 +1071,13 @@ export default function App() {
 
     return () => window.clearTimeout(timer);
   }, [profileNotice]);
+
+  useEffect(() => {
+    if (!user || !isCartOpen || cartView !== "checkout") return;
+
+    setCustomerName((current) => current.trim() || profile.nickname || user.name);
+    setCustomerPhone((current) => current.trim() || profile.phone);
+  }, [cartView, isCartOpen, profile.nickname, profile.phone, user]);
 
   useEffect(() => {
     if (!lastSubmittedOrder || completedNoticeOrder) return;
@@ -1476,7 +1486,11 @@ export default function App() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ ...newCoupon, isActive: true }),
+      body: JSON.stringify({
+        ...newCoupon,
+        expiresAt: newCoupon.expiresAt || undefined,
+        isActive: true,
+      }),
     });
 
     if (!response.ok) {
@@ -1485,6 +1499,22 @@ export default function App() {
     }
 
     await loadAdminData();
+    await loadCoupons();
+  }
+
+  async function deleteAdminCoupon(code: string): Promise<void> {
+    const response = await fetch(buildApiUrl(`/api/coupons/${code}`), {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      setAdminError("刪除優惠券失敗。");
+      return;
+    }
+
+    await loadAdminData();
+    await loadCoupons();
   }
 
   async function createAdminMenuItem(): Promise<void> {
@@ -1852,7 +1882,7 @@ export default function App() {
           item.code.toUpperCase() === normalizedCode && item.isActive !== false,
       ) ?? null;
 
-    if (!coupon) {
+    if (!coupon || !isCouponUsable(coupon)) {
       setAppliedCoupon(null);
       setCheckoutNotice(text.couponInvalid);
       return;
@@ -1861,6 +1891,21 @@ export default function App() {
     setCouponCode(coupon.code);
     setAppliedCoupon(coupon);
     setCheckoutNotice(`${text.couponApplied}：${coupon.code}`);
+  }
+
+  function isCouponUsable(coupon: Coupon): boolean {
+    if (coupon.isActive === false) return false;
+    if ((coupon.minSpend ?? 0) > cartTotal) return false;
+    if (coupon.expiresAt && new Date(coupon.expiresAt).getTime() < Date.now()) {
+      return false;
+    }
+
+    const usedCount = historyOrders.filter(
+      (order) =>
+        order.status !== "pending" &&
+        order.couponCode?.toUpperCase() === coupon.code.toUpperCase(),
+    ).length;
+    return usedCount < (coupon.usageLimitPerUser ?? 1);
   }
 
   async function submitOrder(): Promise<void> {
@@ -1917,6 +1962,11 @@ export default function App() {
           setIsCartOpen(true);
           setCartView("items");
           await loadMenu();
+          return;
+        }
+
+        if (response.status === 400 && errorPayload?.message) {
+          setCheckoutNotice(errorPayload.message);
           return;
         }
 
@@ -2601,6 +2651,52 @@ export default function App() {
                       }}
                     />
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <input
+                      className="input input-bordered"
+                      type="number"
+                      min="0"
+                      value={newCoupon.minSpend}
+                      onChange={(event) => {
+                        const minSpend = Number(event.currentTarget.value);
+                        setNewCoupon((current) => ({
+                          ...current,
+                          minSpend,
+                        }));
+                      }}
+                      placeholder="低消金額"
+                    />
+                    <input
+                      className="input input-bordered"
+                      type="number"
+                      min="1"
+                      value={newCoupon.usageLimitPerUser}
+                      onChange={(event) => {
+                        const usageLimitPerUser = Math.max(
+                          1,
+                          Number(event.currentTarget.value),
+                        );
+                        setNewCoupon((current) => ({
+                          ...current,
+                          usageLimitPerUser,
+                        }));
+                      }}
+                      placeholder="每帳號可用次數"
+                    />
+                    <input
+                      className="input input-bordered"
+                      type="datetime-local"
+                      value={newCoupon.expiresAt}
+                      onChange={(event) => {
+                        const expiresAt = event.currentTarget.value;
+                        setNewCoupon((current) => ({
+                          ...current,
+                          expiresAt,
+                        }));
+                      }}
+                      placeholder="到期時間"
+                    />
+                  </div>
                   <button
                     className="btn btn-primary"
                     onClick={() => {
@@ -2616,16 +2712,35 @@ export default function App() {
                   {coupons.map((coupon) => (
                     <li
                       key={coupon.code}
-                      className="flex items-center justify-between border-b border-base-300 pb-2"
+                      className="flex items-start justify-between gap-3 border-b border-base-300 pb-2"
                     >
-                      <span>
-                        {coupon.code} - {coupon.name}
-                      </span>
-                      <span className="badge badge-accent">
-                        {coupon.discountType === "percent"
-                          ? `${coupon.discountValue}%`
-                          : formatMoney(coupon.discountValue)}
-                      </span>
+                      <div>
+                        <p className="font-semibold">
+                          {coupon.code} - {coupon.name}
+                        </p>
+                        <p className="text-xs opacity-70">
+                          低消 {formatMoney(coupon.minSpend ?? 0)} · 每帳號{" "}
+                          {coupon.usageLimitPerUser ?? 1} 次
+                          {coupon.expiresAt
+                            ? ` · 到期 ${formatTaipeiDateTime(coupon.expiresAt)}`
+                            : ""}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="badge badge-accent">
+                          {coupon.discountType === "percent"
+                            ? `${coupon.discountValue}%`
+                            : formatMoney(coupon.discountValue)}
+                        </span>
+                        <button
+                          className="btn btn-xs btn-error btn-outline"
+                          onClick={() => {
+                            void deleteAdminCoupon(coupon.code);
+                          }}
+                        >
+                          刪除
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -2662,6 +2777,10 @@ export default function App() {
             <button
               className="btn btn-sm btn-outline"
               onClick={() => {
+                if (user) {
+                  setCustomerName(profile.nickname || user.name);
+                  setCustomerPhone(profile.phone);
+                }
                 setCartView("items");
                 setIsCartOpen(true);
               }}
@@ -2928,13 +3047,6 @@ export default function App() {
               </button>
             </div>
             <div className="p-4 space-y-4">
-              {profileNotice ? (
-                <div className="toast toast-top toast-center z-[60]">
-                  <div className="alert alert-warning shadow-lg">
-                    <span>{profileNotice}</span>
-                  </div>
-                </div>
-              ) : null}
               <input
                 className="input input-bordered w-full"
                 placeholder={text.nicknamePlaceholder}
@@ -3334,13 +3446,6 @@ export default function App() {
                 )
               ) : (
                 <div className="space-y-4">
-                  {checkoutNotice ? (
-                    <div className="toast toast-top toast-center z-[60]">
-                      <div className="alert alert-warning shadow-lg">
-                        <span>{checkoutNotice}</span>
-                      </div>
-                    </div>
-                  ) : null}
                   <div className="rounded-lg bg-base-200 p-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span>{text.totalItems}</span>
@@ -3476,7 +3581,13 @@ export default function App() {
                   </button>
                   <button
                     className="btn btn-primary w-full"
-                    onClick={() => setCartView("checkout")}
+                    onClick={() => {
+                      if (user) {
+                        setCustomerName(profile.nickname || user.name);
+                        setCustomerPhone(profile.phone);
+                      }
+                      setCartView("checkout");
+                    }}
                     disabled={cartDetails.length === 0}
                   >
                     {text.checkout}
@@ -3496,6 +3607,22 @@ export default function App() {
             </div>
           </aside>
         </>
+      ) : null}
+
+      {checkoutNotice ? (
+        <div className="fixed left-1/2 top-20 z-[80] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 pointer-events-none">
+          <div className="alert alert-warning shadow-lg justify-center">
+            <span>{checkoutNotice}</span>
+          </div>
+        </div>
+      ) : null}
+
+      {profileNotice ? (
+        <div className="fixed left-1/2 top-20 z-[80] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 pointer-events-none">
+          <div className="alert alert-warning shadow-lg justify-center">
+            <span>{profileNotice}</span>
+          </div>
+        </div>
       ) : null}
     </div>
   );

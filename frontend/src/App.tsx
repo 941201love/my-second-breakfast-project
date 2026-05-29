@@ -114,7 +114,6 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     profileTitle: "個人資料",
     nicknamePlaceholder: "暱稱",
     phonePlaceholder: "電話",
-    languageHint: "語言設定先儲存偏好；商品內容翻譯會在多語系模組接上。",
     save: "儲存",
     qty: "數量",
     sugar: "糖度",
@@ -174,7 +173,6 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     profileTitle: "Profile",
     nicknamePlaceholder: "Nickname",
     phonePlaceholder: "Phone",
-    languageHint: "Language preference is saved; item translation will come with the i18n module.",
     save: "Save",
     qty: "Quantity",
     sugar: "Sugar",
@@ -234,7 +232,6 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     profileTitle: "個人情報",
     nicknamePlaceholder: "ニックネーム",
     phonePlaceholder: "電話",
-    languageHint: "言語設定を保存します。商品翻訳は多言語モジュールで対応します。",
     save: "保存",
     qty: "数量",
     sugar: "甘さ",
@@ -294,7 +291,6 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     profileTitle: "개인 정보",
     nicknamePlaceholder: "닉네임",
     phonePlaceholder: "전화",
-    languageHint: "언어 설정은 저장됩니다. 상품 번역은 다국어 모듈에서 연결됩니다.",
     save: "저장",
     qty: "수량",
     sugar: "당도",
@@ -2370,12 +2366,12 @@ export default function App() {
 
       {user && isProfileOpen ? (
         <>
-          <button
-            className="fixed inset-0 bg-black/35 z-20"
+          <div
+            className="fixed inset-0 bg-black/35 z-40"
             aria-label="close profile"
             onClick={() => setIsProfileOpen(false)}
           />
-          <section className="fixed left-1/2 top-1/2 z-30 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-base-100 shadow-2xl">
+          <section className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-base-100 shadow-2xl">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
               <h2 className="text-xl font-bold">{text.profileTitle}</h2>
               <button
@@ -2428,9 +2424,6 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              <p className="text-xs opacity-60">
-                {text.languageHint}
-              </p>
               <button
                 className="btn btn-primary w-full"
                 onClick={() => saveProfile(profile)}

@@ -50,6 +50,24 @@ const defaultMenu: MenuItem[] = [
     price: 40,
     category: "餐點",
     description: "現煎雞蛋搭配火腿與生菜，使用微烤白吐司，口感清爽不油膩。",
+    translations: {
+      "zh-TW": {
+        name: "火腿蛋吐司",
+        description: "現煎雞蛋搭配火腿與生菜，使用微烤白吐司，口感清爽不油膩。",
+      },
+      en: {
+        name: "Ham Egg Toast",
+        description: "Pan-fried egg with ham and lettuce on lightly toasted white bread.",
+      },
+      ja: {
+        name: "ハムエッグトースト",
+        description: "焼き卵、ハム、レタスを軽く焼いた白トーストで挟んだ朝食定番。",
+      },
+      ko: {
+        name: "햄 에그 토스트",
+        description: "구운 달걀, 햄, 양상추를 살짝 구운 식빵에 넣은 아침 메뉴입니다.",
+      },
+    },
     imageUrl: "/imgs/menu/ham-egg-toast.webp",
     isCurrentVersion: true,
     testGroup: "default",
@@ -66,6 +84,24 @@ const defaultMenu: MenuItem[] = [
     price: 65,
     category: "餐點",
     description: "厚切豬排搭配起司與生菜，外酥內嫩，適合喜歡有咬勁的你。",
+    translations: {
+      "zh-TW": {
+        name: "起司豬排堡",
+        description: "厚切豬排搭配起司與生菜，外酥內嫩，適合喜歡有咬勁的你。",
+      },
+      en: {
+        name: "Cheese Pork Cutlet Burger",
+        description: "Thick pork cutlet with cheese and lettuce, crisp outside and juicy inside.",
+      },
+      ja: {
+        name: "チーズポークカツバーガー",
+        description: "厚切りポークカツにチーズとレタスを合わせた食べ応えのあるバーガー。",
+      },
+      ko: {
+        name: "치즈 돈가스 버거",
+        description: "두툼한 돈가스에 치즈와 양상추를 더한 든든한 버거입니다.",
+      },
+    },
     imageUrl: "/imgs/menu/cheese-pork-burger.webp",
     isCurrentVersion: true,
     testGroup: "default",
@@ -82,6 +118,24 @@ const defaultMenu: MenuItem[] = [
     price: 45,
     category: "餐點",
     description: "自調鮪魚沙拉配上煎蛋與生菜，口味濃郁但不會太鹹。",
+    translations: {
+      "zh-TW": {
+        name: "鮪魚蛋吐司",
+        description: "自調鮪魚沙拉配上煎蛋與生菜，口味濃郁但不會太鹹。",
+      },
+      en: {
+        name: "Tuna Egg Toast",
+        description: "House tuna salad with fried egg and lettuce, rich but not too salty.",
+      },
+      ja: {
+        name: "ツナエッグトースト",
+        description: "自家製ツナサラダに卵とレタスを合わせた、濃厚で食べやすいトースト。",
+      },
+      ko: {
+        name: "참치 에그 토스트",
+        description: "직접 만든 참치 샐러드에 달걀과 양상추를 더한 고소한 토스트입니다.",
+      },
+    },
     imageUrl: "/imgs/menu/tuna-egg-toast.webp",
     isCurrentVersion: true,
     testGroup: "default",
@@ -98,6 +152,24 @@ const defaultMenu: MenuItem[] = [
     price: 45,
     category: "餐點",
     description: "煎到微酥的蛋餅皮包裹煙燻培根與雞蛋，是經典台式早餐選擇。",
+    translations: {
+      "zh-TW": {
+        name: "培根蛋餅",
+        description: "煎到微酥的蛋餅皮包裹煙燻培根與雞蛋，是經典台式早餐選擇。",
+      },
+      en: {
+        name: "Bacon Egg Pancake Roll",
+        description: "Crisp Taiwanese egg pancake filled with smoked bacon and egg.",
+      },
+      ja: {
+        name: "ベーコン蛋餅",
+        description: "香ばしく焼いた台湾風蛋餅にスモークベーコンと卵を包みました。",
+      },
+      ko: {
+        name: "베이컨 단빙",
+        description: "바삭하게 구운 대만식 달걀 전병에 훈제 베이컨과 달걀을 넣었습니다.",
+      },
+    },
     imageUrl: "/imgs/menu/bacon-egg-roll.webp",
     isCurrentVersion: true,
     testGroup: "default",
@@ -107,6 +179,18 @@ const defaultMenu: MenuItem[] = [
 
 function cloneDefaultMenu(): MenuItem[] {
   return defaultMenu.map((item) => ({ ...item }));
+}
+
+function fallbackTranslations(
+  name: string,
+  description: string,
+): NonNullable<MenuItem["translations"]> {
+  return {
+    "zh-TW": { name, description },
+    en: { name, description },
+    ja: { name, description },
+    ko: { name, description },
+  };
 }
 
 function calculateOrderTotal(items: OrderItem[]): number {
@@ -143,7 +227,8 @@ function normalizeMenuItem(item: LegacyMenuItem): MenuItem {
     price: item.price ?? 0,
     category: item.category ?? "",
     description: item.description ?? "",
-    translations: item.translations,
+    translations:
+      item.translations ?? fallbackTranslations(item.name ?? "", item.description ?? ""),
     imageUrl: item.imageUrl ?? item.image_url ?? "",
     isCurrentVersion: item.isCurrentVersion ?? true,
     testGroup: item.testGroup ?? "default",

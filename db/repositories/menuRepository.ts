@@ -16,6 +16,18 @@ import type {
 
 type MenuRow = typeof menuItemsTable.$inferSelect;
 
+function fallbackTranslations(
+  name: string,
+  description: string,
+): NonNullable<MenuItem["translations"]> {
+  return {
+    "zh-TW": { name, description },
+    en: { name, description },
+    ja: { name, description },
+    ko: { name, description },
+  };
+}
+
 export interface MenuItemChanges {
   name?: string;
   price?: number;
@@ -38,7 +50,7 @@ function toMenuItem(row: MenuRow): MenuItem {
     price: row.price,
     category: row.category,
     description: row.description,
-    translations: translations ?? undefined,
+    translations: translations ?? fallbackTranslations(row.name, row.description),
     imageUrl: row.imageUrl,
     isCurrentVersion: row.isCurrentVersion,
     testGroup: row.testGroup,

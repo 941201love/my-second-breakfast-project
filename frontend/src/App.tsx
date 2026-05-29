@@ -61,6 +61,10 @@ function formatMoney(amount: number) {
   return `NT$${amount}`;
 }
 
+function isTaiwanMobilePhone(phone: string) {
+  return /^09\d{8}$/.test(phone);
+}
+
 type UserProfile = {
   nickname: string;
   phone: string;
@@ -456,6 +460,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     totalAmount: "總金額",
     checkoutNamePlaceholder: "暱稱，例如 小翔",
     checkoutPhonePlaceholder: "電話號碼（必填），例如 0912345678",
+    phoneRequired: "請填寫電話號碼，方便店家確認取餐。",
+    phoneInvalid: "電話號碼需為 09 開頭、總共 10 碼。",
     pickupTimePlaceholder: "大概幾點拿，例如 08:30",
     orderNotePlaceholder: "整張訂單備註，例如：餐點分開裝、到店再做",
     couponPlaceholder: "優惠碼，例如 BREAKFAST10",
@@ -516,6 +522,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     totalAmount: "Amount",
     checkoutNamePlaceholder: "Nickname, e.g. Sean",
     checkoutPhonePlaceholder: "Phone required, e.g. 0912345678",
+    phoneRequired: "Please enter your phone number for pickup confirmation.",
+    phoneInvalid: "Phone must start with 09 and contain 10 digits.",
     pickupTimePlaceholder: "Pickup time, e.g. 08:30",
     orderNotePlaceholder: "Order note, e.g. separate packaging",
     couponPlaceholder: "Coupon code, e.g. BREAKFAST10",
@@ -576,6 +584,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     totalAmount: "合計金額",
     checkoutNamePlaceholder: "ニックネーム、例：翔",
     checkoutPhonePlaceholder: "電話番号（必須）、例：0912345678",
+    phoneRequired: "受け取り確認のため電話番号を入力してください。",
+    phoneInvalid: "電話番号は09で始まる10桁で入力してください。",
     pickupTimePlaceholder: "受取予定時刻、例：08:30",
     orderNotePlaceholder: "注文メモ、例：別包装",
     couponPlaceholder: "クーポンコード、例：BREAKFAST10",
@@ -636,6 +646,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     totalAmount: "총 금액",
     checkoutNamePlaceholder: "닉네임, 예: 샹",
     checkoutPhonePlaceholder: "전화번호(필수), 예: 0912345678",
+    phoneRequired: "픽업 확인을 위해 전화번호를 입력해 주세요.",
+    phoneInvalid: "전화번호는 09로 시작하는 10자리여야 합니다.",
     pickupTimePlaceholder: "픽업 시간, 예: 08:30",
     orderNotePlaceholder: "주문 메모, 예: 따로 포장",
     couponPlaceholder: "쿠폰 코드, 예: BREAKFAST10",
@@ -727,6 +739,7 @@ export default function App() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [pickupTime, setPickupTime] = useState("");
+  const [checkoutNotice, setCheckoutNotice] = useState("");
   const [adminOrders, setAdminOrders] = useState<Order[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [cartView, setCartView] = useState<"items" | "checkout">("items");
@@ -978,6 +991,16 @@ export default function App() {
 
     return () => window.clearTimeout(timer);
   }, [completedNoticeOrder]);
+
+  useEffect(() => {
+    if (!checkoutNotice) return;
+
+    const timer = window.setTimeout(() => {
+      setCheckoutNotice("");
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [checkoutNotice]);
 
   useEffect(() => {
     if (!lastSubmittedOrder || completedNoticeOrder) return;
@@ -1756,8 +1779,13 @@ export default function App() {
 
     setActionError("");
     setStaleCartItems([]);
-    if (!customerPhone.trim()) {
-      setActionError("請填寫電話號碼，方便店家確認取餐。");
+    const normalizedPhone = customerPhone.trim();
+    if (!normalizedPhone) {
+      setCheckoutNotice(text.phoneRequired);
+      return;
+    }
+    if (!isTaiwanMobilePhone(normalizedPhone)) {
+      setCheckoutNotice(text.phoneInvalid);
       return;
     }
     setIsSubmittingOrder(true);
@@ -1774,7 +1802,7 @@ export default function App() {
             note: orderNote.trim() || undefined,
             couponCode: couponCode.trim() || undefined,
             customerName: customerName.trim() || user.name,
-            customerPhone: customerPhone.trim() || undefined,
+            customerPhone: normalizedPhone,
             pickupTime: pickupTime.trim() || undefined,
           }),
         },
@@ -3204,6 +3232,13 @@ export default function App() {
                 )
               ) : (
                 <div className="space-y-4">
+                  {checkoutNotice ? (
+                    <div className="toast toast-top toast-center z-[60]">
+                      <div className="alert alert-warning shadow-lg">
+                        <span>{checkoutNotice}</span>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="rounded-lg bg-base-200 p-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span>{text.totalItems}</span>
@@ -3224,7 +3259,14 @@ export default function App() {
                     className="input input-bordered w-full"
                     placeholder={text.checkoutPhonePlaceholder}
                     value={customerPhone}
-                    onChange={(event) => setCustomerPhone(event.currentTarget.value)}
+                    inputMode="numeric"
+                    maxLength={10}
+                    onChange={(event) => {
+                      const phone = event.currentTarget.value
+                        .replace(/\D/g, "")
+                        .slice(0, 10);
+                      setCustomerPhone(phone);
+                    }}
                     required
                   />
                   <input

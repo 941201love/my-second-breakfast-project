@@ -48,6 +48,21 @@ function logicalIdFromSeedId(id: string | number | undefined, index: number) {
   return String(index + 1).padStart(3, "0");
 }
 
+function sameOrderItemOptions(
+  item: OrderItem,
+  input: { sugarLevel?: string; iceLevel?: string; note?: string },
+) {
+  const sugar = (input.sugarLevel || "正常糖").trim();
+  const ice = (input.iceLevel || "正常冰").trim();
+  const note = (input.note || "").trim();
+
+  return (
+    (item.sugarLevel || "正常糖").trim() === sugar &&
+    (item.iceLevel || "正常冰").trim() === ice &&
+    (item.note || "").trim() === note
+  );
+}
+
 export class PgStore implements Store {
   private readonly dataFilePath: string;
   private menu: MenuItem[] = [];
@@ -237,7 +252,11 @@ export class PgStore implements Store {
         ? order.items.findIndex((item) => item.id === input.orderItemId)
         : input.forceNew
           ? -1
-          : order.items.findIndex((item) => item.menuItemId === input.itemId);
+          : order.items.findIndex(
+              (item) =>
+                item.menuItemId === input.itemId &&
+                sameOrderItemOptions(item, input),
+            );
 
     if (existingIdx !== -1) {
       if (input.qty === 0) {
@@ -253,10 +272,14 @@ export class PgStore implements Store {
           );
         order.items.splice(existingIdx, 1);
       } else {
+        const nextQty =
+          input.orderItemId !== undefined
+            ? input.qty
+            : (order.items[existingIdx]?.qty ?? 0) + input.qty;
         await db
           .update(orderItemsTable)
           .set({
-            qty: input.qty,
+            qty: nextQty,
             sugarLevel: input.sugarLevel,
             iceLevel: input.iceLevel,
             note: input.note,
@@ -271,7 +294,7 @@ export class PgStore implements Store {
           );
         const target = order.items[existingIdx];
         if (target) {
-          target.qty = input.qty;
+          target.qty = nextQty;
           target.sugarLevel = input.sugarLevel;
           target.iceLevel = input.iceLevel;
           target.note = input.note;

@@ -194,6 +194,21 @@ function normalizeUser(user: Partial<StoredUser>): StoredUser {
   };
 }
 
+function sameOrderItemOptions(
+  item: OrderItem,
+  input: { sugarLevel?: string; iceLevel?: string; note?: string },
+) {
+  const sugar = (input.sugarLevel || "正常糖").trim();
+  const ice = (input.iceLevel || "正常冰").trim();
+  const note = (input.note || "").trim();
+
+  return (
+    (item.sugarLevel || "正常糖").trim() === sugar &&
+    (item.iceLevel || "正常冰").trim() === ice &&
+    (item.note || "").trim() === note
+  );
+}
+
 const defaultUsers: StoredUser[] = [
   {
     id: "0001",
@@ -515,7 +530,11 @@ export class JsonFileStore implements Store {
         ? order.items.findIndex((orderItem) => orderItem.id === input.orderItemId)
         : input.forceNew
           ? -1
-          : order.items.findIndex((orderItem) => orderItem.menuItemId === input.itemId);
+          : order.items.findIndex(
+              (orderItem) =>
+                orderItem.menuItemId === input.itemId &&
+                sameOrderItemOptions(orderItem, input),
+            );
 
     if (existingItemIndex !== -1) {
       const existingOrderItem = order.items[existingItemIndex];
@@ -523,7 +542,10 @@ export class JsonFileStore implements Store {
       if (input.qty === 0) {
         order.items.splice(existingItemIndex, 1);
       } else if (existingOrderItem) {
-        existingOrderItem.qty = input.qty;
+        existingOrderItem.qty =
+          input.orderItemId !== undefined
+            ? input.qty
+            : existingOrderItem.qty + input.qty;
         existingOrderItem.sugarLevel = input.sugarLevel;
         existingOrderItem.iceLevel = input.iceLevel;
         existingOrderItem.note = input.note;

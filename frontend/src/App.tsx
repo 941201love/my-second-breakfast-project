@@ -719,7 +719,6 @@ export default function App() {
               sugarLevel: options.sugarLevel || undefined,
               iceLevel: options.iceLevel || undefined,
               note: options.note?.trim() || undefined,
-              forceNew: true,
             }),
           },
         );

@@ -65,6 +65,15 @@ function isTaiwanMobilePhone(phone: string) {
   return /^09\d{8}$/.test(phone);
 }
 
+function calculateCouponDiscount(coupon: Coupon | null, amount: number) {
+  if (!coupon) return 0;
+  if (coupon.discountType === "percent") {
+    return Math.min(amount, Math.floor((amount * coupon.discountValue) / 100));
+  }
+
+  return Math.min(amount, coupon.discountValue);
+}
+
 type UserProfile = {
   nickname: string;
   phone: string;
@@ -465,6 +474,11 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     pickupTimePlaceholder: "大概幾點拿，例如 08:30",
     orderNotePlaceholder: "整張訂單備註，例如：餐點分開裝、到店再做",
     couponPlaceholder: "優惠碼，例如 BREAKFAST10",
+    addCoupon: "新增",
+    couponApplied: "已使用優惠券",
+    couponInvalid: "找不到可使用的優惠券。",
+    discount: "優惠折抵",
+    couponLimitOnce: "每個帳號限一次",
     clearing: "清空中...",
     clearCart: "清空購物車",
     submitting: "結帳中...",
@@ -527,6 +541,11 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     pickupTimePlaceholder: "Pickup time, e.g. 08:30",
     orderNotePlaceholder: "Order note, e.g. separate packaging",
     couponPlaceholder: "Coupon code, e.g. BREAKFAST10",
+    addCoupon: "Add",
+    couponApplied: "Coupon applied",
+    couponInvalid: "No available coupon found.",
+    discount: "Discount",
+    couponLimitOnce: "Once per account",
     clearing: "Clearing...",
     clearCart: "Clear cart",
     submitting: "Checking out...",
@@ -589,6 +608,11 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     pickupTimePlaceholder: "受取予定時刻、例：08:30",
     orderNotePlaceholder: "注文メモ、例：別包装",
     couponPlaceholder: "クーポンコード、例：BREAKFAST10",
+    addCoupon: "追加",
+    couponApplied: "クーポン適用済み",
+    couponInvalid: "利用できるクーポンが見つかりません。",
+    discount: "割引",
+    couponLimitOnce: "1アカウント1回まで",
     clearing: "削除中...",
     clearCart: "カートを空にする",
     submitting: "会計中...",
@@ -651,6 +675,11 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     pickupTimePlaceholder: "픽업 시간, 예: 08:30",
     orderNotePlaceholder: "주문 메모, 예: 따로 포장",
     couponPlaceholder: "쿠폰 코드, 예: BREAKFAST10",
+    addCoupon: "추가",
+    couponApplied: "쿠폰 적용됨",
+    couponInvalid: "사용 가능한 쿠폰을 찾을 수 없습니다.",
+    discount: "할인",
+    couponLimitOnce: "계정당 1회",
     clearing: "비우는 중...",
     clearCart: "장바구니 비우기",
     submitting: "결제 중...",
@@ -740,6 +769,8 @@ export default function App() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [pickupTime, setPickupTime] = useState("");
   const [checkoutNotice, setCheckoutNotice] = useState("");
+  const [profileNotice, setProfileNotice] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [adminOrders, setAdminOrders] = useState<Order[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [cartView, setCartView] = useState<"items" | "checkout">("items");
@@ -774,6 +805,11 @@ export default function App() {
     sugarOptionLabels[profile.language]?.[option] ?? option;
   const iceLabel = (option: string) =>
     iceOptionLabels[profile.language]?.[option] ?? option;
+  const couponDiscountTotal = useMemo(
+    () => calculateCouponDiscount(appliedCoupon, cartTotal),
+    [appliedCoupon, cartTotal],
+  );
+  const checkoutTotal = Math.max(0, cartTotal - couponDiscountTotal);
 
   function syncCartFromOrder(order: Order) {
     const nextQtyByItemId = order.items.reduce(
@@ -805,6 +841,7 @@ export default function App() {
     setCartTotal(0);
     setOrderNote("");
     setCouponCode("");
+    setAppliedCoupon(null);
     setCustomerName("");
     setCustomerPhone("");
     setPickupTime("");
@@ -821,6 +858,14 @@ export default function App() {
 
     const payload = (await response.json()) as ApiDataResponse<MenuItem[]>;
     setItems(Array.isArray(payload?.data) ? payload.data : []);
+  }
+
+  async function loadCoupons(): Promise<void> {
+    const response = await fetch(buildApiUrl("/api/coupons"));
+    if (!response.ok) return;
+
+    const payload = (await response.json()) as ApiDataResponse<Coupon[]>;
+    setCoupons(Array.isArray(payload?.data) ? payload.data : []);
   }
 
   async function loadCurrentOrder(): Promise<Order | null> {
@@ -900,7 +945,7 @@ export default function App() {
     async function loadInitialMenu() {
       try {
         if (mounted) {
-          await loadMenu();
+          await Promise.all([loadMenu(), loadCoupons()]);
         }
       } catch (fetchError) {
         if (mounted) {
@@ -972,12 +1017,24 @@ export default function App() {
   function saveProfile(nextProfile: UserProfile) {
     if (!user) return;
 
-    setProfile(nextProfile);
-    setCustomerName(nextProfile.nickname || user.name);
-    setCustomerPhone(nextProfile.phone);
+    const normalizedPhone = nextProfile.phone.trim();
+    if (normalizedPhone && !isTaiwanMobilePhone(normalizedPhone)) {
+      setProfileNotice(text.phoneInvalid);
+      return;
+    }
+
+    const normalizedProfile = {
+      ...nextProfile,
+      nickname: nextProfile.nickname.trim(),
+      phone: normalizedPhone,
+    };
+
+    setProfile(normalizedProfile);
+    setCustomerName(normalizedProfile.nickname || user.name);
+    setCustomerPhone(normalizedProfile.phone);
     window.localStorage.setItem(
       `breakfast-profile:${user.id}`,
-      JSON.stringify(nextProfile),
+      JSON.stringify(normalizedProfile),
     );
     setIsProfileOpen(false);
   }
@@ -1001,6 +1058,16 @@ export default function App() {
 
     return () => window.clearTimeout(timer);
   }, [checkoutNotice]);
+
+  useEffect(() => {
+    if (!profileNotice) return;
+
+    const timer = window.setTimeout(() => {
+      setProfileNotice("");
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [profileNotice]);
 
   useEffect(() => {
     if (!lastSubmittedOrder || completedNoticeOrder) return;
@@ -1772,6 +1839,30 @@ export default function App() {
     }
   }
 
+  function applyCouponCode(): void {
+    const normalizedCode = couponCode.trim().toUpperCase();
+    if (!normalizedCode) {
+      setCheckoutNotice(text.couponInvalid);
+      return;
+    }
+
+    const coupon =
+      coupons.find(
+        (item) =>
+          item.code.toUpperCase() === normalizedCode && item.isActive !== false,
+      ) ?? null;
+
+    if (!coupon) {
+      setAppliedCoupon(null);
+      setCheckoutNotice(text.couponInvalid);
+      return;
+    }
+
+    setCouponCode(coupon.code);
+    setAppliedCoupon(coupon);
+    setCheckoutNotice(`${text.couponApplied}：${coupon.code}`);
+  }
+
   async function submitOrder(): Promise<void> {
     if (!user || orderId === null || cartDetails.length === 0) {
       return;
@@ -1800,7 +1891,7 @@ export default function App() {
           body: JSON.stringify({
             paymentMethod,
             note: orderNote.trim() || undefined,
-            couponCode: couponCode.trim() || undefined,
+            couponCode: appliedCoupon?.code,
             customerName: customerName.trim() || user.name,
             customerPhone: normalizedPhone,
             pickupTime: pickupTime.trim() || undefined,
@@ -2837,6 +2928,13 @@ export default function App() {
               </button>
             </div>
             <div className="p-4 space-y-4">
+              {profileNotice ? (
+                <div className="toast toast-top toast-center z-[60]">
+                  <div className="alert alert-warning shadow-lg">
+                    <span>{profileNotice}</span>
+                  </div>
+                </div>
+              ) : null}
               <input
                 className="input input-bordered w-full"
                 placeholder={text.nicknamePlaceholder}
@@ -2853,8 +2951,12 @@ export default function App() {
                 className="input input-bordered w-full"
                 placeholder={text.phonePlaceholder}
                 value={profile.phone}
+                inputMode="numeric"
+                maxLength={10}
                 onChange={(event) => {
-                  const phone = event.currentTarget.value;
+                  const phone = event.currentTarget.value
+                    .replace(/\D/g, "")
+                    .slice(0, 10);
                   setProfile((current) => ({
                     ...current,
                     phone,
@@ -3246,8 +3348,16 @@ export default function App() {
                     </div>
                     <div className="flex items-center justify-between text-lg font-bold">
                       <span>{text.totalAmount}</span>
-                      <span>{formatMoney(cartTotal)}</span>
+                      <span>{formatMoney(checkoutTotal)}</span>
                     </div>
+                    {appliedCoupon ? (
+                      <div className="flex items-center justify-between text-sm text-success">
+                        <span>
+                          {text.discount}：{appliedCoupon.code}
+                        </span>
+                        <span>-{formatMoney(couponDiscountTotal)}</span>
+                      </div>
+                    ) : null}
                   </div>
                   <input
                     className="input input-bordered w-full"
@@ -3301,14 +3411,37 @@ export default function App() {
                     value={orderNote}
                     onChange={(event) => setOrderNote(event.currentTarget.value)}
                   />
-                  <input
-                    className="input input-bordered w-full"
-                    placeholder={text.couponPlaceholder}
-                    value={couponCode}
-                    onChange={(event) =>
-                      setCouponCode(event.currentTarget.value.toUpperCase())
-                    }
-                  />
+                  <div className="space-y-2">
+                    <div className="join w-full">
+                      <input
+                        className="input input-bordered join-item flex-1"
+                        placeholder={text.couponPlaceholder}
+                        value={couponCode}
+                        onChange={(event) => {
+                          const code = event.currentTarget.value.toUpperCase();
+                          setCouponCode(code);
+                          setAppliedCoupon(null);
+                        }}
+                      />
+                      <button
+                        className="btn btn-outline join-item"
+                        onClick={applyCouponCode}
+                      >
+                        {text.addCoupon}
+                      </button>
+                    </div>
+                    {appliedCoupon ? (
+                      <div className="rounded-lg bg-success/10 border border-success/30 px-3 py-2 text-sm">
+                        <p className="font-semibold text-success">
+                          {text.couponApplied}：{appliedCoupon.code}
+                        </p>
+                        <p className="opacity-70">
+                          {text.couponLimitOnce}，{text.discount}{" "}
+                          {formatMoney(couponDiscountTotal)}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               )}
             </div>
@@ -3320,8 +3453,16 @@ export default function App() {
               </div>
               <div className="flex items-center justify-between text-lg font-bold">
                 <span>{text.totalAmount}</span>
-                <span>{formatMoney(cartTotal)}</span>
+                <span>
+                  {formatMoney(cartView === "checkout" ? checkoutTotal : cartTotal)}
+                </span>
               </div>
+              {cartView === "checkout" && appliedCoupon ? (
+                <div className="flex items-center justify-between text-sm text-success">
+                  <span>{text.discount}</span>
+                  <span>-{formatMoney(couponDiscountTotal)}</span>
+                </div>
+              ) : null}
               {cartView === "items" ? (
                 <>
                   <button

@@ -74,6 +74,7 @@ const languageOptions: Array<{
   { value: "ja", label: "日本語" },
   { value: "ko", label: "한국어" },
 ];
+const menuLanguageOptions = languageOptions;
 
 const uiText: Record<UserProfile["language"], Record<string, string>> = {
   "zh-TW": {
@@ -383,6 +384,17 @@ export default function App() {
     discountType: "amount" as "amount" | "percent",
     discountValue: 10,
   });
+  const [newMenuItem, setNewMenuItem] = useState({
+    price: 50,
+    category: "主餐",
+    imageUrl: "/imgs/menu/new-item.webp",
+    translations: {
+      "zh-TW": { name: "", description: "" },
+      en: { name: "", description: "" },
+      ja: { name: "", description: "" },
+      ko: { name: "", description: "" },
+    } as NonNullable<MenuItem["translations"]>,
+  });
   const [couponCode, setCouponCode] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -408,6 +420,12 @@ export default function App() {
     if (status === "submitted") return text.making;
     return text.pendingCart;
   };
+  const menuCopy = (item: MenuItem) =>
+    item.translations?.[profile.language] ??
+    item.translations?.["zh-TW"] ?? {
+      name: item.name,
+      description: item.description,
+    };
 
   function syncCartFromOrder(order: Order) {
     const nextQtyByItemId = order.items.reduce(
@@ -1012,6 +1030,45 @@ export default function App() {
     await loadAdminData();
   }
 
+  async function createAdminMenuItem(): Promise<void> {
+    const missingTranslation = menuLanguageOptions.some((option) => {
+      const translation = newMenuItem.translations[option.value];
+      return !translation.name.trim() || !translation.description.trim();
+    });
+    if (missingTranslation) {
+      setAdminError("新增商品失敗：四種語言的名稱與介紹都要填。");
+      return;
+    }
+
+    const response = await fetch(buildApiUrl("/api/menu"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        price: newMenuItem.price,
+        category: newMenuItem.category,
+        imageUrl: newMenuItem.imageUrl,
+        translations: newMenuItem.translations,
+      }),
+    });
+
+    if (!response.ok) {
+      setAdminError("新增商品失敗，請確認四種語言與商品資料都已填寫。");
+      return;
+    }
+
+    setNewMenuItem((current) => ({
+      ...current,
+      translations: {
+        "zh-TW": { name: "", description: "" },
+        en: { name: "", description: "" },
+        ja: { name: "", description: "" },
+        ko: { name: "", description: "" },
+      },
+    }));
+    await Promise.all([loadMenu(), loadAdminData()]);
+  }
+
   async function updateAdminMenuPrice(item: MenuItem): Promise<void> {
     const raw = window.prompt(`調整「${item.name}」價格`, String(item.price));
     if (!raw) return;
@@ -1541,6 +1598,103 @@ export default function App() {
           {adminAuthed ? (
             <>
           <section>
+            <h2 className="text-2xl font-bold mb-3">新增商品</h2>
+            <div className="bg-base-100 rounded-lg shadow p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <input
+                  className="input input-bordered"
+                  type="number"
+                  min="0"
+                  value={newMenuItem.price}
+                  onChange={(event) =>
+                    setNewMenuItem((current) => ({
+                      ...current,
+                      price: Number(event.currentTarget.value),
+                    }))
+                  }
+                  placeholder="價格"
+                />
+                <input
+                  className="input input-bordered"
+                  value={newMenuItem.category}
+                  onChange={(event) =>
+                    setNewMenuItem((current) => ({
+                      ...current,
+                      category: event.currentTarget.value,
+                    }))
+                  }
+                  placeholder="分類，例如 飲料 / 主餐 / 點心"
+                />
+                <input
+                  className="input input-bordered"
+                  value={newMenuItem.imageUrl}
+                  onChange={(event) =>
+                    setNewMenuItem((current) => ({
+                      ...current,
+                      imageUrl: event.currentTarget.value,
+                    }))
+                  }
+                  placeholder="圖片網址"
+                />
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {menuLanguageOptions.map((option) => (
+                  <div
+                    key={option.value}
+                    className="rounded-lg border border-base-300 p-3 space-y-2"
+                  >
+                    <div className="font-semibold">{option.label}</div>
+                    <input
+                      className="input input-bordered w-full"
+                      value={newMenuItem.translations[option.value].name}
+                      onChange={(event) =>
+                        setNewMenuItem((current) => ({
+                          ...current,
+                          translations: {
+                            ...current.translations,
+                            [option.value]: {
+                              ...current.translations[option.value],
+                              name: event.currentTarget.value,
+                            },
+                          },
+                        }))
+                      }
+                      placeholder={`${option.label} 商品名稱`}
+                    />
+                    <textarea
+                      className="textarea textarea-bordered w-full"
+                      value={
+                        newMenuItem.translations[option.value].description
+                      }
+                      onChange={(event) =>
+                        setNewMenuItem((current) => ({
+                          ...current,
+                          translations: {
+                            ...current.translations,
+                            [option.value]: {
+                              ...current.translations[option.value],
+                              description: event.currentTarget.value,
+                            },
+                          },
+                        }))
+                      }
+                      placeholder={`${option.label} 商品介紹`}
+                    />
+                  </div>
+                ))}
+              </div>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  void createAdminMenuItem();
+                }}
+              >
+                新增商品
+              </button>
+            </div>
+          </section>
+
+          <section>
             <h2 className="text-2xl font-bold mb-3">POS 訂單看板</h2>
             <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
               <table className="table table-zebra">
@@ -2059,63 +2213,66 @@ export default function App() {
                 {category}
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(grouped.groupedItems[category] || []).map((item) => (
-                  <div
-                    key={item.id}
-                    className="card bg-base-100 shadow-md hover:shadow-lg transition-shadow"
-                  >
-                    <figure className="h-44 overflow-hidden bg-base-300">
-                      <img
-                        src={item.imageUrl}
-                        alt={item.name}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        onError={(event) => {
-                          const target = event.currentTarget;
-                          target.src =
-                            "https://images.unsplash.com/photo-1526318896980-cf78c088247c?auto=format&fit=crop&w=800&q=80";
-                        }}
-                      />
-                    </figure>
-                    <div className="card-body">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="card-title text-lg">{item.name}</h3>
-                        {item.activePromotion ? (
-                          <span className="badge badge-accent shrink-0">
-                            {item.activePromotion.name}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="flex flex-wrap gap-2 min-h-6">
-                        {item.priceChanged &&
-                        typeof item.previousPrice === "number" ? (
-                          <span className="badge badge-warning badge-sm">
-                            ${item.previousPrice} → ${item.price}
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="text-sm opacity-80 line-clamp-2 min-h-[2.75rem]">
-                        {item.description}
-                      </p>
-                      <div className="card-actions justify-between items-center">
-                        <span className="text-xl font-bold text-success">
-                          ${item.price}
-                        </span>
-                        <button
-                          className="btn btn-sm btn-primary"
-                          onClick={() => {
-                            openAddToCart(item);
+                {(grouped.groupedItems[category] || []).map((item) => {
+                  const copy = menuCopy(item);
+                  return (
+                    <div
+                      key={item.id}
+                      className="card bg-base-100 shadow-md hover:shadow-lg transition-shadow"
+                    >
+                      <figure className="h-44 overflow-hidden bg-base-300">
+                        <img
+                          src={item.imageUrl}
+                          alt={copy.name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={(event) => {
+                            const target = event.currentTarget;
+                            target.src =
+                              "https://images.unsplash.com/photo-1526318896980-cf78c088247c?auto=format&fit=crop&w=800&q=80";
                           }}
-                          disabled={activeItemId === item.id}
-                        >
-                          {activeItemId === item.id
-                            ? text.adding
-                            : `${text.addToCart}${cartQtyByItemId[item.id] ? ` (${cartQtyByItemId[item.id]})` : ""}`}
-                        </button>
+                        />
+                      </figure>
+                      <div className="card-body">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="card-title text-lg">{copy.name}</h3>
+                          {item.activePromotion ? (
+                            <span className="badge badge-accent shrink-0">
+                              {item.activePromotion.name}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="flex flex-wrap gap-2 min-h-6">
+                          {item.priceChanged &&
+                          typeof item.previousPrice === "number" ? (
+                            <span className="badge badge-warning badge-sm">
+                              ${item.previousPrice} → ${item.price}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="text-sm opacity-80 line-clamp-2 min-h-[2.75rem]">
+                          {copy.description}
+                        </p>
+                        <div className="card-actions justify-between items-center">
+                          <span className="text-xl font-bold text-success">
+                            ${item.price}
+                          </span>
+                          <button
+                            className="btn btn-sm btn-primary"
+                            onClick={() => {
+                              openAddToCart(item);
+                            }}
+                            disabled={activeItemId === item.id}
+                          >
+                            {activeItemId === item.id
+                              ? text.adding
+                              : `${text.addToCart}${cartQtyByItemId[item.id] ? ` (${cartQtyByItemId[item.id]})` : ""}`}
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))
@@ -2295,7 +2452,9 @@ export default function App() {
           <section className="fixed left-1/2 top-1/2 z-30 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-base-100 shadow-2xl">
             <div className="p-4 border-b border-base-300 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold">{customizingItem.name}</h2>
+                <h2 className="text-xl font-bold">
+                  {menuCopy(customizingItem).name}
+                </h2>
                 <p className="text-sm opacity-70">${customizingItem.price}</p>
               </div>
               <button
@@ -2475,7 +2634,9 @@ export default function App() {
                       >
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="font-semibold">{detail.item.name}</p>
+                            <p className="font-semibold">
+                              {menuCopy(detail.item).name}
+                            </p>
                             <p className="text-sm opacity-70">
                             ${detail.item.price} x {detail.qty}
                             </p>

@@ -26,6 +26,7 @@ export interface MenuItemChanges {
 }
 
 function toMenuItem(row: MenuRow): MenuItem {
+  const translations = row.translations as MenuItem["translations"] | null;
   return {
     id: row.id,
     entityId: row.entityId,
@@ -37,6 +38,7 @@ function toMenuItem(row: MenuRow): MenuItem {
     price: row.price,
     category: row.category,
     description: row.description,
+    translations: translations ?? undefined,
     imageUrl: row.imageUrl,
     isCurrentVersion: row.isCurrentVersion,
     testGroup: row.testGroup,
@@ -167,14 +169,16 @@ export class MenuRepository {
 
   async createMenuItem(input: {
     logicalId: string;
-    name: string;
+    name?: string;
     price: number;
     category: string;
-    description: string;
+    description?: string;
     imageUrl: string;
+    translations?: MenuItem["translations"];
     createdBy?: string;
   }): Promise<MenuItem> {
     const now = new Date();
+    const zh = input.translations?.["zh-TW"];
     const [inserted] = await db
       .insert(menuItemsTable)
       .values({
@@ -184,10 +188,11 @@ export class MenuRepository {
         version: 1,
         majorVersion: 1,
         minorVersion: 0,
-        name: input.name,
+        name: input.name ?? zh?.name ?? "",
         price: input.price,
         category: input.category,
-        description: input.description,
+        description: input.description ?? zh?.description ?? "",
+        translations: input.translations,
         imageUrl: input.imageUrl,
         isCurrentVersion: true,
         testGroup: "default",
@@ -249,6 +254,7 @@ export class MenuRepository {
           price: changes.price ?? current.price,
           category: changes.category ?? current.category,
           description: changes.description ?? current.description,
+          translations: current.translations,
           imageUrl: changes.imageUrl ?? current.imageUrl,
           isCurrentVersion: true,
           supersedes: current.id,

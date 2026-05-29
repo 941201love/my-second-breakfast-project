@@ -15,6 +15,26 @@ export const menuItemSchema = z.object({
   price: z.number().min(0),
   category: z.string().min(1),
   description: z.string(),
+  translations: z
+    .object({
+      "zh-TW": z.object({
+        name: z.string().min(1),
+        description: z.string().min(1),
+      }),
+      en: z.object({
+        name: z.string().min(1),
+        description: z.string().min(1),
+      }),
+      ja: z.object({
+        name: z.string().min(1),
+        description: z.string().min(1),
+      }),
+      ko: z.object({
+        name: z.string().min(1),
+        description: z.string().min(1),
+      }),
+    })
+    .optional(),
   imageUrl: z.string().min(1),
   isCurrentVersion: z.boolean(),
   testGroup: z.string().min(1),

@@ -85,11 +85,12 @@ export class PgStore implements Store {
 
   async createMenuItem(input: {
     logicalId?: string;
-    name: string;
+    name?: string;
     price: number;
     category: string;
-    description: string;
+    description?: string;
     imageUrl: string;
+    translations?: MenuItem["translations"];
     createdBy?: string;
   }): Promise<MenuItem> {
     const logicalId = input.logicalId ?? (await this.nextLogicalId());

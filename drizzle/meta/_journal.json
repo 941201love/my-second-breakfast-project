@@ -64,6 +64,13 @@
       "when": 1780276800000,
       "tag": "0008_order_customer_name",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780363200000,
+      "tag": "0009_menu_item_translations",
+      "breakpoints": true
     }
   ]
 }

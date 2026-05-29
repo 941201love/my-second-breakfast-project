@@ -1,5 +1,9 @@
 import type { MenuItem, Order, StaleCartItem } from "../shared/contracts.ts";
+import type { z } from "zod";
+import type { menuItemSchema } from "../shared/contracts.ts";
 import type { Coupon } from "../shared/contracts.ts";
+
+type MenuTranslations = z.infer<typeof menuItemSchema>["translations"];
 
 export type UpdateOrderItemErrorCode =
   | "ORDER_NOT_FOUND"
@@ -26,11 +30,12 @@ export interface Store {
   getMenu(): ReadonlyArray<MenuItem>;
   createMenuItem(input: {
     logicalId?: string;
-    name: string;
+    name?: string;
     price: number;
     category: string;
-    description: string;
+    description?: string;
     imageUrl: string;
+    translations?: MenuTranslations;
     createdBy?: string;
   }): Promise<MenuItem>;
   updateMenuItem(

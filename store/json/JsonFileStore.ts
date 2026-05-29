@@ -143,6 +143,7 @@ function normalizeMenuItem(item: LegacyMenuItem): MenuItem {
     price: item.price ?? 0,
     category: item.category ?? "",
     description: item.description ?? "",
+    translations: item.translations,
     imageUrl: item.imageUrl ?? item.image_url ?? "",
     isCurrentVersion: item.isCurrentVersion ?? true,
     testGroup: item.testGroup ?? "default",
@@ -336,15 +337,17 @@ export class JsonFileStore implements Store {
 
   async createMenuItem(input: {
     logicalId?: string;
-    name: string;
+    name?: string;
     price: number;
     category: string;
-    description: string;
+    description?: string;
     imageUrl: string;
+    translations?: MenuItem["translations"];
     createdBy?: string;
   }): Promise<MenuItem> {
     const logicalId =
       input.logicalId ?? String(++this.menuIdCounter).padStart(3, "0");
+    const zh = input.translations?.["zh-TW"];
     const newMenuItem: MenuItem = {
       id: `${logicalId}-01`,
       entityId: crypto.randomUUID(),
@@ -352,10 +355,11 @@ export class JsonFileStore implements Store {
       version: 1,
       majorVersion: 1,
       minorVersion: 0,
-      name: input.name,
+      name: input.name ?? zh?.name ?? "",
       price: input.price,
       category: input.category,
-      description: input.description,
+      description: input.description ?? zh?.description ?? "",
+      translations: input.translations,
       imageUrl: input.imageUrl,
       isCurrentVersion: true,
       testGroup: "default",

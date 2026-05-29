@@ -1,6 +1,7 @@
 import {
   boolean,
   integer,
+  jsonb,
   pgSchema,
   text,
   timestamp,
@@ -43,6 +44,7 @@ export const menuItemsTable = appSchema.table(
     price: integer("price").notNull(),
     category: text("category").notNull(),
     description: text("description").notNull(),
+    translations: jsonb("translations"),
     imageUrl: text("image_url").notNull(),
     isCurrentVersion: boolean("is_current_version").notNull().default(true),
     supersedes: text("supersedes").references(

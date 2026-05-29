@@ -46,13 +46,31 @@ export function toOrderResponse(order: Order): OrderResponse {
 // ─── Request Schemas（按 route 分組）────────────────────────────────────
 
 /** POST /api/menu */
+const menuTranslationsBodySchema = z.object({
+  "zh-TW": z.object({
+    name: z.string().min(1),
+    description: z.string().min(1),
+  }),
+  en: z.object({
+    name: z.string().min(1),
+    description: z.string().min(1),
+  }),
+  ja: z.object({
+    name: z.string().min(1),
+    description: z.string().min(1),
+  }),
+  ko: z.object({
+    name: z.string().min(1),
+    description: z.string().min(1),
+  }),
+});
+
 export const createMenuItemBodySchema = z.object({
   logicalId: z.string().min(1).optional(),
-  name: z.string().min(1),
   price: z.number().int().min(0),
   category: z.string().min(1),
-  description: z.string().min(1),
   imageUrl: z.string().min(1),
+  translations: menuTranslationsBodySchema,
 });
 
 /** PATCH /api/menu/:id */

@@ -1951,7 +1951,7 @@ export default function App() {
                         }}
                         disabled={activeItemId === `order-${order.id}`}
                       >
-                        {activeItemId === `order-${order.id}` ? "加入中..." : "買一次"}
+                        {activeItemId === `order-${order.id}` ? "加入中..." : "再買一次"}
                       </button>
                     </article>
                   ))}

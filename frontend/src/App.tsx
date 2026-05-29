@@ -95,7 +95,8 @@ export default function App() {
   function syncCartFromOrder(order: Order) {
     const nextQtyByItemId = order.items.reduce(
       (acc, orderItem) => {
-        acc[orderItem.menuItemId] = orderItem.qty;
+        acc[orderItem.menuItemId] =
+          (acc[orderItem.menuItemId] ?? 0) + orderItem.qty;
         return acc;
       },
       {} as Record<string, number>,
@@ -791,6 +792,40 @@ export default function App() {
 
     if (!response.ok) {
       setActionError("更新品項選項失敗，請稍後再試。");
+      return;
+    }
+
+    const payload = (await response.json()) as ApiDataResponse<Order>;
+    if (payload?.data) syncCartFromOrder(payload.data);
+  }
+
+  async function updateCartLineQty(
+    detail: {
+      itemId: string;
+      orderItemId?: number;
+      qty: number;
+      orderItem?: OrderItem;
+    },
+    qty: number,
+  ): Promise<void> {
+    if (!user || orderId === null) return;
+
+    const response = await fetch(buildApiUrl(`/api/orders/${orderId}`), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        itemId: detail.itemId,
+        orderItemId: detail.orderItemId,
+        qty,
+        sugarLevel: detail.orderItem?.sugarLevel,
+        iceLevel: detail.orderItem?.iceLevel,
+        note: detail.orderItem?.note,
+      }),
+    });
+
+    if (!response.ok) {
+      setActionError("更新數量失敗，請稍後再試。");
       return;
     }
 
@@ -1703,7 +1738,7 @@ export default function App() {
                 <ul className="space-y-3">
                   {cartDetails.map((detail) => (
                     <li
-                      key={detail.itemId}
+                      key={detail.orderItemId ?? detail.itemId}
                       className="p-3 rounded-lg bg-base-200 space-y-3"
                     >
                       <div className="flex items-center justify-between">
@@ -1714,6 +1749,30 @@ export default function App() {
                           </p>
                         </div>
                         <p className="font-bold">${detail.subtotal}</p>
+                      </div>
+                      <div className="join">
+                        <button
+                          className="btn btn-sm join-item"
+                          onClick={() => {
+                            void updateCartLineQty(
+                              detail,
+                              Math.max(0, detail.qty - 1),
+                            );
+                          }}
+                        >
+                          -
+                        </button>
+                        <span className="btn btn-sm join-item no-animation">
+                          {detail.qty}
+                        </span>
+                        <button
+                          className="btn btn-sm join-item"
+                          onClick={() => {
+                            void updateCartLineQty(detail, detail.qty + 1);
+                          }}
+                        >
+                          +
+                        </button>
                       </div>
                       {isDrink(detail.item) ? (
                         <div className="grid grid-cols-2 gap-2">

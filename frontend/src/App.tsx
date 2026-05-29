@@ -29,6 +29,9 @@ function isDrink(item: MenuItem) {
   return item.category.includes("飲") || item.category.includes("茶");
 }
 
+const sugarOptions = ["正常糖", "少糖", "半糖", "微糖", "無糖"];
+const iceOptions = ["正常冰", "少冰", "微冰", "去冰", "熱飲"];
+
 export default function App() {
   const isAdminPage = window.location.pathname.startsWith("/admin");
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -1772,47 +1775,45 @@ export default function App() {
               </div>
 
               {isDrink(customizingItem) ? (
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="form-control">
-                    <span className="label-text mb-1">糖度</span>
-                    <select
-                      className="select select-bordered"
-                      value={cartDraft.sugarLevel}
-                      onChange={(event) =>
-                        setCartDraft((current) => ({
-                          ...current,
-                          sugarLevel: event.currentTarget.value,
-                        }))
-                      }
-                    >
-                      <option value="">正常糖</option>
-                      <option value="無糖">無糖</option>
-                      <option value="微糖">微糖</option>
-                      <option value="半糖">半糖</option>
-                      <option value="少糖">少糖</option>
-                      <option value="正常糖">正常糖</option>
-                    </select>
-                  </label>
-                  <label className="form-control">
-                    <span className="label-text mb-1">冰塊</span>
-                    <select
-                      className="select select-bordered"
-                      value={cartDraft.iceLevel}
-                      onChange={(event) =>
-                        setCartDraft((current) => ({
-                          ...current,
-                          iceLevel: event.currentTarget.value,
-                        }))
-                      }
-                    >
-                      <option value="">正常冰</option>
-                      <option value="去冰">去冰</option>
-                      <option value="微冰">微冰</option>
-                      <option value="少冰">少冰</option>
-                      <option value="正常冰">正常冰</option>
-                      <option value="熱飲">熱飲</option>
-                    </select>
-                  </label>
+                <div className="space-y-3">
+                  <div>
+                    <span className="label-text mb-2 block">糖度</span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {sugarOptions.map((option) => (
+                        <button
+                          key={option}
+                          className={`btn btn-sm ${cartDraft.sugarLevel === option || (!cartDraft.sugarLevel && option === "正常糖") ? "btn-primary" : "btn-outline"}`}
+                          onClick={() =>
+                            setCartDraft((current) => ({
+                              ...current,
+                              sugarLevel: option,
+                            }))
+                          }
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="label-text mb-2 block">冰塊</span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {iceOptions.map((option) => (
+                        <button
+                          key={option}
+                          className={`btn btn-sm ${cartDraft.iceLevel === option || (!cartDraft.iceLevel && option === "正常冰") ? "btn-primary" : "btn-outline"}`}
+                          onClick={() =>
+                            setCartDraft((current) => ({
+                              ...current,
+                              iceLevel: option,
+                            }))
+                          }
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               ) : null}
 

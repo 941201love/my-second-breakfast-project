@@ -84,6 +84,8 @@ export interface Store {
       paymentMethod?: "cash" | "card";
       note?: string;
       couponCode?: string;
+      customerPhone?: string;
+      pickupTime?: string;
     },
   ): Promise<{ ok: true; order: Order } | SubmitOrderError>;
   completeOrder(orderId: number): Promise<Order | null>;

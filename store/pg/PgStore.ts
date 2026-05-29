@@ -371,6 +371,8 @@ export class PgStore implements Store {
       paymentMethod?: "cash" | "card";
       note?: string;
       couponCode?: string;
+      customerPhone?: string;
+      pickupTime?: string;
     },
   ): Promise<
     | { ok: true; order: Order }
@@ -434,6 +436,8 @@ export class PgStore implements Store {
         paymentMethod: input.paymentMethod ?? "cash",
         note: input.note,
         couponCode: coupon?.code,
+        customerPhone: input.customerPhone,
+        pickupTime: input.pickupTime,
         discountTotal,
         submittedAt: new Date(submittedAt),
       })
@@ -444,6 +448,8 @@ export class PgStore implements Store {
     order.paymentMethod = input.paymentMethod ?? "cash";
     order.note = input.note;
     order.couponCode = coupon?.code;
+    order.customerPhone = input.customerPhone;
+    order.pickupTime = input.pickupTime;
     order.discountTotal = discountTotal;
     order.submittedAt = submittedAt;
 
@@ -586,6 +592,8 @@ export class PgStore implements Store {
           : undefined,
       note: row.note ?? undefined,
       couponCode: row.couponCode ?? undefined,
+      customerPhone: row.customerPhone ?? undefined,
+      pickupTime: row.pickupTime ?? undefined,
       discountTotal: row.discountTotal,
       createdAt: toIsoString(row.createdAt),
       submittedAt: row.submittedAt ? toIsoString(row.submittedAt) : undefined,

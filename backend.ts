@@ -740,6 +740,8 @@ app.post(
       paymentMethod: body.paymentMethod,
       note: body.note,
       couponCode: body.couponCode,
+      customerPhone: body.customerPhone,
+      pickupTime: body.pickupTime,
     });
 
     if (!result.ok && result.code === "ORDER_NOT_FOUND") {

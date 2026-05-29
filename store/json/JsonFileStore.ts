@@ -290,6 +290,8 @@ export class JsonFileStore implements Store {
           dailySequence: order.dailySequence,
           note: order.note,
           couponCode: order.couponCode,
+          customerPhone: order.customerPhone,
+          pickupTime: order.pickupTime,
           discountTotal: order.discountTotal ?? 0,
           submittedAt:
             order.status === "submitted" || order.status === "completed"
@@ -610,6 +612,8 @@ export class JsonFileStore implements Store {
       paymentMethod?: "cash" | "card";
       note?: string;
       couponCode?: string;
+      customerPhone?: string;
+      pickupTime?: string;
     },
   ): Promise<
     | { ok: true; order: Order }
@@ -698,6 +702,8 @@ export class JsonFileStore implements Store {
     order.paymentMethod = input.paymentMethod ?? "cash";
     order.note = input.note;
     order.couponCode = coupon?.code;
+    order.customerPhone = input.customerPhone;
+    order.pickupTime = input.pickupTime;
     order.discountTotal = discountTotal;
     order.submittedAt = new Date().toISOString();
     await this.persist();

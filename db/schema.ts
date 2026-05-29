@@ -114,6 +114,8 @@ export const ordersTable = appSchema.table("orders", {
   paymentMethod: text("payment_method"),
   note: text("note"),
   couponCode: text("coupon_code"),
+  customerPhone: text("customer_phone"),
+  pickupTime: text("pickup_time"),
   discountTotal: integer("discount_total").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),

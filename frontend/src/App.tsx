@@ -87,8 +87,11 @@ export default function App() {
     discountValue: 10,
   });
   const [couponCode, setCouponCode] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [pickupTime, setPickupTime] = useState("");
   const [adminOrders, setAdminOrders] = useState<Order[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [cartView, setCartView] = useState<"items" | "checkout">("items");
   const [isClearingCart, setIsClearingCart] = useState(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [nowText, setNowText] = useState(
@@ -132,7 +135,10 @@ export default function App() {
     setCartTotal(0);
     setOrderNote("");
     setCouponCode("");
+    setCustomerPhone("");
+    setPickupTime("");
     setStaleCartItems([]);
+    setCartView("items");
     setIsCartOpen(false);
   }
 
@@ -930,6 +936,8 @@ export default function App() {
             paymentMethod,
             note: orderNote.trim() || undefined,
             couponCode: couponCode.trim() || undefined,
+            customerPhone: customerPhone.trim() || undefined,
+            pickupTime: pickupTime.trim() || undefined,
           }),
         },
       );
@@ -950,6 +958,7 @@ export default function App() {
               "購物車中有品項已更新，請重新確認菜單後再送出。",
           );
           setIsCartOpen(true);
+          setCartView("items");
           await loadMenu();
           return;
         }
@@ -1177,6 +1186,12 @@ export default function App() {
                         </td>
                         <td className="text-sm">
                           <div>{order.note || "-"}</div>
+                          <div className="opacity-70">
+                            電話：{order.customerPhone || "-"}
+                          </div>
+                          <div className="opacity-70">
+                            取餐：{order.pickupTime || "-"}
+                          </div>
                           <div className="opacity-60">
                             下單：{order.submittedAt ?? "-"}
                           </div>
@@ -1517,7 +1532,7 @@ export default function App() {
       <div className="navbar bg-base-100 shadow-lg flex-col items-stretch gap-2 md:flex-row md:items-center">
         <div className="flex-1 w-full md:w-auto">
           <a className="btn btn-ghost normal-case text-2xl">
-            🌅 聯大資工早餐菜單
+            🍔 博翔早餐菜單
           </a>
         </div>
         <div className="flex-none w-full md:w-auto">
@@ -1543,6 +1558,7 @@ export default function App() {
             <button
               className="btn btn-sm btn-outline"
               onClick={() => {
+                setCartView("items");
                 setIsCartOpen(true);
               }}
               disabled={!user}
@@ -1872,13 +1888,20 @@ export default function App() {
           />
           <aside className="fixed right-0 top-0 h-full w-full max-w-md bg-base-100 shadow-2xl z-10 flex flex-col">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
-              <h2 className="text-xl font-bold">購物車明細</h2>
-              <button
-                className="btn btn-sm btn-ghost"
-                onClick={() => {
-                  setIsCartOpen(false);
-                }}
-              >
+              <div className="flex items-center gap-2">
+                {cartView === "checkout" ? (
+                  <button
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => setCartView("items")}
+                  >
+                    返回
+                  </button>
+                ) : null}
+                <h2 className="text-xl font-bold">
+                  {cartView === "checkout" ? "結帳" : "購物車明細"}
+                </h2>
+              </div>
+              <button className="btn btn-sm btn-ghost" onClick={() => setIsCartOpen(false)}>
                 關閉
               </button>
             </div>
@@ -1902,101 +1925,168 @@ export default function App() {
                   </div>
                 </div>
               ) : null}
-              {cartDetails.length === 0 ? (
-                <div className="alert">
-                  <span>購物車目前是空的。</span>
-                </div>
+              {cartView === "items" ? (
+                cartDetails.length === 0 ? (
+                  <div className="alert">
+                    <span>購物車目前是空的。</span>
+                  </div>
+                ) : (
+                  <ul className="space-y-3">
+                    {cartDetails.map((detail) => (
+                      <li
+                        key={detail.orderItemId ?? detail.itemId}
+                        className="p-3 rounded-lg bg-base-200 space-y-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold">{detail.item.name}</p>
+                            <p className="text-sm opacity-70">
+                              單價 ${detail.item.price} x {detail.qty}
+                            </p>
+                          </div>
+                          <p className="font-bold">${detail.subtotal}</p>
+                        </div>
+                        <div className="join">
+                          <button
+                            className="btn btn-sm join-item"
+                            onClick={() => {
+                              void updateCartLineQty(
+                                detail,
+                                Math.max(0, detail.qty - 1),
+                              );
+                            }}
+                          >
+                            -
+                          </button>
+                          <span className="btn btn-sm join-item no-animation">
+                            {detail.qty}
+                          </span>
+                          <button
+                            className="btn btn-sm join-item"
+                            onClick={() => {
+                              void updateCartLineQty(detail, detail.qty + 1);
+                            }}
+                          >
+                            +
+                          </button>
+                        </div>
+                        {isDrink(detail.item) ? (
+                          <div className="grid grid-cols-2 gap-2">
+                            <select
+                              className="select select-sm select-bordered"
+                              value={detail.orderItem?.sugarLevel ?? ""}
+                              onChange={(event) => {
+                                void updateCartItemOptions(
+                                  detail.orderItemId,
+                                  detail.itemId,
+                                  { sugarLevel: event.currentTarget.value },
+                                );
+                              }}
+                            >
+                              <option value="">正常糖</option>
+                              <option value="無糖">無糖</option>
+                              <option value="微糖">微糖</option>
+                              <option value="半糖">半糖</option>
+                              <option value="少糖">少糖</option>
+                              <option value="正常糖">正常糖</option>
+                            </select>
+                            <select
+                              className="select select-sm select-bordered"
+                              value={detail.orderItem?.iceLevel ?? ""}
+                              onChange={(event) => {
+                                void updateCartItemOptions(
+                                  detail.orderItemId,
+                                  detail.itemId,
+                                  { iceLevel: event.currentTarget.value },
+                                );
+                              }}
+                            >
+                              <option value="">正常冰</option>
+                              <option value="去冰">去冰</option>
+                              <option value="微冰">微冰</option>
+                              <option value="少冰">少冰</option>
+                              <option value="正常冰">正常冰</option>
+                              <option value="熱飲">熱飲</option>
+                            </select>
+                          </div>
+                        ) : null}
+                        <label className="form-control">
+                          <input
+                            className="input input-sm input-bordered"
+                            placeholder="品項備註，例如：不要醬、吐司烤焦一點"
+                            value={detail.orderItem?.note ?? ""}
+                            onChange={(event) => {
+                              void updateCartItemOptions(
+                                detail.orderItemId,
+                                detail.itemId,
+                                { note: event.currentTarget.value },
+                              );
+                            }}
+                          />
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                )
               ) : (
-                <ul className="space-y-3">
-                  {cartDetails.map((detail) => (
-                    <li
-                      key={detail.orderItemId ?? detail.itemId}
-                      className="p-3 rounded-lg bg-base-200 space-y-3"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold">{detail.item.name}</p>
-                          <p className="text-sm opacity-70">
-                            單價 ${detail.item.price} x {detail.qty}
-                          </p>
-                        </div>
-                        <p className="font-bold">${detail.subtotal}</p>
-                      </div>
-                      <div className="join">
-                        <button
-                          className="btn btn-sm join-item"
-                          onClick={() => {
-                            void updateCartLineQty(
-                              detail,
-                              Math.max(0, detail.qty - 1),
-                            );
-                          }}
-                        >
-                          -
-                        </button>
-                        <span className="btn btn-sm join-item no-animation">
-                          {detail.qty}
-                        </span>
-                        <button
-                          className="btn btn-sm join-item"
-                          onClick={() => {
-                            void updateCartLineQty(detail, detail.qty + 1);
-                          }}
-                        >
-                          +
-                        </button>
-                      </div>
-                      {isDrink(detail.item) ? (
-                        <div className="grid grid-cols-2 gap-2">
-                          <select
-                            className="select select-sm select-bordered"
-                            value={detail.orderItem?.sugarLevel ?? ""}
-                            onChange={(event) => {
-                              void updateCartItemOptions(detail.orderItemId, detail.itemId, {
-                                sugarLevel: event.currentTarget.value,
-                              });
-                            }}
-                          >
-                            <option value="">正常糖</option>
-                            <option value="無糖">無糖</option>
-                            <option value="微糖">微糖</option>
-                            <option value="半糖">半糖</option>
-                            <option value="少糖">少糖</option>
-                            <option value="正常糖">正常糖</option>
-                          </select>
-                          <select
-                            className="select select-sm select-bordered"
-                            value={detail.orderItem?.iceLevel ?? ""}
-                            onChange={(event) => {
-                              void updateCartItemOptions(detail.orderItemId, detail.itemId, {
-                                iceLevel: event.currentTarget.value,
-                              });
-                            }}
-                          >
-                            <option value="">正常冰</option>
-                            <option value="去冰">去冰</option>
-                            <option value="微冰">微冰</option>
-                            <option value="少冰">少冰</option>
-                            <option value="正常冰">正常冰</option>
-                            <option value="熱飲">熱飲</option>
-                          </select>
-                        </div>
-                      ) : null}
-                      <label className="form-control">
-                        <input
-                          className="input input-sm input-bordered"
-                          placeholder="品項備註，例如：不要醬、吐司烤焦一點"
-                          value={detail.orderItem?.note ?? ""}
-                          onChange={(event) => {
-                            void updateCartItemOptions(detail.orderItemId, detail.itemId, {
-                              note: event.currentTarget.value,
-                            });
-                          }}
-                        />
-                      </label>
-                    </li>
-                  ))}
-                </ul>
+                <div className="space-y-4">
+                  <div className="rounded-lg bg-base-200 p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span>總件數</span>
+                      <span className="font-semibold">{cartItemCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-lg font-bold">
+                      <span>總金額</span>
+                      <span>${cartTotal}</span>
+                    </div>
+                  </div>
+                  <input
+                    className="input input-bordered w-full"
+                    placeholder="電話號碼，例如 0912345678"
+                    value={customerPhone}
+                    onChange={(event) => setCustomerPhone(event.currentTarget.value)}
+                  />
+                  <input
+                    className="input input-bordered w-full"
+                    placeholder="大概幾點拿，例如 08:30"
+                    value={pickupTime}
+                    onChange={(event) => setPickupTime(event.currentTarget.value)}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300 p-3">
+                      <input
+                        type="radio"
+                        className="radio radio-sm"
+                        checked={paymentMethod === "cash"}
+                        onChange={() => setPaymentMethod("cash")}
+                      />
+                      <span>現金</span>
+                    </label>
+                    <label className="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300 p-3">
+                      <input
+                        type="radio"
+                        className="radio radio-sm"
+                        checked={paymentMethod === "card"}
+                        onChange={() => setPaymentMethod("card")}
+                      />
+                      <span>刷卡</span>
+                    </label>
+                  </div>
+                  <textarea
+                    className="textarea textarea-bordered w-full"
+                    placeholder="整張訂單備註，例如：餐點分開裝、到店再做"
+                    value={orderNote}
+                    onChange={(event) => setOrderNote(event.currentTarget.value)}
+                  />
+                  <input
+                    className="input input-bordered w-full"
+                    placeholder="優惠碼，例如 BREAKFAST10"
+                    value={couponCode}
+                    onChange={(event) =>
+                      setCouponCode(event.currentTarget.value.toUpperCase())
+                    }
+                  />
+                </div>
               )}
             </div>
 
@@ -2009,58 +2099,36 @@ export default function App() {
                 <span>總金額</span>
                 <span>${cartTotal}</span>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300 p-3">
-                  <input
-                    type="radio"
-                    className="radio radio-sm"
-                    checked={paymentMethod === "cash"}
-                    onChange={() => setPaymentMethod("cash")}
-                  />
-                  <span>現金</span>
-                </label>
-                <label className="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300 p-3">
-                  <input
-                    type="radio"
-                    className="radio radio-sm"
-                    checked={paymentMethod === "card"}
-                    onChange={() => setPaymentMethod("card")}
-                  />
-                  <span>刷卡</span>
-                </label>
-              </div>
-              <textarea
-                className="textarea textarea-bordered w-full"
-                placeholder="整張訂單備註，例如：餐點分開裝、到店再做"
-                value={orderNote}
-                onChange={(event) => setOrderNote(event.currentTarget.value)}
-              />
-              <input
-                className="input input-bordered w-full"
-                placeholder="優惠碼，例如 BREAKFAST10"
-                value={couponCode}
-                onChange={(event) =>
-                  setCouponCode(event.currentTarget.value.toUpperCase())
-                }
-              />
-              <button
-                className="btn btn-error btn-outline w-full"
-                onClick={() => {
-                  void clearCart();
-                }}
-                disabled={cartDetails.length === 0 || isClearingCart}
-              >
-                {isClearingCart ? "清空中..." : "清空購物車"}
-              </button>
-              <button
-                className="btn btn-primary w-full"
-                onClick={() => {
-                  void submitOrder();
-                }}
-                disabled={cartDetails.length === 0 || isSubmittingOrder}
-              >
-                {isSubmittingOrder ? "送出中..." : "送出訂單"}
-              </button>
+              {cartView === "items" ? (
+                <>
+                  <button
+                    className="btn btn-error btn-outline w-full"
+                    onClick={() => {
+                      void clearCart();
+                    }}
+                    disabled={cartDetails.length === 0 || isClearingCart}
+                  >
+                    {isClearingCart ? "清空中..." : "清空購物車"}
+                  </button>
+                  <button
+                    className="btn btn-primary w-full"
+                    onClick={() => setCartView("checkout")}
+                    disabled={cartDetails.length === 0}
+                  >
+                    結帳
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="btn btn-primary w-full"
+                  onClick={() => {
+                    void submitOrder();
+                  }}
+                  disabled={cartDetails.length === 0 || isSubmittingOrder}
+                >
+                  {isSubmittingOrder ? "結帳中..." : "確認送出"}
+                </button>
+              )}
             </div>
           </aside>
         </>

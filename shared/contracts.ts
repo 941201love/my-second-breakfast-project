@@ -132,6 +132,8 @@ export const orderSchema = z.object({
   paymentMethod: z.enum(["cash", "card"]).optional(),
   note: z.string().optional(),
   couponCode: z.string().optional(),
+  customerPhone: z.string().optional(),
+  pickupTime: z.string().optional(),
   discountTotal: z.number().min(0).optional(),
   createdAt: z.string().min(1),
   submittedAt: z.string().min(1).optional(),

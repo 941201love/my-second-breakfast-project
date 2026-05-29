@@ -98,6 +98,34 @@ test("submitting an order with a stale menu version is rejected", async () => {
   }
 });
 
+test("checkout contact details are stored on submitted orders", async () => {
+  const store = new JsonFileStore({
+    dataFilePath: join(tempDir, "store.json"),
+  });
+  await store.init();
+
+  const item = store.getMenu()[0]!;
+  const order = await store.createOrder({ userId: "user-1" });
+  await store.updateOrderItem(order.id, {
+    userId: "user-1",
+    itemId: item.id,
+    qty: 1,
+  });
+
+  const submitResult = await store.submitOrder(order.id, {
+    userId: "user-1",
+    paymentMethod: "cash",
+    customerPhone: "0912345678",
+    pickupTime: "08:30",
+  });
+
+  expect(submitResult.ok).toBe(true);
+  if (submitResult.ok) {
+    expect(submitResult.order.customerPhone).toBe("0912345678");
+    expect(submitResult.order.pickupTime).toBe("08:30");
+  }
+});
+
 test("cart can keep separate option lines and clear all items", async () => {
   const store = new JsonFileStore({
     dataFilePath: join(tempDir, "store.json"),

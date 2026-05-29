@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Order } from "./contracts.ts";
 import {
   activePromotionSchema,
+  couponSchema,
   menuItemSchema,
   menuItemVersionHistorySchema,
   orderSchema,
@@ -76,6 +77,17 @@ export const updateMenuItemBodySchema = z.object({
   versionLevel: z.enum(["major", "minor"]).default("minor"),
 });
 
+export const adminLoginBodySchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+});
+
+export const adminLoginResponseSchema = z.object({
+  data: z.object({
+    username: z.string().min(1),
+  }),
+});
+
 /** PATCH /api/menu/display-order */
 export const updateMenuDisplayOrderBodySchema = z.object({
   items: z.array(
@@ -102,11 +114,13 @@ export const updateOrderParamsSchema = z.object({
 });
 
 export const updateOrderBodySchema = z.object({
+  orderItemId: z.number().int().min(1).optional(),
   itemId: z.string().min(1),
   qty: z.number().min(0),
   sugarLevel: z.string().optional(),
   iceLevel: z.string().optional(),
   note: z.string().optional(),
+  forceNew: z.boolean().optional(),
 });
 
 /** POST /api/orders/:id/submit */
@@ -117,6 +131,15 @@ export const submitOrderParamsSchema = z.object({
 export const submitOrderBodySchema = z.object({
   paymentMethod: z.enum(["cash", "card"]).default("cash"),
   note: z.string().optional(),
+  couponCode: z.string().optional(),
+});
+
+export const createCouponBodySchema = z.object({
+  code: z.string().min(1),
+  name: z.string().min(1),
+  discountType: z.enum(["amount", "percent"]).default("amount"),
+  discountValue: z.number().int().min(1),
+  isActive: z.boolean().default(true),
 });
 
 // ─── Response Schemas（API envelope 層）─────────────────────────────────
@@ -135,6 +158,14 @@ export const menuItemVersionHistoryListResponseSchema = z.object({
 
 export const activePromotionListResponseSchema = z.object({
   data: z.array(activePromotionSchema),
+});
+
+export const couponListResponseSchema = z.object({
+  data: z.array(couponSchema),
+});
+
+export const couponResponseSchema = z.object({
+  data: couponSchema,
 });
 
 export const priceSensitivityListResponseSchema = z.object({

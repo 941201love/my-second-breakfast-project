@@ -1,4 +1,5 @@
 import type { MenuItem, Order, StaleCartItem } from "../shared/contracts.ts";
+import type { Coupon } from "../shared/contracts.ts";
 
 export type UpdateOrderItemErrorCode =
   | "ORDER_NOT_FOUND"
@@ -59,18 +60,27 @@ export interface Store {
     orderId: number,
     input: {
       userId: string;
+      orderItemId?: number;
       itemId: string;
       qty: number;
       sugarLevel?: string;
       iceLevel?: string;
       note?: string;
+      forceNew?: boolean;
     },
   ): Promise<
     { ok: true; order: Order } | { ok: false; code: UpdateOrderItemErrorCode }
   >;
   submitOrder(
     orderId: number,
-    input: { userId: string; paymentMethod?: "cash" | "card"; note?: string },
+    input: {
+      userId: string;
+      paymentMethod?: "cash" | "card";
+      note?: string;
+      couponCode?: string;
+    },
   ): Promise<{ ok: true; order: Order } | SubmitOrderError>;
   completeOrder(orderId: number): Promise<Order | null>;
+  getCoupons(): ReadonlyArray<Coupon>;
+  createCoupon(input: Coupon): Promise<Coupon>;
 }

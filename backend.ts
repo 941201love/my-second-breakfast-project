@@ -2,10 +2,16 @@ import { Elysia } from "elysia";
 import { openapi } from "@elysiajs/openapi";
 import { cors } from "@elysia/cors";
 import { existsSync } from "node:fs";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import toTaipeiDateTime from "./util.ts";
 import {
   activePromotionListResponseSchema,
+  adminLoginBodySchema,
+  adminLoginResponseSchema,
   apiErrorResponseSchema,
+  couponListResponseSchema,
+  couponResponseSchema,
+  createCouponBodySchema,
   createMenuItemBodySchema,
   deleteMenuItemParamsSchema,
   getOrderByIdParamsSchema,
@@ -35,6 +41,10 @@ import { menuRepository } from "./db/repositories/menuRepository.ts";
 const port = parseInt(process.env.PORT || "3000", 10);
 const host = process.env.HOST || "localhost";
 const allowedOrigin = process.env.API_ALLOWED_ORIGIN || "*";
+const adminUsername = process.env.ADMIN_USERNAME || "admin";
+const adminPassword = process.env.ADMIN_PASSWORD || "admin1234";
+const adminSessionSecret =
+  process.env.ADMIN_SESSION_SECRET || "change-this-admin-session-secret";
 const store = createStore({ dataFilePath: "./data/store.json" });
 const hasPublicAssets =
   existsSync("./public") && existsSync("./public/index.html");
@@ -50,6 +60,37 @@ async function requireUser(request: Request) {
     });
   }
   return user;
+}
+
+function signAdminSession(username: string) {
+  return createHmac("sha256", adminSessionSecret).update(username).digest("hex");
+}
+
+function isAdminRequest(request: Request) {
+  const cookie = request.headers.get("cookie") ?? "";
+  const session = cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("admin_session="))
+    ?.split("=")[1];
+  if (!session) return false;
+
+  const expected = signAdminSession(adminUsername);
+  const sessionBuffer = Buffer.from(session);
+  const expectedBuffer = Buffer.from(expected);
+  return (
+    sessionBuffer.length === expectedBuffer.length &&
+    timingSafeEqual(sessionBuffer, expectedBuffer)
+  );
+}
+
+function requireAdmin(request: Request) {
+  if (isAdminRequest(request)) return;
+
+  throw new Response(JSON.stringify({ error: "Admin unauthorized" }), {
+    status: 401,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 const app = new Elysia();
@@ -143,6 +184,49 @@ app.post("/api/sign-out", async ({ request }) => {
   return res;
 });
 
+app.post(
+  "/api/admin/login",
+  ({ body }) => {
+    if (body.username !== adminUsername || body.password !== adminPassword) {
+      throw new Response(JSON.stringify({ error: "Invalid admin login" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(
+      JSON.stringify({ data: { username: adminUsername } }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Set-Cookie": `admin_session=${signAdminSession(adminUsername)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400`,
+        },
+      },
+    );
+  },
+  {
+    body: adminLoginBodySchema,
+    response: {
+      200: adminLoginResponseSchema,
+      401: apiErrorResponseSchema,
+    },
+  },
+);
+
+app.post("/api/admin/logout", () => {
+  return new Response(JSON.stringify({ data: { ok: true } }), {
+    headers: {
+      "Content-Type": "application/json",
+      "Set-Cookie": "admin_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0",
+    },
+  });
+});
+
+app.get("/api/admin/session", ({ request }) => {
+  requireAdmin(request);
+  return { data: { username: adminUsername } };
+});
+
 // 菜單路由
 app.get("/api/menu", () => ({ data: [...store.getMenu()] }), {
   detail: {
@@ -157,7 +241,8 @@ app.get("/api/menu", () => ({ data: [...store.getMenu()] }), {
 
 app.post(
   "/api/menu",
-  async ({ body, set }) => {
+  async ({ body, request, set }) => {
+    requireAdmin(request);
     const newMenuItem = await store.createMenuItem(body);
     set.status = 201;
     return { data: newMenuItem };
@@ -177,7 +262,8 @@ app.post(
 
 app.patch(
   "/api/menu/display-order",
-  async ({ body }) => {
+  async ({ body, request }) => {
+    requireAdmin(request);
     await menuRepository.updateDisplayOrder(body.items);
     return { data: await menuRepository.getCurrentMenu() };
   },
@@ -196,7 +282,8 @@ app.patch(
 
 app.patch(
   "/api/menu/:id",
-  async ({ params, body, set }) => {
+  async ({ params, body, request, set }) => {
+    requireAdmin(request);
     const menuItem = await store.updateMenuItem(params.id, body);
 
     if (!menuItem) {
@@ -223,7 +310,10 @@ app.patch(
 
 app.get(
   "/api/menu/analytics/price-sensitivity",
-  async () => ({ data: await menuRepository.getPriceSensitivity() }),
+  async ({ request }) => {
+    requireAdmin(request);
+    return { data: await menuRepository.getPriceSensitivity() };
+  },
   {
     detail: {
       tags: ["menu"],
@@ -248,6 +338,34 @@ app.get(
     },
     response: {
       200: activePromotionListResponseSchema,
+    },
+  },
+);
+
+app.get("/api/coupons", () => ({ data: [...store.getCoupons()] }), {
+  response: {
+    200: couponListResponseSchema,
+  },
+});
+
+app.post(
+  "/api/coupons",
+  async ({ body, request }) => {
+    requireAdmin(request);
+    const coupon = await store.createCoupon({
+      code: body.code,
+      name: body.name,
+      discountType: body.discountType,
+      discountValue: body.discountValue,
+      isActive: body.isActive,
+    });
+    return { data: coupon };
+  },
+  {
+    body: createCouponBodySchema,
+    response: {
+      200: couponResponseSchema,
+      401: apiErrorResponseSchema,
     },
   },
 );
@@ -300,9 +418,10 @@ app.delete(
 // 訂單列表路由
 app.get(
   "/api/orders",
-  () => ({
-    data: store.getOrders().map(toOrderResponse),
-  }),
+  ({ request }) => {
+    requireAdmin(request);
+    return { data: store.getOrders().map(toOrderResponse) };
+  },
   {
     detail: {
       tags: ["orders"],
@@ -402,11 +521,19 @@ app.get(
       data: {
         latestSubmittedOrderId:
           submittedOrders.length > 0
-            ? Math.max(...submittedOrders.map((order) => order.id))
+            ? Math.max(
+                ...submittedOrders.map(
+                  (order) => order.dailySequence ?? order.id,
+                ),
+              )
             : null,
         latestCompletedOrderId:
           completedOrders.length > 0
-            ? Math.max(...completedOrders.map((order) => order.id))
+            ? Math.max(
+                ...completedOrders.map(
+                  (order) => order.dailySequence ?? order.id,
+                ),
+              )
             : null,
       },
     };
@@ -425,7 +552,8 @@ app.get(
 
 app.patch(
   "/api/orders/:id/complete",
-  async ({ params, set }) => {
+  async ({ params, request, set }) => {
+    requireAdmin(request);
     const orderId = parseInt(params.id, 10);
     const order = await store.completeOrder(orderId);
 

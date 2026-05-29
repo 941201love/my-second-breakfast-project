@@ -4,6 +4,7 @@ import type {
   Order,
   OrderItem,
   StaleCartItem,
+  Coupon,
 } from "../../shared/contracts.ts";
 import { db } from "../../db/client.ts";
 import { menuRepository } from "../../db/repositories/menuRepository.ts";
@@ -11,6 +12,7 @@ import {
   menuItemsTable,
   orderItemsTable,
   ordersTable,
+  couponsTable,
 } from "../../db/schema.ts";
 import type { Store } from "../Store.ts";
 
@@ -50,6 +52,7 @@ export class PgStore implements Store {
   private readonly dataFilePath: string;
   private menu: MenuItem[] = [];
   private orders: Order[] = [];
+  private coupons: Coupon[] = [];
 
   constructor(options: PgStoreOptions = {}) {
     this.dataFilePath = options.dataFilePath ?? "./data/store.json";
@@ -200,11 +203,13 @@ export class PgStore implements Store {
     orderId: number,
     input: {
       userId: string;
+      orderItemId?: number;
       itemId: string;
       qty: number;
       sugarLevel?: string;
       iceLevel?: string;
       note?: string;
+      forceNew?: boolean;
     },
   ): Promise<
     | { ok: true; order: Order }
@@ -227,9 +232,12 @@ export class PgStore implements Store {
     const menuItem = this.menu.find((item) => item.id === input.itemId);
     if (!menuItem) return { ok: false, code: "MENU_ITEM_NOT_FOUND" };
 
-    const existingIdx = order.items.findIndex(
-      (item) => item.menuItemId === input.itemId,
-    );
+    const existingIdx =
+      input.orderItemId !== undefined
+        ? order.items.findIndex((item) => item.id === input.orderItemId)
+        : input.forceNew
+          ? -1
+          : order.items.findIndex((item) => item.menuItemId === input.itemId);
 
     if (existingIdx !== -1) {
       if (input.qty === 0) {
@@ -238,7 +246,9 @@ export class PgStore implements Store {
           .where(
             and(
               eq(orderItemsTable.orderId, orderId),
-              eq(orderItemsTable.menuItemId, input.itemId),
+              input.orderItemId !== undefined
+                ? eq(orderItemsTable.id, input.orderItemId)
+                : eq(orderItemsTable.menuItemId, input.itemId),
             ),
           );
         order.items.splice(existingIdx, 1);
@@ -254,7 +264,9 @@ export class PgStore implements Store {
           .where(
             and(
               eq(orderItemsTable.orderId, orderId),
-              eq(orderItemsTable.menuItemId, input.itemId),
+              input.orderItemId !== undefined
+                ? eq(orderItemsTable.id, input.orderItemId)
+                : eq(orderItemsTable.menuItemId, input.itemId),
             ),
           );
         const target = order.items[existingIdx];
@@ -266,15 +278,16 @@ export class PgStore implements Store {
         }
       }
     } else if (input.qty > 0) {
-      await db.insert(orderItemsTable).values({
+      const [insertedItem] = await db.insert(orderItemsTable).values({
         orderId,
         menuItemId: menuItem.id,
         qty: input.qty,
         sugarLevel: input.sugarLevel,
         iceLevel: input.iceLevel,
         note: input.note,
-      });
+      }).returning();
       order.items.push({
+        id: insertedItem?.id,
         menuItemId: menuItem.id,
         menuItemName: menuItem.name,
         menuItemPrice: menuItem.price,
@@ -296,7 +309,12 @@ export class PgStore implements Store {
 
   async submitOrder(
     orderId: number,
-    input: { userId: string; paymentMethod?: "cash" | "card"; note?: string },
+    input: {
+      userId: string;
+      paymentMethod?: "cash" | "card";
+      note?: string;
+      couponCode?: string;
+    },
   ): Promise<
     | { ok: true; order: Order }
     | {
@@ -336,19 +354,40 @@ export class PgStore implements Store {
     }
 
     const submittedAt = new Date().toISOString();
+    const dailySequence = this.nextDailySequence();
+    const coupon = input.couponCode
+      ? this.coupons.find(
+          (item) =>
+            item.code.toUpperCase() === input.couponCode?.toUpperCase() &&
+            item.isActive,
+        )
+      : undefined;
+    const discountTotal = coupon
+      ? coupon.discountType === "percent"
+        ? Math.floor((order.total * coupon.discountValue) / 100)
+        : Math.min(order.total, coupon.discountValue)
+      : 0;
+    order.total = Math.max(0, order.total - discountTotal);
     await db
       .update(ordersTable)
       .set({
         status: "submitted",
+        dailySequence,
+        total: order.total,
         paymentMethod: input.paymentMethod ?? "cash",
         note: input.note,
+        couponCode: coupon?.code,
+        discountTotal,
         submittedAt: new Date(submittedAt),
       })
       .where(eq(ordersTable.id, orderId));
 
     order.status = "submitted";
+    order.dailySequence = dailySequence;
     order.paymentMethod = input.paymentMethod ?? "cash";
     order.note = input.note;
+    order.couponCode = coupon?.code;
+    order.discountTotal = discountTotal;
     order.submittedAt = submittedAt;
 
     return { ok: true, order };
@@ -367,6 +406,38 @@ export class PgStore implements Store {
     order.status = "completed";
     order.completedAt = completedAt;
     return order;
+  }
+
+  getCoupons(): ReadonlyArray<Coupon> {
+    return this.coupons;
+  }
+
+  async createCoupon(input: Coupon): Promise<Coupon> {
+    const [row] = await db
+      .insert(couponsTable)
+      .values({
+        ...input,
+        code: input.code.toUpperCase(),
+      })
+      .onConflictDoUpdate({
+        target: couponsTable.code,
+        set: {
+          name: input.name,
+          discountType: input.discountType,
+          discountValue: input.discountValue,
+          isActive: input.isActive,
+        },
+      })
+      .returning();
+
+    await this.reloadCoupons();
+    return {
+      code: row?.code ?? input.code.toUpperCase(),
+      name: row?.name ?? input.name,
+      discountType: row?.discountType === "percent" ? "percent" : "amount",
+      discountValue: row?.discountValue ?? input.discountValue,
+      isActive: row?.isActive ?? input.isActive,
+    };
   }
 
   private async seedFromJsonIfEmpty(): Promise<void> {
@@ -398,6 +469,7 @@ export class PgStore implements Store {
 
   private async reloadFromDatabase(): Promise<void> {
     this.menu = await menuRepository.getCurrentMenu();
+    await this.reloadCoupons();
 
     const orderRows = await db
       .select()
@@ -407,6 +479,7 @@ export class PgStore implements Store {
     const orderItemRows = await db
       .select({
         orderId: orderItemsTable.orderId,
+        id: orderItemsTable.id,
         menuItemId: orderItemsTable.menuItemId,
         qty: orderItemsTable.qty,
         sugarLevel: orderItemsTable.sugarLevel,
@@ -426,6 +499,7 @@ export class PgStore implements Store {
     for (const row of orderItemRows) {
       const items = itemsByOrderId.get(row.orderId) ?? [];
       items.push({
+        id: row.id,
         menuItemId: row.menuItemId,
         menuItemName: row.menuItemName,
         menuItemPrice: row.menuItemPrice,
@@ -448,11 +522,14 @@ export class PgStore implements Store {
           : row.status === "submitted"
             ? "submitted"
             : "pending",
+      dailySequence: row.dailySequence ?? undefined,
       paymentMethod:
         row.paymentMethod === "card" || row.paymentMethod === "cash"
           ? row.paymentMethod
           : undefined,
       note: row.note ?? undefined,
+      couponCode: row.couponCode ?? undefined,
+      discountTotal: row.discountTotal,
       createdAt: toIsoString(row.createdAt),
       submittedAt: row.submittedAt ? toIsoString(row.submittedAt) : undefined,
       completedAt: row.completedAt ? toIsoString(row.completedAt) : undefined,
@@ -468,5 +545,32 @@ export class PgStore implements Store {
 
     const next = Number(row?.logicalId ?? "0") + 1;
     return String(next).padStart(3, "0");
+  }
+
+  private nextDailySequence(): number {
+    const today = new Date().toLocaleDateString("sv-SE", {
+      timeZone: "Asia/Taipei",
+    });
+    const todayOrders = this.orders.filter((order) => {
+      const source = order.submittedAt ?? order.createdAt;
+      return (
+        new Date(source).toLocaleDateString("sv-SE", {
+          timeZone: "Asia/Taipei",
+        }) === today && order.dailySequence !== undefined
+      );
+    });
+
+    return Math.max(0, ...todayOrders.map((order) => order.dailySequence ?? 0)) + 1;
+  }
+
+  private async reloadCoupons(): Promise<void> {
+    const rows = await db.select().from(couponsTable);
+    this.coupons = rows.map((row) => ({
+      code: row.code,
+      name: row.name,
+      discountType: row.discountType === "percent" ? "percent" : "amount",
+      discountValue: row.discountValue,
+      isActive: row.isActive,
+    }));
   }
 }

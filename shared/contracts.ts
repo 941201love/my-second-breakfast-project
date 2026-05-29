@@ -59,6 +59,14 @@ export const activePromotionSchema = z.object({
   endsAt: z.string().min(1),
 });
 
+export const couponSchema = z.object({
+  code: z.string().min(1),
+  name: z.string().min(1),
+  discountType: z.enum(["amount", "percent"]),
+  discountValue: z.number().int().min(1),
+  isActive: z.boolean(),
+});
+
 export const priceSensitivitySchema = z.object({
   logicalId: z.string().min(1),
   name: z.string().min(1),
@@ -104,6 +112,7 @@ export const sessionUserSchema = userSchema.pick({
 });
 
 export const orderItemSchema = z.object({
+  id: z.number().int().min(1).optional(),
   menuItemId: z.string().min(1),
   menuItemName: z.string().min(1),
   menuItemPrice: z.number().min(0),
@@ -119,8 +128,11 @@ export const orderSchema = z.object({
   items: z.array(orderItemSchema),
   total: z.number().min(0),
   status: z.enum(["pending", "submitted", "completed"]),
+  dailySequence: z.number().int().min(1).optional(),
   paymentMethod: z.enum(["cash", "card"]).optional(),
   note: z.string().optional(),
+  couponCode: z.string().optional(),
+  discountTotal: z.number().min(0).optional(),
   createdAt: z.string().min(1),
   submittedAt: z.string().min(1).optional(),
   completedAt: z.string().min(1).optional(),
@@ -137,6 +149,7 @@ export type MenuItemVersionHistory = z.infer<
   typeof menuItemVersionHistorySchema
 >;
 export type ActivePromotion = z.infer<typeof activePromotionSchema>;
+export type Coupon = z.infer<typeof couponSchema>;
 export type PriceSensitivity = z.infer<typeof priceSensitivitySchema>;
 export type StaleCartItem = z.infer<typeof staleCartItemSchema>;
 export type User = z.infer<typeof userSchema>;

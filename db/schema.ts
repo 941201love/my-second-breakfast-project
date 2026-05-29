@@ -95,6 +95,14 @@ export const promotionsTable = appSchema.table("promotions", {
   isActive: boolean("is_active").notNull().default(true),
 });
 
+export const couponsTable = appSchema.table("coupons", {
+  code: text("code").primaryKey(),
+  name: text("name").notNull(),
+  discountType: text("discount_type").notNull().default("amount"),
+  discountValue: integer("discount_value").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+});
+
 export const ordersTable = appSchema.table("orders", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   userId: text("user_id")
@@ -102,8 +110,11 @@ export const ordersTable = appSchema.table("orders", {
     .references(() => user.id),
   total: integer("total").notNull().default(0),
   status: text("status").notNull().default("pending"),
+  dailySequence: integer("daily_sequence"),
   paymentMethod: text("payment_method"),
   note: text("note"),
+  couponCode: text("coupon_code"),
+  discountTotal: integer("discount_total").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -125,7 +136,7 @@ export const orderItemsTable = appSchema.table(
     note: text("note"),
   },
   (table) => ({
-    orderMenuUniqueIdx: uniqueIndex("order_items_order_menu_idx").on(
+    orderMenuIdx: index("order_items_order_menu_idx").on(
       table.orderId,
       table.menuItemId,
     ),

@@ -3,6 +3,7 @@ import "./App.css";
 import type {
   ApiDataResponse,
   ActivePromotion,
+  Coupon,
   MenuItem,
   MenuItemVersionHistory,
   Order,
@@ -63,6 +64,11 @@ export default function App() {
   >({});
   const [loadingHistoryId, setLoadingHistoryId] = useState<string | null>(null);
   const [adminLoading, setAdminLoading] = useState(false);
+  const [adminAuthed, setAdminAuthed] = useState(false);
+  const [adminLogin, setAdminLogin] = useState({
+    username: "admin",
+    password: "admin1234",
+  });
   const [adminError, setAdminError] = useState("");
   const [priceSensitivity, setPriceSensitivity] = useState<
     PriceSensitivity[]
@@ -70,10 +76,21 @@ export default function App() {
   const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>(
     [],
   );
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [newCoupon, setNewCoupon] = useState({
+    code: "BREAKFAST10",
+    name: "早餐折 10 元",
+    discountType: "amount" as "amount" | "percent",
+    discountValue: 10,
+  });
+  const [couponCode, setCouponCode] = useState("");
   const [adminOrders, setAdminOrders] = useState<Order[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isClearingCart, setIsClearingCart] = useState(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [nowText, setNowText] = useState(
+    new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei" }),
+  );
 
   function syncCartFromOrder(order: Order) {
     const nextQtyByItemId = order.items.reduce(
@@ -85,7 +102,8 @@ export default function App() {
     );
     const nextOrderItemById = order.items.reduce(
       (acc, orderItem) => {
-        acc[orderItem.menuItemId] = orderItem;
+        acc[String(orderItem.id ?? `${orderItem.menuItemId}-${Object.keys(acc).length}`)] =
+          orderItem;
         return acc;
       },
       {} as Record<string, OrderItem>,
@@ -102,6 +120,7 @@ export default function App() {
     setCartOrderItemById({});
     setCartTotal(0);
     setOrderNote("");
+    setCouponCode("");
     setStaleCartItems([]);
     setIsCartOpen(false);
   }
@@ -212,10 +231,16 @@ export default function App() {
     const progressTimer = window.setInterval(() => {
       void loadOrderProgress();
     }, 10000);
+    const clockTimer = window.setInterval(() => {
+      setNowText(
+        new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei" }),
+      );
+    }, 1000);
 
     return () => {
       mounted = false;
       window.clearInterval(progressTimer);
+      window.clearInterval(clockTimer);
     };
   }, []);
 
@@ -256,7 +281,17 @@ export default function App() {
   useEffect(() => {
     if (!isAdminPage || loading || items.length === 0) return;
 
-    void loadAdminData();
+    async function restoreAdmin() {
+      const response = await fetch(buildApiUrl("/api/admin/session"), {
+        credentials: "include",
+      });
+      if (response.ok) {
+        setAdminAuthed(true);
+        await loadAdminData();
+      }
+    }
+
+    void restoreAdmin();
   }, [isAdminPage, loading, items]);
 
   const cartItemCount = useMemo(
@@ -267,20 +302,20 @@ export default function App() {
   const cartDetails = useMemo(() => {
     const itemById = new Map(items.map((item) => [item.id, item]));
 
-    return Object.entries(cartQtyByItemId)
-      .map(([itemIdText, qty]) => {
-        const itemId = itemIdText;
-        const item = itemById.get(itemId);
-        if (!item || qty <= 0) {
+    return Object.values(cartOrderItemById)
+      .map((orderItem) => {
+        const item = itemById.get(orderItem.menuItemId);
+        if (!item || orderItem.qty <= 0) {
           return null;
         }
 
         return {
-          itemId,
-          qty,
+          itemId: orderItem.menuItemId,
+          orderItemId: orderItem.id,
+          qty: orderItem.qty,
           item,
-          orderItem: cartOrderItemById[itemId],
-          subtotal: item.price * qty,
+          orderItem,
+          subtotal: item.price * orderItem.qty,
         };
       })
       .filter((entry) => entry !== null);
@@ -470,7 +505,7 @@ export default function App() {
     setAdminError("");
 
     try {
-      const [analyticsResponse, promotionsResponse, ordersResponse] =
+      const [analyticsResponse, promotionsResponse, ordersResponse, couponsResponse] =
         await Promise.all([
           fetch(buildApiUrl("/api/menu/analytics/price-sensitivity"), {
             credentials: "include",
@@ -481,13 +516,20 @@ export default function App() {
           fetch(buildApiUrl("/api/orders"), {
             credentials: "include",
           }),
+          fetch(buildApiUrl("/api/coupons"), {
+            credentials: "include",
+          }),
         ]);
 
       if (
         !analyticsResponse.ok ||
         !promotionsResponse.ok ||
-        !ordersResponse.ok
+        !ordersResponse.ok ||
+        !couponsResponse.ok
       ) {
+        if (ordersResponse.status === 401 || analyticsResponse.status === 401) {
+          setAdminAuthed(false);
+        }
         throw new Error("Admin API failed");
       }
 
@@ -501,6 +543,8 @@ export default function App() {
         >;
       const ordersPayload =
         (await ordersResponse.json()) as ApiDataResponse<Order[]>;
+      const couponsPayload =
+        (await couponsResponse.json()) as ApiDataResponse<Coupon[]>;
 
       setPriceSensitivity(
         Array.isArray(analyticsPayload?.data) ? analyticsPayload.data : [],
@@ -511,6 +555,7 @@ export default function App() {
       setAdminOrders(
         Array.isArray(ordersPayload?.data) ? ordersPayload.data : [],
       );
+      setCoupons(Array.isArray(couponsPayload?.data) ? couponsPayload.data : []);
 
       const histories = await Promise.all(
         items.map(async (item) => {
@@ -538,6 +583,66 @@ export default function App() {
     } finally {
       setAdminLoading(false);
     }
+  }
+
+  async function handleAdminLogin(): Promise<void> {
+    setAdminError("");
+    const response = await fetch(buildApiUrl("/api/admin/login"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(adminLogin),
+    });
+
+    if (!response.ok) {
+      setAdminError("後台登入失敗，請確認帳號密碼。");
+      return;
+    }
+
+    setAdminAuthed(true);
+    await loadAdminData();
+  }
+
+  async function createAdminCoupon(): Promise<void> {
+    const response = await fetch(buildApiUrl("/api/coupons"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ ...newCoupon, isActive: true }),
+    });
+
+    if (!response.ok) {
+      setAdminError("新增優惠券失敗。");
+      return;
+    }
+
+    await loadAdminData();
+  }
+
+  async function updateAdminMenuPrice(item: MenuItem): Promise<void> {
+    const raw = window.prompt(`調整「${item.name}」價格`, String(item.price));
+    if (!raw) return;
+    const price = Number(raw);
+    if (!Number.isFinite(price) || price < 0) return;
+
+    const response = await fetch(buildApiUrl(`/api/menu/${item.logicalId}`), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        changes: { price },
+        reason: "POS 後台調整價格",
+        versionLevel: "minor",
+      }),
+    });
+
+    if (!response.ok) {
+      setAdminError("調整價格失敗。");
+      return;
+    }
+
+    await loadMenu();
+    await loadAdminData();
   }
 
   async function completeAdminOrder(orderId: number): Promise<void> {
@@ -577,6 +682,7 @@ export default function App() {
             body: JSON.stringify({
               itemId: item.id,
               qty,
+              forceNew: true,
             }),
           },
         );
@@ -596,8 +702,7 @@ export default function App() {
       };
 
       const targetOrderId = await ensureOrder();
-      const currentQty = cartQtyByItemId[item.id] ?? 0;
-      const nextQty = currentQty + 1;
+      const nextQty = 1;
 
       try {
         const updatedOrder = await patchOrderItem(targetOrderId, nextQty);
@@ -659,21 +764,24 @@ export default function App() {
   }
 
   async function updateCartItemOptions(
+    orderItemId: number | undefined,
     itemId: string,
     next: { sugarLevel?: string; iceLevel?: string; note?: string },
   ): Promise<void> {
     if (!user || orderId === null) return;
 
-    const qty = cartQtyByItemId[itemId] ?? 0;
+    const current = Object.values(cartOrderItemById).find(
+      (item) => item.id === orderItemId,
+    );
+    const qty = current?.qty ?? cartQtyByItemId[itemId] ?? 0;
     if (qty <= 0) return;
-
-    const current = cartOrderItemById[itemId];
     const response = await fetch(buildApiUrl(`/api/orders/${orderId}`), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({
         itemId,
+        orderItemId,
         qty,
         sugarLevel: next.sugarLevel ?? current?.sugarLevel,
         iceLevel: next.iceLevel ?? current?.iceLevel,
@@ -707,6 +815,7 @@ export default function App() {
           credentials: "include",
           body: JSON.stringify({
             itemId: detail.itemId,
+            orderItemId: detail.orderItemId,
             qty: 0,
           }),
         });
@@ -746,6 +855,7 @@ export default function App() {
           body: JSON.stringify({
             paymentMethod,
             note: orderNote.trim() || undefined,
+            couponCode: couponCode.trim() || undefined,
           }),
         },
       );
@@ -813,6 +923,7 @@ export default function App() {
             </a>
           </div>
           <div className="flex-none flex flex-wrap gap-2">
+            <span className="badge badge-outline">台北時間 {nowText}</span>
             <a className="btn btn-sm btn-outline" href="/">
               前台
             </a>
@@ -829,6 +940,55 @@ export default function App() {
         </div>
 
         <main className="container mx-auto p-6 space-y-6">
+          {!adminAuthed ? (
+            <section className="max-w-md mx-auto card bg-base-100 shadow">
+              <div className="card-body">
+                <h2 className="card-title">後台登入</h2>
+                <input
+                  className="input input-bordered"
+                  value={adminLogin.username}
+                  onChange={(event) =>
+                    setAdminLogin((current) => ({
+                      ...current,
+                      username: event.currentTarget.value,
+                    }))
+                  }
+                  placeholder="帳號"
+                />
+                <input
+                  className="input input-bordered"
+                  type="password"
+                  value={adminLogin.password}
+                  onChange={(event) =>
+                    setAdminLogin((current) => ({
+                      ...current,
+                      password: event.currentTarget.value,
+                    }))
+                  }
+                  placeholder="密碼"
+                />
+                <p className="text-xs opacity-60">
+                  預設帳號 admin，預設密碼 admin1234。
+                </p>
+                {adminError ? (
+                  <div className="alert alert-warning">
+                    <span>{adminError}</span>
+                  </div>
+                ) : null}
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    void handleAdminLogin();
+                  }}
+                >
+                  登入後台
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          {adminAuthed ? (
+            <>
           {adminError ? (
             <div className="alert alert-warning">
               <span>{adminError}</span>
@@ -869,7 +1029,11 @@ export default function App() {
               </div>
             </div>
           </section>
+            </>
+          ) : null}
 
+          {adminAuthed ? (
+            <>
           <section>
             <h2 className="text-2xl font-bold mb-3">POS 訂單看板</h2>
             <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
@@ -887,11 +1051,16 @@ export default function App() {
                 </thead>
                 <tbody>
                   {adminOrders
-                    .filter((order) => order.status !== "pending")
+                    .filter((order) => order.status === "submitted")
                     .slice(0, 20)
                     .map((order) => (
                       <tr key={order.id}>
-                        <td className="font-bold">#{order.id}</td>
+                        <td className="font-bold">
+                          #{order.dailySequence ?? order.id}
+                          <div className="text-xs opacity-50">
+                            系統 #{order.id}
+                          </div>
+                        </td>
                         <td>
                           <span
                             className={`badge ${order.status === "completed" ? "badge-success" : "badge-warning"}`}
@@ -922,7 +1091,17 @@ export default function App() {
                             ))}
                           </ul>
                         </td>
-                        <td className="text-sm">{order.note || "-"}</td>
+                        <td className="text-sm">
+                          <div>{order.note || "-"}</div>
+                          <div className="opacity-60">
+                            下單：{order.submittedAt ?? "-"}
+                          </div>
+                          {order.completedAt ? (
+                            <div className="opacity-60">
+                              完成：{order.completedAt}
+                            </div>
+                          ) : null}
+                        </td>
                         <td className="font-semibold">${order.total}</td>
                         <td>
                           {order.status === "submitted" ? (
@@ -1056,7 +1235,19 @@ export default function App() {
                             <span className="text-sm opacity-50">無</span>
                           )}
                         </td>
-                        <td>${item.price}</td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <span>${item.price}</span>
+                            <button
+                              className="btn btn-xs btn-outline"
+                              onClick={() => {
+                                void updateAdminMenuPrice(item);
+                              }}
+                            >
+                              調價
+                            </button>
+                          </div>
+                        </td>
                         <td>
                           <div className="flex flex-wrap gap-1">
                             {histories.slice(0, 3).map((history) => (
@@ -1143,6 +1334,95 @@ export default function App() {
               </div>
             </div>
           </section>
+
+          <section>
+            <h2 className="text-2xl font-bold mb-3">優惠券管理</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="card bg-base-100 shadow">
+                <div className="card-body">
+                  <input
+                    className="input input-bordered"
+                    value={newCoupon.code}
+                    onChange={(event) =>
+                      setNewCoupon((current) => ({
+                        ...current,
+                        code: event.currentTarget.value,
+                      }))
+                    }
+                    placeholder="優惠碼"
+                  />
+                  <input
+                    className="input input-bordered"
+                    value={newCoupon.name}
+                    onChange={(event) =>
+                      setNewCoupon((current) => ({
+                        ...current,
+                        name: event.currentTarget.value,
+                      }))
+                    }
+                    placeholder="優惠券名稱"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      className="select select-bordered"
+                      value={newCoupon.discountType}
+                      onChange={(event) =>
+                        setNewCoupon((current) => ({
+                          ...current,
+                          discountType: event.currentTarget.value as
+                            | "amount"
+                            | "percent",
+                        }))
+                      }
+                    >
+                      <option value="amount">折抵金額</option>
+                      <option value="percent">百分比</option>
+                    </select>
+                    <input
+                      className="input input-bordered"
+                      type="number"
+                      value={newCoupon.discountValue}
+                      onChange={(event) =>
+                        setNewCoupon((current) => ({
+                          ...current,
+                          discountValue: Number(event.currentTarget.value),
+                        }))
+                      }
+                    />
+                  </div>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      void createAdminCoupon();
+                    }}
+                  >
+                    新增 / 更新優惠券
+                  </button>
+                </div>
+              </div>
+              <div className="bg-base-100 rounded-lg shadow p-4">
+                <ul className="space-y-2">
+                  {coupons.map((coupon) => (
+                    <li
+                      key={coupon.code}
+                      className="flex items-center justify-between border-b border-base-300 pb-2"
+                    >
+                      <span>
+                        {coupon.code} - {coupon.name}
+                      </span>
+                      <span className="badge badge-accent">
+                        {coupon.discountType === "percent"
+                          ? `${coupon.discountValue}%`
+                          : `$${coupon.discountValue}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </section>
+            </>
+          ) : null}
         </main>
       </div>
     );
@@ -1234,7 +1514,7 @@ export default function App() {
         {lastSubmittedOrder ? (
           <div className="alert alert-success mb-4">
             <span>
-              訂單 #{lastSubmittedOrder.id} 已送出，請留意目前做到 #
+              訂單 #{lastSubmittedOrder.dailySequence ?? lastSubmittedOrder.id} 已送出，請留意目前做到 #
               {orderProgress.latestCompletedOrderId ?? "-"}。
             </span>
           </div>
@@ -1441,7 +1721,7 @@ export default function App() {
                             className="select select-sm select-bordered"
                             value={detail.orderItem?.sugarLevel ?? ""}
                             onChange={(event) => {
-                              void updateCartItemOptions(detail.itemId, {
+                              void updateCartItemOptions(detail.orderItemId, detail.itemId, {
                                 sugarLevel: event.currentTarget.value,
                               });
                             }}
@@ -1457,7 +1737,7 @@ export default function App() {
                             className="select select-sm select-bordered"
                             value={detail.orderItem?.iceLevel ?? ""}
                             onChange={(event) => {
-                              void updateCartItemOptions(detail.itemId, {
+                              void updateCartItemOptions(detail.orderItemId, detail.itemId, {
                                 iceLevel: event.currentTarget.value,
                               });
                             }}
@@ -1477,7 +1757,7 @@ export default function App() {
                           placeholder="品項備註，例如：不要醬、吐司烤焦一點"
                           value={detail.orderItem?.note ?? ""}
                           onChange={(event) => {
-                            void updateCartItemOptions(detail.itemId, {
+                            void updateCartItemOptions(detail.orderItemId, detail.itemId, {
                               note: event.currentTarget.value,
                             });
                           }}
@@ -1523,6 +1803,14 @@ export default function App() {
                 placeholder="整張訂單備註，例如：餐點分開裝、到店再做"
                 value={orderNote}
                 onChange={(event) => setOrderNote(event.currentTarget.value)}
+              />
+              <input
+                className="input input-bordered w-full"
+                placeholder="優惠碼，例如 BREAKFAST10"
+                value={couponCode}
+                onChange={(event) =>
+                  setCouponCode(event.currentTarget.value.toUpperCase())
+                }
               />
               <button
                 className="btn btn-error btn-outline w-full"

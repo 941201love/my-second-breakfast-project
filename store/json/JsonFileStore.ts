@@ -4,6 +4,7 @@ import type {
   Order,
   OrderItem,
   StaleCartItem,
+  Coupon,
 } from "../../shared/contracts.ts";
 import type { Store } from "../Store.ts";
 
@@ -18,6 +19,7 @@ interface DataStore {
   users: StoredUser[];
   menu: MenuItem[];
   orders: Order[];
+  coupons?: Coupon[];
   userIdCounter: number;
   menuIdCounter: number;
   orderIdCounter: number;
@@ -217,6 +219,7 @@ export class JsonFileStore implements Store {
   private users: StoredUser[] = [];
   private menu: MenuItem[] = [];
   private orders: Order[] = [];
+  private coupons: Coupon[] = [];
   private userIdCounter = 0;
   private menuIdCounter = 0;
   private orderIdCounter = 0;
@@ -269,7 +272,10 @@ export class JsonFileStore implements Store {
             order.paymentMethod === "card" || order.paymentMethod === "cash"
               ? order.paymentMethod
               : undefined,
+          dailySequence: order.dailySequence,
           note: order.note,
+          couponCode: order.couponCode,
+          discountTotal: order.discountTotal ?? 0,
           submittedAt:
             order.status === "submitted" || order.status === "completed"
               ? order.submittedAt
@@ -277,6 +283,16 @@ export class JsonFileStore implements Store {
           completedAt:
             order.status === "completed" ? order.completedAt : undefined,
         })),
+        coupons: Array.isArray(parsed.coupons)
+          ? parsed.coupons.map((coupon) => ({
+              code: coupon.code.toUpperCase(),
+              name: coupon.name,
+              discountType:
+                coupon.discountType === "percent" ? "percent" : "amount",
+              discountValue: coupon.discountValue,
+              isActive: coupon.isActive,
+            }))
+          : [{ code: "BREAKFAST10", name: "早餐折 10 元", discountType: "amount", discountValue: 10, isActive: true }],
         userIdCounter: parsed.userIdCounter ?? 0,
         menuIdCounter: parsed.menuIdCounter ?? 0,
         orderIdCounter: parsed.orderIdCounter ?? 0,
@@ -455,11 +471,13 @@ export class JsonFileStore implements Store {
     orderId: number,
     input: {
       userId: string;
+      orderItemId?: number;
       itemId: string;
       qty: number;
       sugarLevel?: string;
       iceLevel?: string;
       note?: string;
+      forceNew?: boolean;
     },
   ): Promise<
     | { ok: true; order: Order }
@@ -492,9 +510,12 @@ export class JsonFileStore implements Store {
       return { ok: false, code: "MENU_ITEM_NOT_FOUND" };
     }
 
-    const existingItemIndex = order.items.findIndex(
-      (orderItem) => orderItem.menuItemId === input.itemId,
-    );
+    const existingItemIndex =
+      input.orderItemId !== undefined
+        ? order.items.findIndex((orderItem) => orderItem.id === input.orderItemId)
+        : input.forceNew
+          ? -1
+          : order.items.findIndex((orderItem) => orderItem.menuItemId === input.itemId);
 
     if (existingItemIndex !== -1) {
       const existingOrderItem = order.items[existingItemIndex];
@@ -509,6 +530,7 @@ export class JsonFileStore implements Store {
       }
     } else if (input.qty > 0) {
       order.items.push({
+        id: Date.now() + order.items.length,
         menuItemId: menuItem.id,
         menuItemName: menuItem.name,
         menuItemPrice: menuItem.price,
@@ -527,7 +549,12 @@ export class JsonFileStore implements Store {
 
   async submitOrder(
     orderId: number,
-    input: { userId: string; paymentMethod?: "cash" | "card"; note?: string },
+    input: {
+      userId: string;
+      paymentMethod?: "cash" | "card";
+      note?: string;
+      couponCode?: string;
+    },
   ): Promise<
     | { ok: true; order: Order }
     | {
@@ -597,9 +624,25 @@ export class JsonFileStore implements Store {
       return { ok: false, code: "MENU_VERSION_STALE", staleItems };
     }
 
+    const coupon = input.couponCode
+      ? this.coupons.find(
+          (item) =>
+            item.code.toUpperCase() === input.couponCode?.toUpperCase() &&
+            item.isActive,
+        )
+      : undefined;
+    const discountTotal = coupon
+      ? coupon.discountType === "percent"
+        ? Math.floor((order.total * coupon.discountValue) / 100)
+        : Math.min(order.total, coupon.discountValue)
+      : 0;
+    order.total = Math.max(0, order.total - discountTotal);
     order.status = "submitted";
+    order.dailySequence = this.nextDailySequence();
     order.paymentMethod = input.paymentMethod ?? "cash";
     order.note = input.note;
+    order.couponCode = coupon?.code;
+    order.discountTotal = discountTotal;
     order.submittedAt = new Date().toISOString();
     await this.persist();
 
@@ -618,11 +661,36 @@ export class JsonFileStore implements Store {
     return order;
   }
 
+  getCoupons(): ReadonlyArray<Coupon> {
+    return this.coupons;
+  }
+
+  async createCoupon(input: Coupon): Promise<Coupon> {
+    const coupon = { ...input, code: input.code.toUpperCase() };
+    const index = this.coupons.findIndex((item) => item.code === coupon.code);
+    if (index === -1) {
+      this.coupons.push(coupon);
+    } else {
+      this.coupons[index] = coupon;
+    }
+    await this.persist();
+    return coupon;
+  }
+
   private createInitialStore(): DataStore {
     return {
       users: cloneDefaultUsers(),
       menu: cloneDefaultMenu(),
       orders: [],
+      coupons: [
+        {
+          code: "BREAKFAST10",
+          name: "早餐折 10 元",
+          discountType: "amount",
+          discountValue: 10,
+          isActive: true,
+        },
+      ],
       userIdCounter: defaultUsers.length,
       menuIdCounter: defaultMenu.length,
       orderIdCounter: 0,
@@ -633,6 +701,7 @@ export class JsonFileStore implements Store {
     this.users = store.users;
     this.menu = store.menu;
     this.orders = store.orders;
+    this.coupons = store.coupons ?? [];
 
     const maxUserId = this.users.reduce((max, user) => {
       const asNumber = Number.parseInt(user.id, 10);
@@ -658,6 +727,7 @@ export class JsonFileStore implements Store {
       users: this.users,
       menu: this.menu,
       orders: this.orders,
+      coupons: this.coupons,
       userIdCounter: this.userIdCounter,
       menuIdCounter: this.menuIdCounter,
       orderIdCounter: this.orderIdCounter,
@@ -679,5 +749,21 @@ export class JsonFileStore implements Store {
     });
 
     await this.persistQueue;
+  }
+
+  private nextDailySequence(): number {
+    const today = new Date().toLocaleDateString("sv-SE", {
+      timeZone: "Asia/Taipei",
+    });
+    const todayOrders = this.orders.filter((order) => {
+      const source = order.submittedAt ?? order.createdAt;
+      return (
+        new Date(source).toLocaleDateString("sv-SE", {
+          timeZone: "Asia/Taipei",
+        }) === today && order.dailySequence !== undefined
+      );
+    });
+
+    return Math.max(0, ...todayOrders.map((order) => order.dailySequence ?? 0)) + 1;
   }
 }

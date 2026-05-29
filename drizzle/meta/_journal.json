@@ -43,6 +43,13 @@
       "when": 1780017600000,
       "tag": "0005_pos_order_operations",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780104000000,
+      "tag": "0006_pos_security_coupons",
+      "breakpoints": true
     }
   ]
 }

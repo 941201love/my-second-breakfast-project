@@ -84,7 +84,6 @@ export default function App() {
   const [lastSubmittedOrder, setLastSubmittedOrder] = useState<Order | null>(
     null,
   );
-  const [showSubmittedNotice, setShowSubmittedNotice] = useState(false);
   const [completedNoticeOrder, setCompletedNoticeOrder] = useState<Order | null>(
     null,
   );
@@ -309,16 +308,6 @@ export default function App() {
       console.error(refreshError);
     });
   }, [user]);
-
-  useEffect(() => {
-    if (!showSubmittedNotice) return;
-
-    const timer = window.setTimeout(() => {
-      setShowSubmittedNotice(false);
-    }, 5000);
-
-    return () => window.clearTimeout(timer);
-  }, [showSubmittedNotice]);
 
   useEffect(() => {
     if (!completedNoticeOrder) return;
@@ -1038,7 +1027,6 @@ export default function App() {
 
       const payload = (await response.json()) as ApiDataResponse<Order>;
       setLastSubmittedOrder(payload.data);
-      setShowSubmittedNotice(true);
       resetCartState();
       setIsCartOpen(false);
       await loadOrderProgress();
@@ -1681,17 +1669,6 @@ export default function App() {
         {actionError ? (
           <div className="alert alert-warning mb-4">
             <span>{actionError}</span>
-          </div>
-        ) : null}
-
-        {lastSubmittedOrder && showSubmittedNotice ? (
-          <div className="alert alert-success mb-4 max-w-4xl mx-auto">
-            <div>
-              <p className="font-semibold">訂單已送出</p>
-              <p className="text-sm">
-                取餐編號：#{lastSubmittedOrder.dailySequence ?? lastSubmittedOrder.id}
-              </p>
-            </div>
           </div>
         ) : null}
 

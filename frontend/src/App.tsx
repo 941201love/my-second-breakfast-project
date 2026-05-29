@@ -362,6 +362,7 @@ export default function App() {
   const [loadingHistoryId, setLoadingHistoryId] = useState<string | null>(null);
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminAuthed, setAdminAuthed] = useState(false);
+  const [isAdminMenuFormOpen, setIsAdminMenuFormOpen] = useState(false);
   const [adminLogin, setAdminLogin] = useState({
     username: "admin",
     password: "admin1234",
@@ -1062,6 +1063,7 @@ export default function App() {
         ko: { name: "", description: "" },
       },
     }));
+    setIsAdminMenuFormOpen(false);
     await Promise.all([loadMenu(), loadAdminData()]);
   }
 
@@ -1468,7 +1470,7 @@ export default function App() {
         <div className="navbar bg-base-100 shadow-lg">
           <div className="flex-1">
             <a className="btn btn-ghost normal-case text-2xl" href="/admin">
-              早餐店管理後台
+              博翔早餐店管理後台
             </a>
           </div>
           <div className="flex-none flex flex-wrap gap-2">
@@ -1594,101 +1596,131 @@ export default function App() {
           {adminAuthed ? (
             <>
           <section>
-            <h2 className="text-2xl font-bold mb-3">新增商品</h2>
-            <div className="bg-base-100 rounded-lg shadow p-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <input
-                  className="input input-bordered"
-                  type="number"
-                  min="0"
-                  value={newMenuItem.price}
-                  onChange={(event) =>
-                    setNewMenuItem((current) => ({
-                      ...current,
-                      price: Number(event.currentTarget.value),
-                    }))
-                  }
-                  placeholder="價格"
-                />
-                <input
-                  className="input input-bordered"
-                  value={newMenuItem.category}
-                  onChange={(event) =>
-                    setNewMenuItem((current) => ({
-                      ...current,
-                      category: event.currentTarget.value,
-                    }))
-                  }
-                  placeholder="分類，例如 飲料 / 主餐 / 點心"
-                />
-                <input
-                  className="input input-bordered"
-                  value={newMenuItem.imageUrl}
-                  onChange={(event) =>
-                    setNewMenuItem((current) => ({
-                      ...current,
-                      imageUrl: event.currentTarget.value,
-                    }))
-                  }
-                  placeholder="圖片網址"
-                />
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {menuLanguageOptions.map((option) => (
-                  <div
-                    key={option.value}
-                    className="rounded-lg border border-base-300 p-3 space-y-2"
-                  >
-                    <div className="font-semibold">{option.label}</div>
-                    <input
-                      className="input input-bordered w-full"
-                      value={newMenuItem.translations[option.value].name}
-                      onChange={(event) =>
-                        setNewMenuItem((current) => ({
-                          ...current,
-                          translations: {
-                            ...current.translations,
-                            [option.value]: {
-                              ...current.translations[option.value],
-                              name: event.currentTarget.value,
-                            },
-                          },
-                        }))
-                      }
-                      placeholder={`${option.label} 商品名稱`}
-                    />
-                    <textarea
-                      className="textarea textarea-bordered w-full"
-                      value={
-                        newMenuItem.translations[option.value].description
-                      }
-                      onChange={(event) =>
-                        setNewMenuItem((current) => ({
-                          ...current,
-                          translations: {
-                            ...current.translations,
-                            [option.value]: {
-                              ...current.translations[option.value],
-                              description: event.currentTarget.value,
-                            },
-                          },
-                        }))
-                      }
-                      placeholder={`${option.label} 商品介紹`}
-                    />
-                  </div>
-                ))}
-              </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-2xl font-bold">菜單商品</h2>
               <button
                 className="btn btn-primary"
-                onClick={() => {
-                  void createAdminMenuItem();
-                }}
+                onClick={() => setIsAdminMenuFormOpen(true)}
               >
                 新增商品
               </button>
             </div>
           </section>
+
+          {isAdminMenuFormOpen ? (
+            <>
+              <div
+                className="fixed inset-0 z-40 bg-black/35"
+                onClick={() => setIsAdminMenuFormOpen(false)}
+              />
+              <section className="fixed inset-0 z-50 bg-base-100 shadow-2xl flex flex-col">
+                <div className="p-4 border-b border-base-300 flex items-center justify-between">
+                  <h2 className="text-2xl font-bold">新增商品</h2>
+                  <button
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => setIsAdminMenuFormOpen(false)}
+                  >
+                    關閉
+                  </button>
+                </div>
+                <div className="p-4 flex-1 overflow-auto space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input
+                      className="input input-bordered"
+                      type="number"
+                      min="0"
+                      value={newMenuItem.price}
+                      onChange={(event) =>
+                        setNewMenuItem((current) => ({
+                          ...current,
+                          price: Number(event.currentTarget.value),
+                        }))
+                      }
+                      placeholder="價格"
+                    />
+                    <input
+                      className="input input-bordered"
+                      value={newMenuItem.category}
+                      onChange={(event) =>
+                        setNewMenuItem((current) => ({
+                          ...current,
+                          category: event.currentTarget.value,
+                        }))
+                      }
+                      placeholder="分類，例如 飲料 / 主餐 / 點心"
+                    />
+                    <input
+                      className="input input-bordered"
+                      value={newMenuItem.imageUrl}
+                      onChange={(event) =>
+                        setNewMenuItem((current) => ({
+                          ...current,
+                          imageUrl: event.currentTarget.value,
+                        }))
+                      }
+                      placeholder="圖片網址"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {menuLanguageOptions.map((option) => (
+                      <div
+                        key={option.value}
+                        className="rounded-lg border border-base-300 p-3 space-y-2"
+                      >
+                        <div className="font-semibold">{option.label}</div>
+                        <input
+                          className="input input-bordered w-full"
+                          value={newMenuItem.translations[option.value].name}
+                          onChange={(event) =>
+                            setNewMenuItem((current) => ({
+                              ...current,
+                              translations: {
+                                ...current.translations,
+                                [option.value]: {
+                                  ...current.translations[option.value],
+                                  name: event.currentTarget.value,
+                                },
+                              },
+                            }))
+                          }
+                          placeholder={`${option.label} 商品名稱`}
+                        />
+                        <textarea
+                          className="textarea textarea-bordered w-full"
+                          value={
+                            newMenuItem.translations[option.value].description
+                          }
+                          onChange={(event) =>
+                            setNewMenuItem((current) => ({
+                              ...current,
+                              translations: {
+                                ...current.translations,
+                                [option.value]: {
+                                  ...current.translations[option.value],
+                                  description: event.currentTarget.value,
+                                },
+                              },
+                            }))
+                          }
+                          placeholder={`${option.label} 商品介紹`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="p-4 border-t border-base-300">
+                  <button
+                    className="btn btn-primary w-full"
+                    onClick={() => {
+                      void createAdminMenuItem();
+                    }}
+                  >
+                    新增商品
+                  </button>
+                </div>
+              </section>
+            </>
+          ) : null}
 
           <section>
             <h2 className="text-2xl font-bold mb-3">POS 訂單看板</h2>
@@ -2028,21 +2060,38 @@ export default function App() {
                     placeholder="優惠券名稱"
                   />
                   <div className="grid grid-cols-2 gap-2">
-                    <select
-                      className="select select-bordered"
-                      value={newCoupon.discountType}
-                      onChange={(event) =>
+                    <div className="join w-full">
+                      <button
+                        className={`btn join-item flex-1 ${
+                          newCoupon.discountType === "amount"
+                            ? "btn-primary"
+                            : "btn-outline"
+                        }`}
+                        onClick={() =>
+                          setNewCoupon((current) => ({
+                            ...current,
+                            discountType: "amount",
+                          }))
+                        }
+                      >
+                        折抵金額
+                      </button>
+                      <button
+                        className={`btn join-item flex-1 ${
+                          newCoupon.discountType === "percent"
+                            ? "btn-primary"
+                            : "btn-outline"
+                        }`}
+                        onClick={() =>
                         setNewCoupon((current) => ({
                           ...current,
-                          discountType: event.currentTarget.value as
-                            | "amount"
-                            | "percent",
+                          discountType: "percent",
                         }))
                       }
-                    >
-                      <option value="amount">折抵金額</option>
-                      <option value="percent">百分比</option>
-                    </select>
+                      >
+                        百分比
+                      </button>
+                    </div>
                     <input
                       className="input input-bordered"
                       type="number"
@@ -2310,9 +2359,12 @@ export default function App() {
                       className="rounded-lg bg-base-200 p-4 space-y-3"
                     >
                       <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <h3 className="font-semibold">
-                          {text.order} #{order.dailySequence ?? order.id}
-                        </h3>
+                        <div>
+                          <h3 className="font-semibold">{text.order}</h3>
+                          <p className="text-xs opacity-60">
+                            {text.pickupNumber} #{order.dailySequence ?? order.id}
+                          </p>
+                        </div>
                         <span
                           className={`badge ${orderStatusBadgeClass(order.status)}`}
                         >
@@ -2661,43 +2713,57 @@ export default function App() {
                           </button>
                         </div>
                         {isDrink(detail.item) ? (
-                          <div className="grid grid-cols-2 gap-2">
-                            <select
-                              className="select select-sm select-bordered"
-                              value={detail.orderItem?.sugarLevel ?? ""}
-                              onChange={(event) => {
-                                void updateCartItemOptions(
-                                  detail.orderItemId,
-                                  detail.itemId,
-                                  { sugarLevel: event.currentTarget.value },
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                              {sugarOptions.map((option) => {
+                                const selected =
+                                  detail.orderItem?.sugarLevel === option ||
+                                  (!detail.orderItem?.sugarLevel &&
+                                    option === "正常糖");
+                                return (
+                                  <button
+                                    key={option}
+                                    className={`btn btn-xs ${
+                                      selected ? "btn-primary" : "btn-outline"
+                                    }`}
+                                    onClick={() => {
+                                      void updateCartItemOptions(
+                                        detail.orderItemId,
+                                        detail.itemId,
+                                        { sugarLevel: option },
+                                      );
+                                    }}
+                                  >
+                                    {option}
+                                  </button>
                                 );
-                              }}
-                            >
-                              <option value="">正常糖</option>
-                              <option value="無糖">無糖</option>
-                              <option value="微糖">微糖</option>
-                              <option value="半糖">半糖</option>
-                              <option value="少糖">少糖</option>
-                              <option value="正常糖">正常糖</option>
-                            </select>
-                            <select
-                              className="select select-sm select-bordered"
-                              value={detail.orderItem?.iceLevel ?? ""}
-                              onChange={(event) => {
-                                void updateCartItemOptions(
-                                  detail.orderItemId,
-                                  detail.itemId,
-                                  { iceLevel: event.currentTarget.value },
+                              })}
+                            </div>
+                            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                              {iceOptions.map((option) => {
+                                const selected =
+                                  detail.orderItem?.iceLevel === option ||
+                                  (!detail.orderItem?.iceLevel &&
+                                    option === "正常冰");
+                                return (
+                                  <button
+                                    key={option}
+                                    className={`btn btn-xs ${
+                                      selected ? "btn-primary" : "btn-outline"
+                                    }`}
+                                    onClick={() => {
+                                      void updateCartItemOptions(
+                                        detail.orderItemId,
+                                        detail.itemId,
+                                        { iceLevel: option },
+                                      );
+                                    }}
+                                  >
+                                    {option}
+                                  </button>
                                 );
-                              }}
-                            >
-                              <option value="">正常冰</option>
-                              <option value="去冰">去冰</option>
-                              <option value="微冰">微冰</option>
-                              <option value="少冰">少冰</option>
-                              <option value="正常冰">正常冰</option>
-                              <option value="熱飲">熱飲</option>
-                            </select>
+                              })}
+                            </div>
                           </div>
                         ) : null}
                         <label className="form-control">

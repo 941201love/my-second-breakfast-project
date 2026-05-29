@@ -143,6 +143,7 @@ export const orderSchema = z.object({
 export const orderProgressSchema = z.object({
   latestSubmittedOrderId: z.number().int().min(1).nullable(),
   latestCompletedOrderId: z.number().int().min(1).nullable(),
+  waitingCount: z.number().int().min(0).optional(),
 });
 
 // ─── Derived TypeScript Types（自動推導，永不過時）───────────────────────────

@@ -510,12 +510,23 @@ app.post(
 app.get(
   "/api/orders/progress",
   () => {
+    const today = new Date().toLocaleDateString("sv-SE", {
+      timeZone: "Asia/Taipei",
+    });
+    const isTodayOrder = (order: { submittedAt?: string; createdAt: string }) =>
+      new Date(order.submittedAt ?? order.createdAt).toLocaleDateString(
+        "sv-SE",
+        { timeZone: "Asia/Taipei" },
+      ) === today;
     const submittedOrders = store
       .getOrders()
-      .filter((order) => order.status !== "pending");
+      .filter((order) => order.status !== "pending" && isTodayOrder(order));
     const completedOrders = store
       .getOrders()
-      .filter((order) => order.status === "completed");
+      .filter((order) => order.status === "completed" && isTodayOrder(order));
+    const waitingOrders = store
+      .getOrders()
+      .filter((order) => order.status === "submitted" && isTodayOrder(order));
 
     return {
       data: {
@@ -535,6 +546,7 @@ app.get(
                 ),
               )
             : null,
+        waitingCount: waitingOrders.length,
       },
     };
   },

@@ -84,9 +84,14 @@ export default function App() {
   const [lastSubmittedOrder, setLastSubmittedOrder] = useState<Order | null>(
     null,
   );
+  const [showSubmittedNotice, setShowSubmittedNotice] = useState(false);
+  const [completedNoticeOrder, setCompletedNoticeOrder] = useState<Order | null>(
+    null,
+  );
   const [orderProgress, setOrderProgress] = useState<OrderProgress>({
     latestSubmittedOrderId: null,
     latestCompletedOrderId: null,
+    waitingCount: 0,
   });
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
@@ -304,6 +309,37 @@ export default function App() {
       console.error(refreshError);
     });
   }, [user]);
+
+  useEffect(() => {
+    if (!showSubmittedNotice) return;
+
+    const timer = window.setTimeout(() => {
+      setShowSubmittedNotice(false);
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [showSubmittedNotice]);
+
+  useEffect(() => {
+    if (!completedNoticeOrder) return;
+
+    const timer = window.setTimeout(() => {
+      setCompletedNoticeOrder(null);
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [completedNoticeOrder]);
+
+  useEffect(() => {
+    if (!lastSubmittedOrder || completedNoticeOrder) return;
+
+    const submittedNumber =
+      lastSubmittedOrder.dailySequence ?? lastSubmittedOrder.id;
+    if (orderProgress.latestCompletedOrderId === submittedNumber) {
+      setCompletedNoticeOrder(lastSubmittedOrder);
+      setLastSubmittedOrder(null);
+    }
+  }, [completedNoticeOrder, lastSubmittedOrder, orderProgress.latestCompletedOrderId]);
 
   const grouped = useMemo(() => {
     const groupedItems = items.reduce(
@@ -953,6 +989,10 @@ export default function App() {
 
     setActionError("");
     setStaleCartItems([]);
+    if (!customerPhone.trim()) {
+      setActionError("請填寫電話號碼，方便店家確認取餐。");
+      return;
+    }
     setIsSubmittingOrder(true);
 
     try {
@@ -998,6 +1038,7 @@ export default function App() {
 
       const payload = (await response.json()) as ApiDataResponse<Order>;
       setLastSubmittedOrder(payload.data);
+      setShowSubmittedNotice(true);
       resetCartState();
       setIsCartOpen(false);
       await loadOrderProgress();
@@ -1567,23 +1608,15 @@ export default function App() {
         </div>
         <div className="flex-none w-full md:w-auto">
           <div className="flex flex-wrap gap-2 items-center md:justify-end">
-            <div className="badge badge-outline">
-              {user ? `已登入 ${user.name}` : "尚未登入"}
-            </div>
-            <div className="badge badge-primary">
-              {items.length} 個品項・{grouped.categories.length} 類
-            </div>
-            <div className="badge badge-secondary">
-              購物車 {cartItemCount} 件
-            </div>
-            <div className="badge badge-accent">總計 ${cartTotal}</div>
-            <div className="badge badge-outline">
-              目前做到 #
-              {orderProgress.latestCompletedOrderId ?? "-"}
-            </div>
-            <div className="badge badge-outline">
-              最新單 #
-              {orderProgress.latestSubmittedOrderId ?? "-"}
+            <div className="rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-sm flex flex-wrap gap-x-4 gap-y-1">
+              <span>
+                目前已做到：
+                <strong>#{orderProgress.latestCompletedOrderId ?? "-"}</strong>
+              </span>
+              <span>
+                等候人數：
+                <strong>{orderProgress.waitingCount ?? 0}</strong>
+              </span>
             </div>
             <button
               className="btn btn-sm btn-outline"
@@ -1651,12 +1684,25 @@ export default function App() {
           </div>
         ) : null}
 
-        {lastSubmittedOrder ? (
-          <div className="alert alert-success mb-4">
-            <span>
-              訂單 #{lastSubmittedOrder.dailySequence ?? lastSubmittedOrder.id} 已送出，請留意目前做到 #
-              {orderProgress.latestCompletedOrderId ?? "-"}。
-            </span>
+        {lastSubmittedOrder && showSubmittedNotice ? (
+          <div className="alert alert-success mb-4 max-w-4xl mx-auto">
+            <div>
+              <p className="font-semibold">訂單已送出</p>
+              <p className="text-sm">
+                取餐編號：#{lastSubmittedOrder.dailySequence ?? lastSubmittedOrder.id}
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {completedNoticeOrder ? (
+          <div className="alert alert-info mb-4 max-w-4xl mx-auto">
+            <div>
+              <p className="font-semibold">餐點已完成，可以取餐</p>
+              <p className="text-sm">
+                取餐編號：#{completedNoticeOrder.dailySequence ?? completedNoticeOrder.id}
+              </p>
+            </div>
           </div>
         ) : null}
 
@@ -1733,19 +1779,6 @@ export default function App() {
           ))
         )}
 
-        {user ? (
-          <section className="mt-10 flex justify-center">
-            <button
-              className="btn btn-outline"
-              onClick={() => {
-                setIsHistoryOpen(true);
-                void loadOrderHistory();
-              }}
-            >
-              查看歷史訂單
-            </button>
-          </section>
-        ) : null}
       </main>
 
       {user && isHistoryOpen ? (
@@ -2118,9 +2151,10 @@ export default function App() {
                   </div>
                   <input
                     className="input input-bordered w-full"
-                    placeholder="電話號碼，例如 0912345678"
+                    placeholder="電話號碼（必填），例如 0912345678"
                     value={customerPhone}
                     onChange={(event) => setCustomerPhone(event.currentTarget.value)}
+                    required
                   />
                   <input
                     className="input input-bordered w-full"

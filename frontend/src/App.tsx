@@ -67,6 +67,15 @@ type UserProfile = {
   language: "zh-TW" | "en" | "ja" | "ko";
 };
 
+type CartDetail = {
+  itemId: string;
+  orderItemId: number | undefined;
+  qty: number;
+  item: MenuItem;
+  orderItem: OrderItem;
+  subtotal: number;
+};
+
 const sugarOptions = ["正常糖", "少糖", "半糖", "微糖", "無糖"];
 const iceOptions = ["正常冰", "少冰", "微冰", "去冰", "熱飲"];
 const sugarOptionLabels: Record<
@@ -437,6 +446,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     sugar: "糖度",
     ice: "冰塊",
     note: "備註",
+    edit: "編輯",
     itemNotePlaceholder: "例如：不要醬、餐點分開裝、吐司烤焦一點",
     back: "返回",
     checkout: "結帳",
@@ -496,6 +506,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     sugar: "Sugar",
     ice: "Ice",
     note: "Note",
+    edit: "Edit",
     itemNotePlaceholder: "e.g. no sauce, separate packaging, toast darker",
     back: "Back",
     checkout: "Checkout",
@@ -555,6 +566,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     sugar: "甘さ",
     ice: "氷",
     note: "メモ",
+    edit: "編集",
     itemNotePlaceholder: "例：ソースなし、別包装、トースト強め",
     back: "戻る",
     checkout: "会計",
@@ -614,6 +626,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     sugar: "당도",
     ice: "얼음",
     note: "메모",
+    edit: "수정",
     itemNotePlaceholder: "예: 소스 빼기, 따로 포장, 토스트 더 굽기",
     back: "뒤로",
     checkout: "결제",
@@ -1018,7 +1031,7 @@ export default function App() {
     [cartQtyByItemId],
   );
 
-  const cartDetails = useMemo(() => {
+  const cartDetails = useMemo<CartDetail[]>(() => {
     const itemById = new Map(items.map((item) => [item.id, item]));
 
     return Object.values(cartOrderItemById)
@@ -1037,8 +1050,40 @@ export default function App() {
           subtotal: item.price * orderItem.qty,
         };
       })
-      .filter((entry) => entry !== null);
-  }, [cartOrderItemById, cartQtyByItemId, items]);
+      .filter((entry): entry is CartDetail => entry !== null);
+  }, [cartOrderItemById, items]);
+
+  const cartGroups = useMemo(() => {
+    const groupByItemId = new Map<
+      string,
+      {
+        itemId: string;
+        item: MenuItem;
+        lines: CartDetail[];
+        qty: number;
+        subtotal: number;
+      }
+    >();
+
+    for (const detail of cartDetails) {
+      const group =
+        groupByItemId.get(detail.itemId) ??
+        {
+          itemId: detail.itemId,
+          item: detail.item,
+          lines: [],
+          qty: 0,
+          subtotal: 0,
+        };
+
+      group.lines.push(detail);
+      group.qty += detail.qty;
+      group.subtotal += detail.subtotal;
+      groupByItemId.set(detail.itemId, group);
+    }
+
+    return Array.from(groupByItemId.values());
+  }, [cartDetails]);
 
   const todayAdminStats = useMemo(() => {
     const today = new Date().toLocaleDateString("sv-SE", {
@@ -1934,10 +1979,6 @@ export default function App() {
 
           {isAdminMenuFormOpen ? (
             <>
-              <div
-                className="fixed inset-0 z-40 bg-black/35"
-                onClick={() => setIsAdminMenuFormOpen(false)}
-              />
               <section className="fixed inset-0 z-50 bg-base-100 shadow-2xl flex flex-col">
                 <div className="p-4 border-b border-base-300 flex items-center justify-between">
                   <h2 className="text-2xl font-bold">新增商品</h2>
@@ -2655,12 +2696,7 @@ export default function App() {
 
       {user && isHistoryOpen ? (
         <>
-          <button
-            className="fixed inset-0 bg-black/35 z-20"
-            aria-label="close order history"
-            onClick={() => setIsHistoryOpen(false)}
-          />
-          <section className="fixed inset-0 z-30 bg-base-100 shadow-2xl flex flex-col">
+          <section className="fixed inset-0 z-50 bg-base-100 shadow-2xl flex flex-col">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
               <h2 className="text-xl font-bold">{text.orderHistory}</h2>
               <button
@@ -2749,9 +2785,8 @@ export default function App() {
       {user && isProfileOpen ? (
         <>
           <div
-            className="fixed inset-0 bg-black/35 z-40"
-            aria-label="close profile"
-            onClick={() => setIsProfileOpen(false)}
+            className="fixed inset-0 bg-black/35 z-40 pointer-events-none"
+            aria-hidden="true"
           />
           <section className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-base-100 shadow-2xl">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
@@ -2819,10 +2854,9 @@ export default function App() {
 
       {customizingItem ? (
         <>
-          <button
-            className="fixed inset-0 bg-black/35 z-20"
-            aria-label="close add-to-cart dialog"
-            onClick={() => setCustomizingItem(null)}
+          <div
+            className="fixed inset-0 bg-black/35 z-20 pointer-events-none"
+            aria-hidden="true"
           />
           <section className="fixed left-1/2 top-1/2 z-30 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-base-100 shadow-2xl">
             <div className="p-4 border-b border-base-300 flex items-start justify-between gap-3">
@@ -2951,14 +2985,7 @@ export default function App() {
 
       {user && isCartOpen ? (
         <>
-          <button
-            className="fixed inset-0 bg-black/35"
-            aria-label="close cart drawer"
-            onClick={() => {
-              setIsCartOpen(false);
-            }}
-          />
-          <aside className="fixed inset-0 bg-base-100 shadow-2xl z-10 flex flex-col">
+          <aside className="fixed inset-0 bg-base-100 shadow-2xl z-50 flex flex-col">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {cartView === "checkout" ? (
@@ -2970,7 +2997,9 @@ export default function App() {
                   </button>
                 ) : null}
                 <h2 className="text-xl font-bold">
-                  {cartView === "checkout" ? text.checkout : text.cartDetails}
+                  {cartView === "checkout"
+                    ? text.checkout
+                    : `${text.cartDetails} (${cartItemCount})`}
                 </h2>
               </div>
               <button className="btn btn-sm btn-ghost" onClick={() => setIsCartOpen(false)}>
@@ -3004,116 +3033,157 @@ export default function App() {
                   </div>
                 ) : (
                   <ul className="space-y-3">
-                    {cartDetails.map((detail) => (
+                    {cartGroups.map((group) => (
                       <li
-                        key={detail.orderItemId ?? detail.itemId}
+                        key={group.itemId}
                         className="p-3 rounded-lg bg-base-200 space-y-3"
                       >
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="font-semibold">
-                              {menuCopy(detail.item).name}
+                              {menuCopy(group.item).name}
                             </p>
                             <p className="text-sm opacity-70">
-                            {formatMoney(detail.item.price)} x {detail.qty}
+                              {formatMoney(group.item.price)} x {group.qty}
                             </p>
                           </div>
                           <p className="font-bold">
-                            {formatMoney(detail.subtotal)}
+                            {formatMoney(group.subtotal)}
                           </p>
                         </div>
-                        <div className="join">
-                          <button
-                            className="btn btn-sm join-item"
-                            onClick={() => {
-                              void updateCartLineQty(
-                                detail,
-                                Math.max(0, detail.qty - 1),
-                              );
-                            }}
-                          >
-                            -
-                          </button>
-                          <span className="btn btn-sm join-item no-animation">
-                            {detail.qty}
-                          </span>
-                          <button
-                            className="btn btn-sm join-item"
-                            onClick={() => {
-                              void updateCartLineQty(detail, detail.qty + 1);
-                            }}
-                          >
-                            +
-                          </button>
+                        <div className="space-y-2">
+                          {group.lines.map((detail) => (
+                            <div
+                              key={detail.orderItemId ?? `${detail.itemId}-${detail.orderItem.sugarLevel}-${detail.orderItem.iceLevel}`}
+                              className="rounded-lg border border-base-300 bg-base-100 p-3 space-y-2"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold">
+                                    {isDrink(detail.item)
+                                      ? `${sugarLabel(detail.orderItem.sugarLevel || "正常糖")} / ${iceLabel(detail.orderItem.iceLevel || "正常冰")}`
+                                      : text.qty}
+                                    <span className="ml-2 opacity-70">
+                                      x {detail.qty}
+                                    </span>
+                                  </p>
+                                  {detail.orderItem.note ? (
+                                    <p className="text-xs opacity-70 truncate">
+                                      {detail.orderItem.note}
+                                    </p>
+                                  ) : null}
+                                </div>
+                                <div className="join shrink-0">
+                                  <button
+                                    className="btn btn-sm join-item"
+                                    onClick={() => {
+                                      void updateCartLineQty(
+                                        detail,
+                                        Math.max(0, detail.qty - 1),
+                                      );
+                                    }}
+                                  >
+                                    -
+                                  </button>
+                                  <span className="btn btn-sm join-item no-animation">
+                                    {detail.qty}
+                                  </span>
+                                  <button
+                                    className="btn btn-sm join-item"
+                                    onClick={() => {
+                                      void updateCartLineQty(
+                                        detail,
+                                        detail.qty + 1,
+                                      );
+                                    }}
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+
+                              <details className="rounded-lg border border-base-300">
+                                <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">
+                                  {text.edit}
+                                </summary>
+                                <div className="border-t border-base-300 p-3 space-y-3">
+                                  {isDrink(detail.item) ? (
+                                    <div className="space-y-2">
+                                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                                        {sugarOptions.map((option) => {
+                                          const selected =
+                                            detail.orderItem.sugarLevel ===
+                                              option ||
+                                            (!detail.orderItem.sugarLevel &&
+                                              option === "正常糖");
+                                          return (
+                                            <button
+                                              key={option}
+                                              className={`btn btn-xs ${
+                                                selected
+                                                  ? "btn-primary"
+                                                  : "btn-outline"
+                                              }`}
+                                              onClick={() => {
+                                                void updateCartItemOptions(
+                                                  detail.orderItemId,
+                                                  detail.itemId,
+                                                  { sugarLevel: option },
+                                                );
+                                              }}
+                                            >
+                                              {sugarLabel(option)}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                                        {iceOptions.map((option) => {
+                                          const selected =
+                                            detail.orderItem.iceLevel ===
+                                              option ||
+                                            (!detail.orderItem.iceLevel &&
+                                              option === "正常冰");
+                                          return (
+                                            <button
+                                              key={option}
+                                              className={`btn btn-xs ${
+                                                selected
+                                                  ? "btn-primary"
+                                                  : "btn-outline"
+                                              }`}
+                                              onClick={() => {
+                                                void updateCartItemOptions(
+                                                  detail.orderItemId,
+                                                  detail.itemId,
+                                                  { iceLevel: option },
+                                                );
+                                              }}
+                                            >
+                                              {iceLabel(option)}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                  <input
+                                    className="input input-sm input-bordered w-full"
+                                    placeholder={text.itemNotePlaceholder}
+                                    value={detail.orderItem.note ?? ""}
+                                    onChange={(event) => {
+                                      void updateCartItemOptions(
+                                        detail.orderItemId,
+                                        detail.itemId,
+                                        { note: event.currentTarget.value },
+                                      );
+                                    }}
+                                  />
+                                </div>
+                              </details>
+                            </div>
+                          ))}
                         </div>
-                        {isDrink(detail.item) ? (
-                          <div className="space-y-2">
-                            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                              {sugarOptions.map((option) => {
-                                const selected =
-                                  detail.orderItem?.sugarLevel === option ||
-                                  (!detail.orderItem?.sugarLevel &&
-                                    option === "正常糖");
-                                return (
-                                  <button
-                                    key={option}
-                                    className={`btn btn-xs ${
-                                      selected ? "btn-primary" : "btn-outline"
-                                    }`}
-                                    onClick={() => {
-                                      void updateCartItemOptions(
-                                        detail.orderItemId,
-                                        detail.itemId,
-                                        { sugarLevel: option },
-                                      );
-                                    }}
-                                  >
-                                    {sugarLabel(option)}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                              {iceOptions.map((option) => {
-                                const selected =
-                                  detail.orderItem?.iceLevel === option ||
-                                  (!detail.orderItem?.iceLevel &&
-                                    option === "正常冰");
-                                return (
-                                  <button
-                                    key={option}
-                                    className={`btn btn-xs ${
-                                      selected ? "btn-primary" : "btn-outline"
-                                    }`}
-                                    onClick={() => {
-                                      void updateCartItemOptions(
-                                        detail.orderItemId,
-                                        detail.itemId,
-                                        { iceLevel: option },
-                                      );
-                                    }}
-                                  >
-                                    {iceLabel(option)}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ) : null}
-                        <label className="form-control">
-                          <input
-                            className="input input-sm input-bordered"
-                            placeholder={text.itemNotePlaceholder}
-                            value={detail.orderItem?.note ?? ""}
-                            onChange={(event) => {
-                              void updateCartItemOptions(
-                                detail.orderItemId,
-                                detail.itemId,
-                                { note: event.currentTarget.value },
-                              );
-                            }}
-                          />
-                        </label>
                       </li>
                     ))}
                   </ul>

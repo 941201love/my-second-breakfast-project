@@ -1924,6 +1924,18 @@ export default function App() {
     setCheckoutNotice(`${text.couponApplied}：${coupon.code}`);
   }
 
+  function updateCouponCode(nextCode: string): void {
+    const normalizedCode = nextCode.toUpperCase();
+    setCouponCode(normalizedCode);
+
+    const coupon =
+      coupons.find(
+        (item) =>
+          item.code.toUpperCase() === normalizedCode && item.isActive !== false,
+      ) ?? null;
+    setAppliedCoupon(coupon && isCouponUsable(coupon) ? coupon : null);
+  }
+
   function isCouponUsable(coupon: Coupon): boolean {
     if (coupon.isActive === false) return false;
     if ((coupon.minSpend ?? 0) > cartTotal) return false;
@@ -2039,7 +2051,7 @@ export default function App() {
       <div className="min-h-screen bg-base-200">
         <div className="navbar bg-base-100 shadow-lg">
           <div className="flex-1">
-            <a className="btn btn-ghost normal-case text-2xl" href="/admin">
+            <a className="normal-case text-2xl font-bold px-2" href="/admin">
               博翔早餐店管理後台
             </a>
           </div>
@@ -2845,9 +2857,9 @@ export default function App() {
     <div className="min-h-screen bg-base-200">
       <div className="navbar bg-base-100 shadow-lg flex-col items-stretch gap-2 md:flex-row md:items-center">
         <div className="flex-1 w-full md:w-auto">
-          <a className="btn btn-ghost normal-case text-2xl">
+          <div className="normal-case text-2xl font-bold px-2 py-1">
             🍔 {text.appTitle}
-          </a>
+          </div>
         </div>
         <div className="flex-none w-full md:w-auto">
           <div className="flex flex-wrap gap-2 items-center md:justify-end">
@@ -3604,24 +3616,15 @@ export default function App() {
                     onChange={(event) => setOrderNote(event.currentTarget.value)}
                   />
                   <div className="space-y-2">
-                    <div className="join w-full">
-                      <input
-                        className="input input-bordered join-item flex-1"
-                        placeholder={text.couponPlaceholder}
-                        value={couponCode}
-                        onChange={(event) => {
-                          const code = event.currentTarget.value.toUpperCase();
-                          setCouponCode(code);
-                          setAppliedCoupon(null);
-                        }}
-                      />
-                      <button
-                        className="btn btn-outline join-item"
-                        onClick={applyCouponCode}
-                      >
-                        {text.addCoupon}
-                      </button>
-                    </div>
+                    <input
+                      className="input input-bordered w-full focus:outline-none"
+                      placeholder="輸入優惠碼"
+                      value={couponCode}
+                      onBlur={applyCouponCode}
+                      onChange={(event) => {
+                        updateCouponCode(event.currentTarget.value);
+                      }}
+                    />
                     {appliedCoupon ? (
                       <div className="rounded-lg bg-success/10 border border-success/30 px-3 py-2 text-sm">
                         <p className="font-semibold text-success">

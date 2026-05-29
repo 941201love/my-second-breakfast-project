@@ -46,9 +46,47 @@ const adminUsername = process.env.ADMIN_USERNAME || "admin";
 const adminPassword = process.env.ADMIN_PASSWORD || "admin1234";
 const adminSessionSecret =
   process.env.ADMIN_SESSION_SECRET || "change-this-admin-session-secret";
+const isProduction =
+  process.env.NODE_ENV === "production" || process.env.RENDER === "true";
 const store = createStore({ dataFilePath: "./data/store.json" });
 const hasPublicAssets =
   existsSync("./public") && existsSync("./public/index.html");
+
+if (
+  isProduction &&
+  adminSessionSecret === "change-this-admin-session-secret"
+) {
+  throw new Error(
+    "Production ADMIN_SESSION_SECRET is unsafe. Set ADMIN_SESSION_SECRET.",
+  );
+}
+if (isProduction && adminPassword === "admin1234") {
+  console.warn(
+    "Production ADMIN_PASSWORD is still the development default. Change it in Render environment variables.",
+  );
+}
+
+const defaultDevOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5173",
+];
+const allowedOrigins =
+  allowedOrigin === "*"
+    ? isProduction
+      ? [process.env.BETTER_AUTH_URL].filter((origin): origin is string =>
+          Boolean(origin),
+        )
+      : defaultDevOrigins
+    : allowedOrigin
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean);
+const adminLoginAttempts = new Map<
+  string,
+  { count: number; resetAt: number; blockedUntil: number }
+>();
 
 // ─── Auth Helper ──────────────────────────────────────────────────────────────
 // 簡化的 helper 函數，用於保護路由並獲取 user，失敗時拋出 401 錯誤
@@ -94,18 +132,89 @@ function requireAdmin(request: Request) {
   });
 }
 
+function adminCookie(value: string, maxAge: number) {
+  const secure = isProduction ? "; Secure" : "";
+  return `admin_session=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secure}`;
+}
+
+function clientIp(request: Request) {
+  return (
+    request.headers.get("cf-connecting-ip") ??
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    "unknown"
+  );
+}
+
+function checkAdminLoginRateLimit(request: Request) {
+  const ip = clientIp(request);
+  const now = Date.now();
+  const current = adminLoginAttempts.get(ip);
+  if (current?.blockedUntil && current.blockedUntil > now) {
+    throw new Response(JSON.stringify({ error: "Too many login attempts" }), {
+      status: 429,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  if (!current || current.resetAt <= now) {
+    adminLoginAttempts.set(ip, {
+      count: 0,
+      resetAt: now + 10 * 60 * 1000,
+      blockedUntil: 0,
+    });
+  }
+}
+
+function recordAdminLoginFailure(request: Request) {
+  const ip = clientIp(request);
+  const now = Date.now();
+  const current =
+    adminLoginAttempts.get(ip) ??
+    {
+      count: 0,
+      resetAt: now + 10 * 60 * 1000,
+      blockedUntil: 0,
+    };
+  const count = current.count + 1;
+  adminLoginAttempts.set(ip, {
+    count,
+    resetAt: current.resetAt,
+    blockedUntil: count >= 5 ? now + 10 * 60 * 1000 : 0,
+  });
+}
+
+function clearAdminLoginFailures(request: Request) {
+  adminLoginAttempts.delete(clientIp(request));
+}
+
 const app = new Elysia();
 
 // ─── CORS Plugin ──────────────────────────────────────────────────────────────
 app.use(
   cors({
-    origin:
-      allowedOrigin === "*" ? "*" : allowedOrigin || "http://localhost:5173",
-    credentials: allowedOrigin !== "*",
+    origin: ({ headers }) => {
+      const origin = headers.get("origin");
+      if (!origin) return true;
+      return allowedOrigins.includes(origin);
+    },
+    credentials: true,
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
+
+app.onAfterHandle(({ set }) => {
+  set.headers["X-Content-Type-Options"] = "nosniff";
+  set.headers["X-Frame-Options"] = "DENY";
+  set.headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+  set.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+  set.headers["Content-Security-Policy"] =
+    "default-src 'self'; img-src 'self' data: https:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+  if (isProduction) {
+    set.headers["Strict-Transport-Security"] =
+      "max-age=31536000; includeSubDomains";
+  }
+});
 
 // ─── Better Auth Routes ───────────────────────────────────────────────────────
 // ⚠️ 注意：不能使用 app.mount("/api/auth", auth.handler)
@@ -187,20 +296,24 @@ app.post("/api/sign-out", async ({ request }) => {
 
 app.post(
   "/api/admin/login",
-  ({ body }) => {
+  ({ body, request }) => {
+    checkAdminLoginRateLimit(request);
+
     if (body.username !== adminUsername || body.password !== adminPassword) {
+      recordAdminLoginFailure(request);
       throw new Response(JSON.stringify({ error: "Invalid admin login" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
       });
     }
 
+    clearAdminLoginFailures(request);
     return new Response(
       JSON.stringify({ data: { username: adminUsername } }),
       {
         headers: {
           "Content-Type": "application/json",
-          "Set-Cookie": `admin_session=${signAdminSession(adminUsername)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400`,
+          "Set-Cookie": adminCookie(signAdminSession(adminUsername), 86400),
         },
       },
     );
@@ -210,6 +323,7 @@ app.post(
     response: {
       200: adminLoginResponseSchema,
       401: apiErrorResponseSchema,
+      429: apiErrorResponseSchema,
     },
   },
 );
@@ -218,7 +332,7 @@ app.post("/api/admin/logout", () => {
   return new Response(JSON.stringify({ data: { ok: true } }), {
     headers: {
       "Content-Type": "application/json",
-      "Set-Cookie": "admin_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0",
+      "Set-Cookie": adminCookie("", 0),
     },
   });
 });
@@ -864,10 +978,14 @@ app.get("/health", () => ({ status: "ok" }), {
 // 完全手動處理靜態檔案和 SPA fallback，避免 staticPlugin 的路由衝突問題
 if (hasPublicAssets) {
   app.get("*", async ({ request }) => {
-    const pathname = new URL(request.url).pathname;
+    const pathname = decodeURIComponent(new URL(request.url).pathname);
 
     // API 路徑返回 404
-    if (pathname.startsWith("/api/") || pathname.startsWith("/openapi")) {
+    if (
+      pathname.startsWith("/api/") ||
+      pathname.startsWith("/openapi") ||
+      pathname.includes("..")
+    ) {
       return new Response(JSON.stringify({ error: "Not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },

@@ -91,6 +91,13 @@ export default function App() {
   const [nowText, setNowText] = useState(
     new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei" }),
   );
+  const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
+  const [cartDraft, setCartDraft] = useState({
+    qty: 1,
+    sugarLevel: "",
+    iceLevel: "",
+    note: "",
+  });
 
   function syncCartFromOrder(order: Order) {
     const nextQtyByItemId = order.items.reduce(
@@ -660,7 +667,30 @@ export default function App() {
     await Promise.all([loadAdminData(), loadOrderProgress()]);
   }
 
-  async function addToCart(item: MenuItem): Promise<void> {
+  function openAddToCart(item: MenuItem) {
+    if (!user) {
+      setActionError("請先使用 Google 登入後再加入購物車。");
+      return;
+    }
+
+    setCartDraft({
+      qty: 1,
+      sugarLevel: "",
+      iceLevel: "",
+      note: "",
+    });
+    setCustomizingItem(item);
+  }
+
+  async function addToCart(
+    item: MenuItem,
+    options: {
+      qty: number;
+      sugarLevel?: string;
+      iceLevel?: string;
+      note?: string;
+    },
+  ): Promise<void> {
     setActionError("");
     setStaleCartItems([]);
     setActiveItemId(item.id);
@@ -683,6 +713,9 @@ export default function App() {
             body: JSON.stringify({
               itemId: item.id,
               qty,
+              sugarLevel: options.sugarLevel || undefined,
+              iceLevel: options.iceLevel || undefined,
+              note: options.note?.trim() || undefined,
               forceNew: true,
             }),
           },
@@ -703,7 +736,7 @@ export default function App() {
       };
 
       const targetOrderId = await ensureOrder();
-      const nextQty = 1;
+      const nextQty = Math.max(1, options.qty);
 
       try {
         const updatedOrder = await patchOrderItem(targetOrderId, nextQty);
@@ -721,13 +754,7 @@ export default function App() {
 
           const recoveredOrder = await loadCurrentOrder();
           const retryOrderId = recoveredOrder?.id ?? (await ensureOrder());
-          const recoveredQty =
-            recoveredOrder?.items.find(
-              (orderItem) => orderItem.menuItemId === item.id,
-            )?.qty ?? 0;
-          const retryQty = recoveredQty + 1;
-
-          const retriedOrder = await patchOrderItem(retryOrderId, retryQty);
+          const retriedOrder = await patchOrderItem(retryOrderId, nextQty);
           syncCartFromOrder(retriedOrder);
           return;
         }
@@ -761,6 +788,7 @@ export default function App() {
       console.error(cartError);
     } finally {
       setActiveItemId(null);
+      setCustomizingItem(null);
     }
   }
 
@@ -1616,7 +1644,7 @@ export default function App() {
                         <button
                           className="btn btn-sm btn-primary"
                           onClick={() => {
-                            void addToCart(item);
+                            openAddToCart(item);
                           }}
                           disabled={activeItemId === item.id}
                         >
@@ -1688,6 +1716,136 @@ export default function App() {
           </section>
         ) : null}
       </main>
+
+      {customizingItem ? (
+        <>
+          <button
+            className="fixed inset-0 bg-black/35 z-20"
+            aria-label="close add-to-cart dialog"
+            onClick={() => setCustomizingItem(null)}
+          />
+          <section className="fixed left-1/2 top-1/2 z-30 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-base-100 shadow-2xl">
+            <div className="p-4 border-b border-base-300 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold">{customizingItem.name}</h2>
+                <p className="text-sm opacity-70">${customizingItem.price}</p>
+              </div>
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => setCustomizingItem(null)}
+              >
+                關閉
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="label">
+                  <span className="label-text">數量</span>
+                </label>
+                <div className="join">
+                  <button
+                    className="btn join-item"
+                    onClick={() =>
+                      setCartDraft((current) => ({
+                        ...current,
+                        qty: Math.max(1, current.qty - 1),
+                      }))
+                    }
+                  >
+                    -
+                  </button>
+                  <span className="btn join-item no-animation">
+                    {cartDraft.qty}
+                  </span>
+                  <button
+                    className="btn join-item"
+                    onClick={() =>
+                      setCartDraft((current) => ({
+                        ...current,
+                        qty: current.qty + 1,
+                      }))
+                    }
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {isDrink(customizingItem) ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="form-control">
+                    <span className="label-text mb-1">糖度</span>
+                    <select
+                      className="select select-bordered"
+                      value={cartDraft.sugarLevel}
+                      onChange={(event) =>
+                        setCartDraft((current) => ({
+                          ...current,
+                          sugarLevel: event.currentTarget.value,
+                        }))
+                      }
+                    >
+                      <option value="">正常糖</option>
+                      <option value="無糖">無糖</option>
+                      <option value="微糖">微糖</option>
+                      <option value="半糖">半糖</option>
+                      <option value="少糖">少糖</option>
+                      <option value="正常糖">正常糖</option>
+                    </select>
+                  </label>
+                  <label className="form-control">
+                    <span className="label-text mb-1">冰塊</span>
+                    <select
+                      className="select select-bordered"
+                      value={cartDraft.iceLevel}
+                      onChange={(event) =>
+                        setCartDraft((current) => ({
+                          ...current,
+                          iceLevel: event.currentTarget.value,
+                        }))
+                      }
+                    >
+                      <option value="">正常冰</option>
+                      <option value="去冰">去冰</option>
+                      <option value="微冰">微冰</option>
+                      <option value="少冰">少冰</option>
+                      <option value="正常冰">正常冰</option>
+                      <option value="熱飲">熱飲</option>
+                    </select>
+                  </label>
+                </div>
+              ) : null}
+
+              <label className="form-control">
+                <span className="label-text mb-1">備註</span>
+                <textarea
+                  className="textarea textarea-bordered"
+                  placeholder="例如：不要醬、餐點分開裝、吐司烤焦一點"
+                  value={cartDraft.note}
+                  onChange={(event) =>
+                    setCartDraft((current) => ({
+                      ...current,
+                      note: event.currentTarget.value,
+                    }))
+                  }
+                />
+              </label>
+
+              <button
+                className="btn btn-primary w-full"
+                disabled={activeItemId === customizingItem.id}
+                onClick={() => {
+                  void addToCart(customizingItem, cartDraft);
+                }}
+              >
+                {activeItemId === customizingItem.id
+                  ? "加入中..."
+                  : `加入購物車 $${customizingItem.price * cartDraft.qty}`}
+              </button>
+            </div>
+          </section>
+        </>
+      ) : null}
 
       {user && isCartOpen ? (
         <>

@@ -330,6 +330,40 @@ export class PgStore implements Store {
     return { ok: true, order };
   }
 
+  async clearOrderItems(
+    orderId: number,
+    input: { userId: string },
+  ): Promise<
+    | { ok: true; order: Order }
+    | {
+        ok: false;
+        code:
+          | "ORDER_NOT_FOUND"
+          | "MENU_ITEM_NOT_FOUND"
+          | "ORDER_NOT_OWNED"
+          | "ORDER_NOT_EDITABLE";
+      }
+  > {
+    const order = this.orders.find((o) => o.id === orderId);
+    if (!order) return { ok: false, code: "ORDER_NOT_FOUND" };
+    if (order.userId !== input.userId)
+      return { ok: false, code: "ORDER_NOT_OWNED" };
+    if (order.status !== "pending")
+      return { ok: false, code: "ORDER_NOT_EDITABLE" };
+
+    await db
+      .delete(orderItemsTable)
+      .where(eq(orderItemsTable.orderId, orderId));
+    order.items = [];
+    order.total = 0;
+    await db
+      .update(ordersTable)
+      .set({ total: 0 })
+      .where(eq(ordersTable.id, orderId));
+
+    return { ok: true, order };
+  }
+
   async submitOrder(
     orderId: number,
     input: {

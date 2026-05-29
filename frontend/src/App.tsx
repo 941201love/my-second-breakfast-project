@@ -614,6 +614,20 @@ export default function App() {
     await loadAdminData();
   }
 
+  async function handleAdminLogout(): Promise<void> {
+    await fetch(buildApiUrl("/api/admin/logout"), {
+      method: "POST",
+      credentials: "include",
+    });
+    setAdminAuthed(false);
+    setAdminError("");
+    setAdminOrders([]);
+    setCoupons([]);
+    setActivePromotions([]);
+    setPriceSensitivity([]);
+    setVersionHistoryByLogicalId({});
+  }
+
   async function createAdminCoupon(): Promise<void> {
     const response = await fetch(buildApiUrl("/api/coupons"), {
       method: "POST",
@@ -873,26 +887,21 @@ export default function App() {
     setIsClearingCart(true);
 
     try {
-      for (const detail of cartDetails) {
-        const response = await fetch(buildApiUrl(`/api/orders/${orderId}`), {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            itemId: detail.itemId,
-            orderItemId: detail.orderItemId,
-            qty: 0,
-          }),
-        });
+      const response = await fetch(buildApiUrl(`/api/orders/${orderId}/items`), {
+        method: "DELETE",
+        credentials: "include",
+      });
 
-        if (!response.ok) {
-          throw new Error(`Clear cart failed: HTTP ${response.status}`);
-        }
+      if (!response.ok) {
+        throw new Error(`Clear cart failed: HTTP ${response.status}`);
       }
 
-      setCartQtyByItemId({});
-      setCartOrderItemById({});
-      setCartTotal(0);
+      const payload = (await response.json()) as ApiDataResponse<Order>;
+      if (payload?.data) {
+        syncCartFromOrder(payload.data);
+      } else {
+        resetCartState();
+      }
     } catch (clearError) {
       setActionError("清空購物車失敗，請稍後再試。");
       console.error(clearError);
@@ -1001,6 +1010,16 @@ export default function App() {
             >
               {adminLoading ? "更新中..." : "重新整理"}
             </button>
+            {adminAuthed ? (
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={() => {
+                  void handleAdminLogout();
+                }}
+              >
+                登出
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -1624,11 +1643,6 @@ export default function App() {
                         ) : null}
                       </div>
                       <div className="flex flex-wrap gap-2 min-h-6">
-                        {item.isRecentlyUpdated ? (
-                          <span className="badge badge-info badge-sm">
-                            最近更新
-                          </span>
-                        ) : null}
                         {item.priceChanged &&
                         typeof item.previousPrice === "number" ? (
                           <span className="badge badge-warning badge-sm">

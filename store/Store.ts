@@ -71,6 +71,12 @@ export interface Store {
   ): Promise<
     { ok: true; order: Order } | { ok: false; code: UpdateOrderItemErrorCode }
   >;
+  clearOrderItems(
+    orderId: number,
+    input: { userId: string },
+  ): Promise<
+    { ok: true; order: Order } | { ok: false; code: UpdateOrderItemErrorCode }
+  >;
   submitOrder(
     orderId: number,
     input: {

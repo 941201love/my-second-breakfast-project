@@ -97,3 +97,43 @@ test("submitting an order with a stale menu version is rejected", async () => {
     );
   }
 });
+
+test("cart can keep separate option lines and clear all items", async () => {
+  const store = new JsonFileStore({
+    dataFilePath: join(tempDir, "store.json"),
+  });
+  await store.init();
+
+  const item = store.getMenu()[0]!;
+  const order = await store.createOrder({ userId: "user-1" });
+
+  const firstLine = await store.updateOrderItem(order.id, {
+    userId: "user-1",
+    itemId: item.id,
+    qty: 1,
+    sugarLevel: "無糖",
+    iceLevel: "正常冰",
+    forceNew: true,
+  });
+  expect(firstLine.ok).toBe(true);
+
+  const secondLine = await store.updateOrderItem(order.id, {
+    userId: "user-1",
+    itemId: item.id,
+    qty: 1,
+    sugarLevel: "半糖",
+    iceLevel: "微冰",
+    forceNew: true,
+  });
+  expect(secondLine.ok).toBe(true);
+  if (secondLine.ok) {
+    expect(secondLine.order.items).toHaveLength(2);
+  }
+
+  const cleared = await store.clearOrderItems(order.id, { userId: "user-1" });
+  expect(cleared.ok).toBe(true);
+  if (cleared.ok) {
+    expect(cleared.order.items).toHaveLength(0);
+    expect(cleared.order.total).toBe(0);
+  }
+});

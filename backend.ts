@@ -623,11 +623,13 @@ app.patch(
     const orderId = parseInt(params.id);
     const result = await store.updateOrderItem(orderId, {
       userId: user.id,
+      orderItemId: body.orderItemId,
       itemId: body.itemId,
       qty: body.qty,
       sugarLevel: body.sugarLevel,
       iceLevel: body.iceLevel,
       note: body.note,
+      forceNew: body.forceNew,
     });
 
     if (!result.ok && result.code === "ORDER_NOT_FOUND") {
@@ -676,6 +678,57 @@ app.patch(
   },
 );
 
+// 清空購物車
+app.delete(
+  "/api/orders/:id/items",
+  async ({ params, request, set }) => {
+    const user = await requireUser(request);
+    const orderId = parseInt(params.id, 10);
+    const result = await store.clearOrderItems(orderId, {
+      userId: user.id,
+    });
+
+    if (!result.ok && result.code === "ORDER_NOT_FOUND") {
+      set.status = 404;
+      return { error: "Order not found" };
+    }
+
+    if (!result.ok && result.code === "ORDER_NOT_OWNED") {
+      set.status = 403;
+      return { error: "Forbidden" };
+    }
+
+    if (!result.ok && result.code === "ORDER_NOT_EDITABLE") {
+      set.status = 409;
+      return { error: "Order is not editable" };
+    }
+
+    if (!result.ok) {
+      set.status = 500;
+      return { error: "Unexpected store state" };
+    }
+
+    return { data: toOrderResponse(result.order) };
+  },
+  {
+    params: updateOrderParamsSchema,
+    detail: {
+      tags: ["orders"],
+      summary: "Clear all items in a pending order",
+      description:
+        "Remove every line item from the current user's pending order.",
+    },
+    response: {
+      200: orderResponseEnvelopeSchema,
+      401: apiErrorResponseSchema,
+      403: apiErrorResponseSchema,
+      404: apiErrorResponseSchema,
+      409: apiErrorResponseSchema,
+      500: apiErrorResponseSchema,
+    },
+  },
+);
+
 // 送出訂單
 app.post(
   "/api/orders/:id/submit",
@@ -686,6 +739,7 @@ app.post(
       userId: user.id,
       paymentMethod: body.paymentMethod,
       note: body.note,
+      couponCode: body.couponCode,
     });
 
     if (!result.ok && result.code === "ORDER_NOT_FOUND") {

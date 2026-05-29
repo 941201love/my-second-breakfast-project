@@ -11,6 +11,35 @@ body {
   padding: 0;
 }
 
+input,
+textarea,
+button {
+  color-scheme: dark;
+}
+
+input,
+textarea {
+  background-color: hsl(var(--b1));
+  color: hsl(var(--bc));
+}
+
+input:focus,
+textarea:focus {
+  background-color: hsl(var(--b1));
+  color: hsl(var(--bc));
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus {
+  -webkit-text-fill-color: hsl(var(--bc));
+  box-shadow: 0 0 0 1000px hsl(var(--b1)) inset;
+  caret-color: hsl(var(--bc));
+}
+
 #root {
   width: 100%;
   margin: 0 auto;

@@ -57,6 +57,10 @@ function orderStatusBadgeClass(status: Order["status"]) {
   return "badge-ghost";
 }
 
+function formatMoney(amount: number) {
+  return `NT$${amount}`;
+}
+
 type UserProfile = {
   nickname: string;
   phone: string;
@@ -65,6 +69,320 @@ type UserProfile = {
 
 const sugarOptions = ["正常糖", "少糖", "半糖", "微糖", "無糖"];
 const iceOptions = ["正常冰", "少冰", "微冰", "去冰", "熱飲"];
+const sugarOptionLabels: Record<
+  UserProfile["language"],
+  Record<string, string>
+> = {
+  "zh-TW": {
+    正常糖: "正常糖",
+    少糖: "少糖",
+    半糖: "半糖",
+    微糖: "微糖",
+    無糖: "無糖",
+  },
+  en: {
+    正常糖: "Regular",
+    少糖: "Less",
+    半糖: "Half",
+    微糖: "Light",
+    無糖: "No sugar",
+  },
+  ja: {
+    正常糖: "通常",
+    少糖: "少なめ",
+    半糖: "半分",
+    微糖: "微糖",
+    無糖: "無糖",
+  },
+  ko: {
+    正常糖: "보통",
+    少糖: "덜 달게",
+    半糖: "반당",
+    微糖: "약간",
+    無糖: "무가당",
+  },
+};
+const iceOptionLabels: Record<UserProfile["language"], Record<string, string>> = {
+  "zh-TW": {
+    正常冰: "正常冰",
+    少冰: "少冰",
+    微冰: "微冰",
+    去冰: "去冰",
+    熱飲: "熱飲",
+  },
+  en: {
+    正常冰: "Regular ice",
+    少冰: "Less ice",
+    微冰: "Light ice",
+    去冰: "No ice",
+    熱飲: "Hot",
+  },
+  ja: {
+    正常冰: "通常氷",
+    少冰: "氷少なめ",
+    微冰: "氷少し",
+    去冰: "氷なし",
+    熱飲: "ホット",
+  },
+  ko: {
+    正常冰: "보통 얼음",
+    少冰: "얼음 적게",
+    微冰: "얼음 조금",
+    去冰: "얼음 없음",
+    熱飲: "따뜻하게",
+  },
+};
+const categoryLabels: Record<UserProfile["language"], Record<string, string>> = {
+  "zh-TW": {
+    飲料: "飲料",
+    餐點: "餐點",
+    主餐: "主餐",
+    點心: "點心",
+    未分類: "未分類",
+  },
+  en: {
+    飲料: "Drinks",
+    餐點: "Meals",
+    主餐: "Mains",
+    點心: "Snacks",
+    未分類: "Other",
+  },
+  ja: {
+    飲料: "ドリンク",
+    餐點: "食事",
+    主餐: "メイン",
+    點心: "軽食",
+    未分類: "その他",
+  },
+  ko: {
+    飲料: "음료",
+    餐點: "식사",
+    主餐: "메인",
+    點心: "간식",
+    未分類: "기타",
+  },
+};
+const builtInMenuTranslations: Record<
+  string,
+  NonNullable<MenuItem["translations"]>
+> = {
+  火腿蛋吐司: {
+    "zh-TW": {
+      name: "火腿蛋吐司",
+      description: "現煎雞蛋搭配火腿與生菜，使用微烤白吐司，口感清爽不油膩。",
+    },
+    en: {
+      name: "Ham Egg Toast",
+      description: "Pan-fried egg with ham and lettuce on lightly toasted white bread.",
+    },
+    ja: {
+      name: "ハムエッグトースト",
+      description: "焼き卵、ハム、レタスを軽く焼いた白トーストで挟んだ朝食定番。",
+    },
+    ko: {
+      name: "햄 에그 토스트",
+      description: "구운 달걀, 햄, 양상추를 살짝 구운 식빵에 넣은 아침 메뉴입니다.",
+    },
+  },
+  起司豬排堡: {
+    "zh-TW": {
+      name: "起司豬排堡",
+      description: "厚切豬排搭配起司與生菜，外酥內嫩，適合喜歡有咬勁的你。",
+    },
+    en: {
+      name: "Cheese Pork Cutlet Burger",
+      description: "Thick pork cutlet with cheese and lettuce, crisp outside and juicy inside.",
+    },
+    ja: {
+      name: "チーズポークカツバーガー",
+      description: "厚切りポークカツにチーズとレタスを合わせた食べ応えのあるバーガー。",
+    },
+    ko: {
+      name: "치즈 돈가스 버거",
+      description: "두툼한 돈가스에 치즈와 양상추를 더한 든든한 버거입니다.",
+    },
+  },
+  鮪魚蛋吐司: {
+    "zh-TW": {
+      name: "鮪魚蛋吐司",
+      description: "自調鮪魚沙拉配上煎蛋與生菜，口味濃郁但不會太鹹。",
+    },
+    en: {
+      name: "Tuna Egg Toast",
+      description: "House tuna salad with fried egg and lettuce, rich but not too salty.",
+    },
+    ja: {
+      name: "ツナエッグトースト",
+      description: "自家製ツナサラダに卵とレタスを合わせた、濃厚で食べやすいトースト。",
+    },
+    ko: {
+      name: "참치 에그 토스트",
+      description: "직접 만든 참치 샐러드에 달걀과 양상추를 더한 고소한 토스트입니다.",
+    },
+  },
+  培根蛋餅: {
+    "zh-TW": {
+      name: "培根蛋餅",
+      description: "煎到微酥的蛋餅皮包裹煙燻培根與雞蛋，是經典台式早餐選擇。",
+    },
+    en: {
+      name: "Bacon Egg Pancake Roll",
+      description: "Crisp Taiwanese egg pancake filled with smoked bacon and egg.",
+    },
+    ja: {
+      name: "ベーコン蛋餅",
+      description: "香ばしく焼いた台湾風蛋餅にスモークベーコンと卵を包みました。",
+    },
+    ko: {
+      name: "베이컨 단빙",
+      description: "바삭하게 구운 대만식 달걀 전병에 훈제 베이컨과 달걀을 넣었습니다.",
+    },
+  },
+  起司蔬菜蛋餅: {
+    "zh-TW": {
+      name: "起司蔬菜蛋餅",
+      description: "加入起司與高麗菜絲，口感滑順、起司香氣濃郁，適合想吃清爽一點的客人。",
+    },
+    en: {
+      name: "Cheese Vegetable Egg Pancake Roll",
+      description: "Cheese and shredded cabbage in a soft egg pancake roll with a lighter taste.",
+    },
+    ja: {
+      name: "チーズ野菜蛋餅",
+      description: "チーズとキャベツを包んだ、なめらかで軽めの台湾風蛋餅。",
+    },
+    ko: {
+      name: "치즈 야채 단빙",
+      description: "치즈와 양배추를 넣어 부드럽고 산뜻한 대만식 달걀 전병입니다.",
+    },
+  },
+  蘿蔔糕加蛋: {
+    "zh-TW": {
+      name: "蘿蔔糕加蛋",
+      description: "外表煎到金黃微酥的蘿蔔糕，搭配荷包蛋與特調醬油膏。",
+    },
+    en: {
+      name: "Radish Cake with Egg",
+      description: "Golden pan-fried radish cake served with egg and house soy paste.",
+    },
+    ja: {
+      name: "大根餅 卵付き",
+      description: "外は香ばしく焼いた大根餅に卵と特製醤油だれを添えました。",
+    },
+    ko: {
+      name: "무떡 계란 추가",
+      description: "노릇하게 구운 무떡에 달걀과 특제 간장 소스를 곁들였습니다.",
+    },
+  },
+  紅茶: {
+    "zh-TW": {
+      name: "紅茶",
+      description: "古早味紅茶，微糖微冰為店內推薦比例，適合作為早餐基本配備。",
+    },
+    en: {
+      name: "Black Tea",
+      description: "Classic Taiwanese black tea; light sugar and light ice are recommended.",
+    },
+    ja: {
+      name: "紅茶",
+      description: "昔ながらの台湾紅茶。微糖・氷少なめがおすすめです。",
+    },
+    ko: {
+      name: "홍차",
+      description: "대만식 클래식 홍차입니다. 약간의 당도와 얼음을 추천합니다.",
+    },
+  },
+  奶茶: {
+    "zh-TW": {
+      name: "奶茶",
+      description: "使用紅茶搭配奶精調和，香濃順口，是最受歡迎的經典飲品。",
+    },
+    en: {
+      name: "Milk Tea",
+      description: "Black tea blended with creamer, smooth and aromatic.",
+    },
+    ja: {
+      name: "ミルクティー",
+      description: "紅茶とクリーマーを合わせた、香り高く飲みやすい定番ドリンク。",
+    },
+    ko: {
+      name: "밀크티",
+      description: "홍차와 크리머를 섞어 부드럽고 향이 진한 인기 음료입니다.",
+    },
+  },
+  豆漿: {
+    "zh-TW": {
+      name: "豆漿",
+      description: "每日現煮黃豆漿，口感濃郁不稀薄，提供無糖與微糖兩種甜度選擇。",
+    },
+    en: {
+      name: "Soy Milk",
+      description: "Freshly cooked soy milk, rich and smooth, available unsweetened or lightly sweet.",
+    },
+    ja: {
+      name: "豆乳",
+      description: "毎日煮出す濃厚な豆乳。無糖と微糖から選べます。",
+    },
+    ko: {
+      name: "두유",
+      description: "매일 끓이는 진한 두유입니다. 무가당과 약간 달게를 선택할 수 있습니다.",
+    },
+  },
+  鮮奶茶: {
+    "zh-TW": {
+      name: "鮮奶茶",
+      description: "以鮮奶取代奶精，茶味與奶味平衡，適合喜歡濃郁口感的客人。",
+    },
+    en: {
+      name: "Fresh Milk Tea",
+      description: "Black tea with fresh milk for a balanced, rich flavor.",
+    },
+    ja: {
+      name: "フレッシュミルクティー",
+      description: "クリーマーではなく牛乳を使った、茶とミルクのバランスが良い一杯。",
+    },
+    ko: {
+      name: "생우유 밀크티",
+      description: "크리머 대신 우유를 넣어 차와 우유의 균형이 좋은 음료입니다.",
+    },
+  },
+  冰美式咖啡: {
+    "zh-TW": {
+      name: "冰美式咖啡",
+      description: "使用中焙咖啡豆現萃，帶有堅果香氣與微微果酸，無糖風味清爽。",
+    },
+    en: {
+      name: "Iced Americano",
+      description: "Freshly brewed medium-roast coffee with nutty aroma and light acidity.",
+    },
+    ja: {
+      name: "アイスアメリカーノ",
+      description: "中煎り豆を使った、ナッツの香りと軽い酸味のすっきりしたコーヒー。",
+    },
+    ko: {
+      name: "아이스 아메리카노",
+      description: "중배전 원두로 추출해 고소한 향과 산뜻한 산미가 있는 커피입니다.",
+    },
+  },
+  熱拿鐵咖啡: {
+    "zh-TW": {
+      name: "熱拿鐵咖啡",
+      description: "義式濃縮搭配蒸煮鮮奶，奶泡綿密，適合作為慢慢享用的早晨飲品。",
+    },
+    en: {
+      name: "Hot Latte",
+      description: "Espresso with steamed milk and soft foam for a slow morning drink.",
+    },
+    ja: {
+      name: "ホットラテ",
+      description: "エスプレッソにスチームミルクを合わせた、朝にゆっくり楽しめる一杯。",
+    },
+    ko: {
+      name: "핫 라떼",
+      description: "에스프레소와 스팀 우유, 부드러운 거품이 어우러진 따뜻한 라떼입니다.",
+    },
+  },
+};
 const languageOptions: Array<{
   value: UserProfile["language"];
   label: string;
@@ -418,11 +736,18 @@ export default function App() {
     return text.pendingCart;
   };
   const menuCopy = (item: MenuItem) =>
+    builtInMenuTranslations[item.name]?.[profile.language] ??
     item.translations?.[profile.language] ??
     item.translations?.["zh-TW"] ?? {
       name: item.name,
       description: item.description,
     };
+  const categoryLabel = (category: string) =>
+    categoryLabels[profile.language]?.[category] ?? category;
+  const sugarLabel = (option: string) =>
+    sugarOptionLabels[profile.language]?.[option] ?? option;
+  const iceLabel = (option: string) =>
+    iceOptionLabels[profile.language]?.[option] ?? option;
 
   function syncCartFromOrder(order: Order) {
     const nextQtyByItemId = order.items.reduce(
@@ -1569,7 +1894,7 @@ export default function App() {
               <div className="stat">
                 <div className="stat-title">今日營業額</div>
                 <div className="stat-value text-secondary">
-                  ${todayAdminStats.revenue}
+                  {formatMoney(todayAdminStats.revenue)}
                 </div>
               </div>
             </div>
@@ -1765,8 +2090,8 @@ export default function App() {
                                 {item.sugarLevel || item.iceLevel ? (
                                   <span className="opacity-60">
                                     {" "}
-                                    ({item.sugarLevel || "預設糖"} /{" "}
-                                    {item.iceLevel || "預設冰"})
+                                    ({item.sugarLevel ? sugarLabel(item.sugarLevel) : "預設糖"} /{" "}
+                                    {item.iceLevel ? iceLabel(item.iceLevel) : "預設冰"})
                                   </span>
                                 ) : null}
                                 {item.note ? (
@@ -1799,7 +2124,9 @@ export default function App() {
                             </div>
                           ) : null}
                         </td>
-                        <td className="font-semibold">${order.total}</td>
+                        <td className="font-semibold">
+                          {formatMoney(order.total)}
+                        </td>
                         <td>
                           {order.status === "submitted" ? (
                             <button
@@ -1934,7 +2261,7 @@ export default function App() {
                         </td>
                         <td>
                           <div className="flex items-center gap-2">
-                            <span>${item.price}</span>
+                            <span>{formatMoney(item.price)}</span>
                             <button
                               className="btn btn-xs btn-outline"
                               onClick={() => {
@@ -1989,9 +2316,9 @@ export default function App() {
                         <td>
                           v{row.majorVersion}.{row.minorVersion}
                         </td>
-                        <td>${row.price}</td>
+                        <td>{formatMoney(row.price)}</td>
                         <td>{row.totalQty}</td>
-                        <td>${row.totalRevenue}</td>
+                        <td>{formatMoney(row.totalRevenue)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2018,7 +2345,7 @@ export default function App() {
                           <span className="badge badge-accent">
                             {promotion.discountType === "percent"
                               ? `${promotion.discountValue}%`
-                              : `$${promotion.discountValue}`}
+                              : formatMoney(promotion.discountValue)}
                           </span>
                         </div>
                         <p className="text-sm opacity-70">
@@ -2127,7 +2454,7 @@ export default function App() {
                       <span className="badge badge-accent">
                         {coupon.discountType === "percent"
                           ? `${coupon.discountValue}%`
-                          : `$${coupon.discountValue}`}
+                          : formatMoney(coupon.discountValue)}
                       </span>
                     </li>
                   ))}
@@ -2255,7 +2582,7 @@ export default function App() {
           grouped.categories.map((category) => (
             <div key={category} className="mb-8">
               <h2 className="text-3xl font-bold mb-4 text-primary border-b-2 border-primary pb-2">
-                {category}
+                {categoryLabel(category)}
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {(grouped.groupedItems[category] || []).map((item) => {
@@ -2291,7 +2618,8 @@ export default function App() {
                           {item.priceChanged &&
                           typeof item.previousPrice === "number" ? (
                             <span className="badge badge-warning badge-sm">
-                              ${item.previousPrice} → ${item.price}
+                              {formatMoney(item.previousPrice)} →{" "}
+                              {formatMoney(item.price)}
                             </span>
                           ) : null}
                         </div>
@@ -2300,7 +2628,7 @@ export default function App() {
                         </p>
                         <div className="card-actions justify-between items-center">
                           <span className="text-xl font-bold text-success">
-                            ${item.price}
+                            {formatMoney(item.price)}
                           </span>
                           <button
                             className="btn btn-sm btn-primary"
@@ -2387,8 +2715,8 @@ export default function App() {
                             {detail.sugarLevel || detail.iceLevel ? (
                               <span className="opacity-60">
                                 {" "}
-                                ({detail.sugarLevel || text.defaultSugar} /{" "}
-                                {detail.iceLevel || text.defaultIce})
+                                ({detail.sugarLevel ? sugarLabel(detail.sugarLevel) : text.defaultSugar} /{" "}
+                                {detail.iceLevel ? iceLabel(detail.iceLevel) : text.defaultIce})
                               </span>
                             ) : null}
                           </li>
@@ -2396,7 +2724,9 @@ export default function App() {
                       </ul>
                       <div className="flex items-center justify-between font-semibold">
                         <span>{order.paymentMethod === "card" ? text.card : text.cash}</span>
-                        <span>{text.total} ${order.total}</span>
+                        <span>
+                          {text.total} {formatMoney(order.total)}
+                        </span>
                       </div>
                       <button
                         className="btn btn-sm btn-outline w-full"
@@ -2500,7 +2830,9 @@ export default function App() {
                 <h2 className="text-xl font-bold">
                   {menuCopy(customizingItem).name}
                 </h2>
-                <p className="text-sm opacity-70">${customizingItem.price}</p>
+                <p className="text-sm opacity-70">
+                  {formatMoney(customizingItem.price)}
+                </p>
               </div>
               <button
                 className="btn btn-sm btn-ghost"
@@ -2559,7 +2891,7 @@ export default function App() {
                             }))
                           }
                         >
-                          {option}
+                          {sugarLabel(option)}
                         </button>
                       ))}
                     </div>
@@ -2578,7 +2910,7 @@ export default function App() {
                             }))
                           }
                         >
-                          {option}
+                          {iceLabel(option)}
                         </button>
                       ))}
                     </div>
@@ -2610,7 +2942,7 @@ export default function App() {
               >
                 {activeItemId === customizingItem.id
                   ? text.adding
-                  : `${text.addToCart} $${customizingItem.price * cartDraft.qty}`}
+                  : `${text.addToCart} ${formatMoney(customizingItem.price * cartDraft.qty)}`}
               </button>
             </div>
           </section>
@@ -2655,9 +2987,9 @@ export default function App() {
                       {staleCartItems.map((item) => (
                         <li key={item.menuItemId}>
                           {item.menuItemName} x {item.qty}：
-                          ${item.menuItemPrice}
+                          {formatMoney(item.menuItemPrice)}
                           {typeof item.currentMenuItemPrice === "number"
-                            ? ` → $${item.currentMenuItemPrice}`
+                            ? ` → ${formatMoney(item.currentMenuItemPrice)}`
                             : "，目前版本不存在"}
                         </li>
                       ))}
@@ -2683,10 +3015,12 @@ export default function App() {
                               {menuCopy(detail.item).name}
                             </p>
                             <p className="text-sm opacity-70">
-                            ${detail.item.price} x {detail.qty}
+                            {formatMoney(detail.item.price)} x {detail.qty}
                             </p>
                           </div>
-                          <p className="font-bold">${detail.subtotal}</p>
+                          <p className="font-bold">
+                            {formatMoney(detail.subtotal)}
+                          </p>
                         </div>
                         <div className="join">
                           <button
@@ -2734,7 +3068,7 @@ export default function App() {
                                       );
                                     }}
                                   >
-                                    {option}
+                                    {sugarLabel(option)}
                                   </button>
                                 );
                               })}
@@ -2759,7 +3093,7 @@ export default function App() {
                                       );
                                     }}
                                   >
-                                    {option}
+                                    {iceLabel(option)}
                                   </button>
                                 );
                               })}
@@ -2793,7 +3127,7 @@ export default function App() {
                     </div>
                     <div className="flex items-center justify-between text-lg font-bold">
                       <span>{text.totalAmount}</span>
-                      <span>${cartTotal}</span>
+                      <span>{formatMoney(cartTotal)}</span>
                     </div>
                   </div>
                   <input
@@ -2860,7 +3194,7 @@ export default function App() {
               </div>
               <div className="flex items-center justify-between text-lg font-bold">
                 <span>{text.totalAmount}</span>
-                <span>${cartTotal}</span>
+                <span>{formatMoney(cartTotal)}</span>
               </div>
               {cartView === "items" ? (
                 <>

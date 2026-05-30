@@ -2328,6 +2328,215 @@ export default function App() {
     );
   }
 
+  if (isAdminAddProductPage && adminAuthed) {
+    const previewCopy = newMenuItem.translations["zh-TW"];
+    const previewName = previewCopy.name.trim() || "商品名稱";
+    const previewDescription =
+      previewCopy.description.trim() || "商品介紹會顯示在這裡";
+
+    return (
+      <div className="min-h-screen bg-base-100">
+        {adminMenuNotice ? (
+          <div className="fixed left-1/2 top-6 z-[2147483647] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 pointer-events-none">
+            <div className="alert alert-warning shadow-lg justify-center">
+              <span>{adminMenuNotice}</span>
+            </div>
+          </div>
+        ) : null}
+
+        <header className="sticky top-0 z-30 border-b border-base-300 bg-base-100">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-4">
+            <div>
+              <button
+                className="btn btn-sm btn-ghost -ml-2 mb-2"
+                onClick={() => {
+                  setAdminMenuNotice("");
+                  navigate("/admin");
+                }}
+              >
+                返回
+              </button>
+              <h1 className="text-2xl font-bold">新增商品</h1>
+            </div>
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={() => {
+                setAdminMenuNotice("");
+                navigate("/admin");
+              }}
+            >
+              關閉
+            </button>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-6xl px-5 pb-28">
+          <section className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="space-y-8 py-6">
+              <div className="space-y-3">
+                <label className="label p-0">
+                  <span className="label-text">照片</span>
+                </label>
+                <input
+                  className="file-input file-input-bordered w-full"
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => {
+                    loadMenuImageFile(event.currentTarget.files?.[0] ?? null);
+                  }}
+                />
+                <input
+                  className="input input-bordered w-full"
+                  value={newMenuItem.imageUrl}
+                  onChange={(event) => {
+                    const imageUrl = event.currentTarget.value;
+                    setNewMenuItem((current) => ({
+                      ...current,
+                      imageUrl,
+                    }));
+                  }}
+                  placeholder="或貼圖片網址"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-[160px_1fr]">
+                <label className="form-control">
+                  <span className="label-text mb-1">價格（NT）</span>
+                  <input
+                    className="input input-bordered"
+                    inputMode="numeric"
+                    value={newMenuItem.price}
+                    onChange={(event) => {
+                      const price = parseWholeNumber(event.currentTarget.value);
+                      setNewMenuItem((current) => ({
+                        ...current,
+                        price,
+                      }));
+                    }}
+                    placeholder="例如 50"
+                  />
+                </label>
+                <div>
+                  <span className="label-text mb-1 block">分類</span>
+                  <details className="dropdown w-full">
+                    <summary className="btn btn-outline w-full justify-between">
+                      {newMenuItem.category}
+                      <span>⌄</span>
+                    </summary>
+                    <ul className="menu dropdown-content z-40 mt-2 w-full rounded-lg bg-base-100 p-2 shadow border border-base-300">
+                      {breakfastCategoryOptions.map((category) => (
+                        <li key={category}>
+                          <button
+                            onClick={() =>
+                              setNewMenuItem((current) => ({
+                                ...current,
+                                category,
+                              }))
+                            }
+                          >
+                            {category}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                </div>
+              </div>
+
+              <div className="divide-y divide-base-300 border-y border-base-300">
+                {menuLanguageOptions.map((option) => (
+                  <section key={option.value} className="py-6">
+                    <h2 className="mb-3 text-xl font-bold">{option.label}</h2>
+                    <div className="space-y-3">
+                      <input
+                        className="input input-bordered w-full"
+                        value={newMenuItem.translations[option.value].name}
+                        onChange={(event) => {
+                          const name = event.currentTarget.value;
+                          setNewMenuItem((current) => ({
+                            ...current,
+                            translations: {
+                              ...current.translations,
+                              [option.value]: {
+                                ...current.translations[option.value],
+                                name,
+                              },
+                            },
+                          }));
+                        }}
+                        placeholder={`${option.label} 商品名稱`}
+                      />
+                      <textarea
+                        className="textarea textarea-bordered w-full min-h-28"
+                        value={newMenuItem.translations[option.value].description}
+                        onChange={(event) => {
+                          const description = event.currentTarget.value;
+                          setNewMenuItem((current) => ({
+                            ...current,
+                            translations: {
+                              ...current.translations,
+                              [option.value]: {
+                                ...current.translations[option.value],
+                                description,
+                              },
+                            },
+                          }));
+                        }}
+                        placeholder={`${option.label} 商品介紹`}
+                      />
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </div>
+
+            <aside className="lg:sticky lg:top-24 lg:h-fit py-6">
+              <article className="overflow-hidden rounded-lg bg-base-200 shadow-xl">
+                {newMenuItem.imageUrl ? (
+                  <img
+                    src={newMenuItem.imageUrl}
+                    alt={previewName}
+                    className="h-80 w-full object-cover bg-white"
+                    onError={() => {
+                      setAdminMenuNotice("圖片載入失敗，請重新選擇圖片或貼正確網址。");
+                    }}
+                  />
+                ) : (
+                  <div className="h-80 bg-base-300 flex items-center justify-center text-sm opacity-60">
+                    選擇圖片後會顯示在這裡
+                  </div>
+                )}
+                <div className="p-5 space-y-3">
+                  <h2 className="text-2xl font-bold">{previewName}</h2>
+                  <p className="text-sm opacity-70">{previewDescription}</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-2xl font-black text-success">
+                      {formatMoney(newMenuItem.price)}
+                    </span>
+                    <button className="btn btn-primary btn-sm">加入購物車</button>
+                  </div>
+                </div>
+              </article>
+            </aside>
+          </section>
+        </main>
+
+        <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100 p-4">
+          <div className="mx-auto max-w-6xl">
+            <button
+              className="btn btn-primary w-full"
+              onClick={() => {
+                void createAdminMenuItem();
+              }}
+            >
+              新增商品
+            </button>
+          </div>
+        </footer>
+      </div>
+    );
+  }
+
   if (isAdminPage) {
     return (
       <div className="min-h-screen bg-base-200">
@@ -2476,7 +2685,7 @@ export default function App() {
             </div>
           </section>
 
-          {(isAdminMenuFormOpen || isAdminAddProductPage) ? (
+          {isAdminMenuFormOpen ? (
             <>
               <section className="fixed inset-0 z-[9999] h-[100dvh] w-screen overflow-hidden bg-base-100 flex flex-col isolate">
                 <div className="px-6 py-4 border-b border-base-300 flex items-center justify-between">
@@ -3657,7 +3866,7 @@ export default function App() {
       ) : null}
 
       {activeCustomizingItem ? (
-        <section className="fixed inset-0 z-50 h-[100dvh] bg-base-100 flex flex-col">
+        <section className="fixed inset-0 z-[2147483647] h-[100dvh] bg-base-100 flex flex-col">
           <div className="p-4 border-b border-base-300 flex items-start justify-between gap-3">
             <div>
               <button

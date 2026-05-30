@@ -741,6 +741,10 @@ export default function App() {
   const isCartPage = currentPath === "/cart";
   const isOrderHistoryPage = currentPath === "/orders";
   const isProfilePage = currentPath === "/profile";
+  const isItemPage = currentPath.startsWith("/item/");
+  const itemPageId = isItemPage
+    ? decodeURIComponent(currentPath.replace(/^\/item\//, ""))
+    : "";
   const [user, setUser] = useState<SessionUser | null>(null);
   const [authError, setAuthError] = useState("");
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
@@ -847,6 +851,13 @@ export default function App() {
     note: "",
   });
   const text = uiText[profile.language] ?? uiText["zh-TW"];
+  const routeItem =
+    itemPageId && items.length > 0
+      ? items.find((item) => item.id === itemPageId || item.logicalId === itemPageId) ??
+        null
+      : null;
+  const activeCustomizingItem = customizingItem ?? routeItem;
+
   function navigate(path: string): void {
     if (window.location.pathname !== path) {
       window.history.pushState({}, "", path);
@@ -1185,6 +1196,7 @@ export default function App() {
       isOrderHistoryPage ||
       isProfileOpen ||
       isProfilePage ||
+      isItemPage ||
       Boolean(customizingItem);
     if (!shouldLockBody) return;
 
@@ -1205,9 +1217,38 @@ export default function App() {
     isCartPage,
     isHistoryOpen,
     isOrderHistoryPage,
+    isItemPage,
     isProfilePage,
     isProfileOpen,
   ]);
+
+  useEffect(() => {
+    if (!isItemPage) return;
+
+    if (!user) {
+      setCustomizingItem(null);
+      setActionError("請先使用 Google 登入後再加入購物車。");
+      navigate("/");
+      return;
+    }
+
+    if (!routeItem) {
+      if (!loading && items.length > 0) {
+        setCustomizingItem(null);
+        setActionError("找不到這個商品，請重新選擇。");
+        navigate("/");
+      }
+      return;
+    }
+
+    setCustomizingItem(routeItem);
+    setCartDraft({
+      qty: 1,
+      sugarLevel: "",
+      iceLevel: "",
+      note: "",
+    });
+  }, [isItemPage, items.length, loading, routeItem?.id, user]);
 
   useEffect(() => {
     if (!user || !(isCartOpen || isCartPage) || cartView !== "checkout") return;
@@ -1859,6 +1900,7 @@ export default function App() {
       note: "",
     });
     setCustomizingItem(item);
+    navigate(`/item/${encodeURIComponent(item.id)}`);
   }
 
   async function addToCart(
@@ -1968,6 +2010,9 @@ export default function App() {
     } finally {
       setActiveItemId(null);
       setCustomizingItem(null);
+      if (currentPath.startsWith("/item/")) {
+        navigate("/");
+      }
     }
   }
 
@@ -3611,30 +3656,60 @@ export default function App() {
         </>
       ) : null}
 
-      {customizingItem ? (
-        <>
-          <div
-            className="fixed inset-0 bg-black/35 z-20 pointer-events-none"
-            aria-hidden="true"
-          />
-          <section className="fixed left-1/2 top-1/2 z-30 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-base-100 shadow-2xl">
-            <div className="p-4 border-b border-base-300 flex items-start justify-between gap-3">
+      {activeCustomizingItem ? (
+        <section className="fixed inset-0 z-50 h-[100dvh] bg-base-100 flex flex-col">
+          <div className="p-4 border-b border-base-300 flex items-start justify-between gap-3">
+            <div>
+              <button
+                className="btn btn-sm btn-ghost -ml-2 mb-3"
+                onClick={() => {
+                  setCustomizingItem(null);
+                  navigate("/");
+                }}
+              >
+                {text.back}
+              </button>
               <div>
                 <h2 className="text-xl font-bold">
-                  {menuCopy(customizingItem).name}
+                  {menuCopy(activeCustomizingItem).name}
                 </h2>
                 <p className="text-sm opacity-70">
-                  {formatMoney(customizingItem.price)}
+                  {formatMoney(activeCustomizingItem.price)}
                 </p>
               </div>
-              <button
-                className="btn btn-sm btn-ghost"
-                onClick={() => setCustomizingItem(null)}
-              >
-                {text.close}
-              </button>
             </div>
-            <div className="p-4 space-y-4">
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={() => {
+                setCustomizingItem(null);
+                navigate("/");
+              }}
+            >
+              {text.close}
+            </button>
+          </div>
+          <div className="flex-1 overflow-auto">
+            <div className="mx-auto w-full max-w-2xl p-4 space-y-5">
+              <div className="rounded-lg overflow-hidden bg-base-200 border border-base-300">
+                <img
+                  src={activeCustomizingItem.image}
+                  alt={menuCopy(activeCustomizingItem).name}
+                  className="h-64 w-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+              <div className="rounded-lg bg-base-200 p-4 space-y-2">
+                <h3 className="text-2xl font-bold">
+                  {menuCopy(activeCustomizingItem).name}
+                </h3>
+                <p className="text-base opacity-75">
+                  {menuCopy(activeCustomizingItem).description}
+                </p>
+                <p className="text-2xl font-black text-success">
+                  {formatMoney(activeCustomizingItem.price)}
+                </p>
+              </div>
+
               <div>
                 <label className="label">
                   <span className="label-text">{text.qty}</span>
@@ -3668,7 +3743,7 @@ export default function App() {
                 </div>
               </div>
 
-              {isDrink(customizingItem) ? (
+              {isDrink(activeCustomizingItem) ? (
                 <div className="space-y-3">
                   <div>
                     <span className="label-text mb-2 block">{text.sugar}</span>
@@ -3726,21 +3801,24 @@ export default function App() {
                   }}
                 />
               </label>
-
+            </div>
+          </div>
+          <div className="border-t border-base-300 p-4 bg-base-100">
+            <div className="mx-auto w-full max-w-2xl">
               <button
                 className="btn btn-primary w-full"
-                disabled={activeItemId === customizingItem.id}
+                disabled={activeItemId === activeCustomizingItem.id}
                 onClick={() => {
-                  void addToCart(customizingItem, cartDraft);
+                  void addToCart(activeCustomizingItem, cartDraft);
                 }}
               >
-                {activeItemId === customizingItem.id
+                {activeItemId === activeCustomizingItem.id
                   ? text.adding
-                  : `${text.addToCart} ${formatMoney(customizingItem.price * cartDraft.qty)}`}
+                  : `${text.addToCart} ${formatMoney(activeCustomizingItem.price * cartDraft.qty)}`}
               </button>
             </div>
-          </section>
-        </>
+          </div>
+        </section>
       ) : null}
 
       {user && (isCartOpen || isCartPage) ? (

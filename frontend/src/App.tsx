@@ -3189,30 +3189,30 @@ export default function App() {
             </details>
           </section>
 
-          <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-            <div>
-              <h2 className="text-2xl font-bold mb-3">每日品項銷售排行</h2>
-              <div className="bg-base-100 rounded-lg shadow p-4">
-                {todayAdminStats.itemRanking.length === 0 ? (
-                  <p className="opacity-60">今日尚無已送出訂單。</p>
-                ) : (
-                  <ol className="space-y-2">
-                    {todayAdminStats.itemRanking.slice(0, 10).map((item, index) => (
-                      <li
-                        key={item.name}
-                        className="flex items-center justify-between border-b border-base-300 pb-2"
-                      >
-                        <span>
-                          {index + 1}. {item.name}
-                        </span>
-                        <span className="badge badge-primary">{item.qty} 份</span>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
+          <section>
+            <h2 className="text-2xl font-bold mb-3">每日品項銷售排行</h2>
+            <div className="bg-base-100 rounded-lg shadow p-4">
+              {todayAdminStats.itemRanking.length === 0 ? (
+                <p className="opacity-60">今日尚無已送出訂單。</p>
+              ) : (
+                <ol className="space-y-2">
+                  {todayAdminStats.itemRanking.slice(0, 10).map((item, index) => (
+                    <li
+                      key={item.name}
+                      className="flex items-center justify-between border-b border-base-300 pb-2"
+                    >
+                      <span>
+                        {index + 1}. {item.name}
+                      </span>
+                      <span className="badge badge-primary">{item.qty} 份</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
+          </section>
 
+          <section>
             <details className="collapse collapse-arrow bg-base-100 shadow h-fit">
               <summary className="collapse-title text-2xl font-bold">
                 下單時段統計

@@ -77,6 +77,13 @@ function todayTaipeiDate() {
   });
 }
 
+function dateInputValue(value?: string) {
+  if (!value) return todayTaipeiDate();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return todayTaipeiDate();
+  return date.toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" });
+}
+
 function taipeiDayBoundaryIso(date: string, endOfDay: boolean) {
   if (!date) return "";
   const time = endOfDay ? "23:59:59" : "00:00:00";
@@ -787,6 +794,7 @@ export default function App() {
     [],
   );
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [editingCouponCode, setEditingCouponCode] = useState<string | null>(null);
   const [newCoupon, setNewCoupon] = useState({
     code: "BREAKFAST10",
     name: "早餐折 10 元",
@@ -1139,6 +1147,32 @@ export default function App() {
 
     return () => window.clearTimeout(timer);
   }, [adminMenuNotice]);
+
+  useEffect(() => {
+    const shouldLockBody =
+      isAdminMenuFormOpen ||
+      isCartOpen ||
+      isHistoryOpen ||
+      isProfileOpen ||
+      Boolean(customizingItem);
+    if (!shouldLockBody) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousPosition = document.body.style.position;
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "relative";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.position = previousPosition;
+    };
+  }, [
+    customizingItem,
+    isAdminMenuFormOpen,
+    isCartOpen,
+    isHistoryOpen,
+    isProfileOpen,
+  ]);
 
   useEffect(() => {
     if (!user || !isCartOpen || cartView !== "checkout") return;
@@ -1560,7 +1594,18 @@ export default function App() {
       setAdminError("請選擇優惠券開始日期與結束日期。");
       return;
     }
-    if (!window.confirm(`確定要新增 / 更新優惠券「${code}」嗎？`)) {
+    if (!editingCouponCode && coupons.some((coupon) => coupon.code === code)) {
+      setAdminError("優惠碼已存在，請從右側已創優惠券按「編輯」。");
+      return;
+    }
+    if (
+      editingCouponCode &&
+      editingCouponCode.toUpperCase() !== code.toUpperCase()
+    ) {
+      setAdminError("編輯優惠券時不能更改優惠碼，請重新新增一張。");
+      return;
+    }
+    if (!window.confirm(`確定要${editingCouponCode ? "更新" : "新增"}優惠券「${code}」嗎？`)) {
       return;
     }
 
@@ -1590,7 +1635,41 @@ export default function App() {
 
     await loadAdminData();
     await loadCoupons();
-    setAdminError(`已新增 / 更新優惠券：${code}`);
+    setEditingCouponCode(null);
+    setAdminError(`已${editingCouponCode ? "更新" : "新增"}優惠券：${code}`);
+  }
+
+  function startEditCoupon(coupon: Coupon): void {
+    setEditingCouponCode(coupon.code);
+    setNewCoupon({
+      code: coupon.code,
+      name: coupon.name,
+      discountType: coupon.discountType,
+      discountValue: coupon.discountValue,
+      minSpend: coupon.minSpend ?? 0,
+      maxDiscount: coupon.maxDiscount ?? 0,
+      usageLimitPerUser: coupon.usageLimitPerUser ?? 1,
+      usageLimitTotal: coupon.usageLimitTotal ?? 0,
+      startsDate: dateInputValue(coupon.startsAt),
+      endsDate: dateInputValue(coupon.expiresAt),
+    });
+    setAdminError(`正在編輯優惠券：${coupon.code}`);
+  }
+
+  function resetCouponForm(): void {
+    setEditingCouponCode(null);
+    setNewCoupon({
+      code: "",
+      name: "",
+      discountType: "amount",
+      discountValue: 10,
+      minSpend: 0,
+      maxDiscount: 0,
+      usageLimitPerUser: 1,
+      usageLimitTotal: 0,
+      startsDate: todayTaipeiDate(),
+      endsDate: todayTaipeiDate(),
+    });
   }
 
   function loadMenuImageFile(file: File | null): void {
@@ -2299,7 +2378,10 @@ export default function App() {
               <h2 className="text-2xl font-bold">菜單商品</h2>
               <button
                 className="btn btn-primary"
-                onClick={() => setIsAdminMenuFormOpen(true)}
+                onClick={() => {
+                  setAdminMenuNotice("");
+                  setIsAdminMenuFormOpen(true);
+                }}
               >
                 新增商品
               </button>
@@ -2308,7 +2390,7 @@ export default function App() {
 
           {isAdminMenuFormOpen ? (
             <>
-              <section className="fixed inset-0 z-[100] w-screen min-h-screen bg-base-100 flex flex-col">
+              <section className="fixed inset-0 z-[9999] h-[100dvh] w-screen overflow-hidden bg-base-100 flex flex-col isolate">
                 <div className="px-6 py-4 border-b border-base-300 flex items-center justify-between">
                   <div>
                     <h2 className="text-2xl font-bold">新增商品</h2>
@@ -2318,7 +2400,10 @@ export default function App() {
                   </div>
                   <button
                     className="btn btn-sm btn-ghost"
-                    onClick={() => setIsAdminMenuFormOpen(false)}
+                    onClick={() => {
+                      setAdminMenuNotice("");
+                      setIsAdminMenuFormOpen(false);
+                    }}
                   >
                     關閉
                   </button>
@@ -2331,8 +2416,7 @@ export default function App() {
                   </div>
                 ) : null}
                 <div className="p-6 flex-1 overflow-auto">
-                  <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-6">
-                    <div className="space-y-4">
+                  <div className="space-y-4">
                   <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-3">
                     <label className="form-control">
                       <span className="label-text mb-1">價格（NT）</span>
@@ -2399,6 +2483,39 @@ export default function App() {
                       />
                     </div>
                   </div>
+                  <div className="rounded-lg border border-base-300 bg-base-200 p-4">
+                    <div className="mb-3 font-semibold">前台預覽</div>
+                    <article className="max-w-xl overflow-hidden rounded-lg bg-base-100 shadow">
+                      {newMenuItem.imageUrl ? (
+                        <img
+                          src={newMenuItem.imageUrl}
+                          alt="前台商品預覽"
+                          className="h-80 w-full object-cover bg-white"
+                        />
+                      ) : (
+                        <div className="h-80 bg-base-300 flex items-center justify-center text-sm opacity-60">
+                          選擇圖片後會顯示在這裡
+                        </div>
+                      )}
+                      <div className="p-4 space-y-2">
+                        <h3 className="text-xl font-bold">
+                          {newMenuItem.translations["zh-TW"].name || "商品名稱"}
+                        </h3>
+                        <p className="text-sm opacity-70 line-clamp-2">
+                          {newMenuItem.translations["zh-TW"].description ||
+                            "商品介紹會顯示在這裡"}
+                        </p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-2xl font-bold text-success">
+                            {formatMoney(newMenuItem.price)}
+                          </span>
+                          <button className="btn btn-primary btn-sm">
+                            加入購物車
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {menuLanguageOptions.map((option) => (
                       <div
@@ -2447,44 +2564,6 @@ export default function App() {
                       </div>
                     ))}
                   </div>
-                    </div>
-
-                  <aside className="rounded-lg border border-base-300 bg-base-200 p-4 h-fit xl:sticky xl:top-4">
-                    <div className="mb-3 font-semibold">前台預覽</div>
-                    <article className="overflow-hidden rounded-lg bg-base-100 shadow">
-                      {newMenuItem.imageUrl ? (
-                        <img
-                          src={newMenuItem.imageUrl}
-                          alt="前台商品預覽"
-                          className="h-80 w-full object-cover bg-white"
-                          onError={(event) => {
-                            event.currentTarget.style.display = "none";
-                          }}
-                        />
-                      ) : (
-                        <div className="h-80 bg-base-300 flex items-center justify-center text-sm opacity-60">
-                          選擇圖片後會顯示在這裡
-                        </div>
-                      )}
-                      <div className="p-4 space-y-2">
-                        <h3 className="text-xl font-bold">
-                          {newMenuItem.translations["zh-TW"].name || "商品名稱"}
-                        </h3>
-                        <p className="text-sm opacity-70 line-clamp-2">
-                          {newMenuItem.translations["zh-TW"].description ||
-                            "商品介紹會顯示在這裡"}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-2xl font-bold text-success">
-                            {formatMoney(newMenuItem.price)}
-                          </span>
-                          <button className="btn btn-primary btn-sm">
-                            加入購物車
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                  </aside>
                   </div>
                 </div>
                 <div className="p-4 border-t border-base-300 bg-base-100">
@@ -2818,12 +2897,23 @@ export default function App() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="card bg-base-100 shadow">
                 <div className="card-body space-y-4">
+                  <div>
+                    <h3 className="text-lg font-bold">
+                      {editingCouponCode ? "編輯優惠券" : "新增優惠券"}
+                    </h3>
+                    {editingCouponCode ? (
+                      <p className="text-sm opacity-60">
+                        正在編輯 {editingCouponCode}，優惠碼本身不可更改。
+                      </p>
+                    ) : null}
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <label className="form-control">
                       <span className="label-text mb-1">優惠碼</span>
                       <input
                         className="input input-bordered"
                         value={newCoupon.code}
+                        disabled={Boolean(editingCouponCode)}
                         onChange={(event) => {
                           const code = event.currentTarget.value;
                           setNewCoupon((current) => ({
@@ -3045,8 +3135,16 @@ export default function App() {
                       void createAdminCoupon();
                     }}
                   >
-                    新增 / 更新優惠券
+                    {editingCouponCode ? "更新優惠券" : "新增優惠券"}
                   </button>
+                  {editingCouponCode ? (
+                    <button
+                      className="btn btn-outline"
+                      onClick={resetCouponForm}
+                    >
+                      取消編輯
+                    </button>
+                  ) : null}
                 </div>
               </div>
               <div className="bg-base-100 rounded-lg shadow p-4">
@@ -3083,6 +3181,12 @@ export default function App() {
                             ? `${coupon.discountValue}%`
                             : formatMoney(coupon.discountValue)}
                         </span>
+                        <button
+                          className="btn btn-xs btn-outline"
+                          onClick={() => startEditCoupon(coupon)}
+                        >
+                          編輯
+                        </button>
                         <button
                           className="btn btn-xs btn-error btn-outline"
                           onClick={() => {

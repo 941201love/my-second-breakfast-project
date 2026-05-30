@@ -802,7 +802,7 @@ export default function App() {
   const [newMenuItem, setNewMenuItem] = useState({
     price: 50,
     category: "主餐",
-    imageUrl: "/imgs/menu/new-item.webp",
+    imageUrl: "",
     translations: {
       "zh-TW": { name: "", description: "" },
       en: { name: "", description: "" },
@@ -2297,9 +2297,14 @@ export default function App() {
 
           {isAdminMenuFormOpen ? (
             <>
-              <section className="fixed inset-0 z-50 bg-base-100 shadow-2xl flex flex-col">
-                <div className="p-4 border-b border-base-300 flex items-center justify-between">
-                  <h2 className="text-2xl font-bold">新增商品</h2>
+              <section className="fixed inset-0 z-[100] w-screen min-h-screen bg-base-100 flex flex-col">
+                <div className="px-6 py-4 border-b border-base-300 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold">新增商品</h2>
+                    <p className="text-sm opacity-60">
+                      填寫商品資料後，右側會即時顯示前台效果。
+                    </p>
+                  </div>
                   <button
                     className="btn btn-sm btn-ghost"
                     onClick={() => setIsAdminMenuFormOpen(false)}
@@ -2307,8 +2312,10 @@ export default function App() {
                     關閉
                   </button>
                 </div>
-                <div className="p-4 flex-1 overflow-auto space-y-4">
-                  <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr_1.2fr] gap-3">
+                <div className="p-6 flex-1 overflow-auto">
+                  <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-6">
+                    <div className="space-y-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-3">
                     <label className="form-control">
                       <span className="label-text mb-1">價格（NT）</span>
                       <input
@@ -2350,7 +2357,7 @@ export default function App() {
                         </ul>
                       </details>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 lg:col-span-2">
                       <span className="label-text block">照片</span>
                       <input
                         className="file-input file-input-bordered w-full"
@@ -2372,43 +2379,7 @@ export default function App() {
                         }}
                         placeholder="或貼圖片網址"
                       />
-                      {newMenuItem.imageUrl ? (
-                        <img
-                          src={newMenuItem.imageUrl}
-                          alt="商品預覽"
-                          className="h-56 w-full rounded-lg object-cover border border-base-300 bg-white"
-                        />
-                      ) : null}
                     </div>
-                  </div>
-                  <div className="rounded-lg border border-base-300 bg-base-200 p-4">
-                    <div className="mb-3 font-semibold">前台預覽</div>
-                    <article className="max-w-md overflow-hidden rounded-lg bg-base-100 shadow">
-                      {newMenuItem.imageUrl ? (
-                        <img
-                          src={newMenuItem.imageUrl}
-                          alt="前台商品預覽"
-                          className="h-72 w-full object-cover bg-white"
-                        />
-                      ) : null}
-                      <div className="p-4 space-y-2">
-                        <h3 className="text-xl font-bold">
-                          {newMenuItem.translations["zh-TW"].name || "商品名稱"}
-                        </h3>
-                        <p className="text-sm opacity-70 line-clamp-2">
-                          {newMenuItem.translations["zh-TW"].description ||
-                            "商品介紹會顯示在這裡"}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-2xl font-bold text-success">
-                            {formatMoney(newMenuItem.price)}
-                          </span>
-                          <button className="btn btn-primary btn-sm">
-                            加入購物車
-                          </button>
-                        </div>
-                      </div>
-                    </article>
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {menuLanguageOptions.map((option) => (
@@ -2436,7 +2407,7 @@ export default function App() {
                           placeholder={`${option.label} 商品名稱`}
                         />
                         <textarea
-                          className="textarea textarea-bordered w-full"
+                          className="textarea textarea-bordered w-full min-h-28"
                           value={
                             newMenuItem.translations[option.value].description
                           }
@@ -2458,8 +2429,47 @@ export default function App() {
                       </div>
                     ))}
                   </div>
+                    </div>
+
+                  <aside className="rounded-lg border border-base-300 bg-base-200 p-4 h-fit xl:sticky xl:top-4">
+                    <div className="mb-3 font-semibold">前台預覽</div>
+                    <article className="overflow-hidden rounded-lg bg-base-100 shadow">
+                      {newMenuItem.imageUrl ? (
+                        <img
+                          src={newMenuItem.imageUrl}
+                          alt="前台商品預覽"
+                          className="h-80 w-full object-cover bg-white"
+                          onError={(event) => {
+                            event.currentTarget.style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        <div className="h-80 bg-base-300 flex items-center justify-center text-sm opacity-60">
+                          選擇圖片後會顯示在這裡
+                        </div>
+                      )}
+                      <div className="p-4 space-y-2">
+                        <h3 className="text-xl font-bold">
+                          {newMenuItem.translations["zh-TW"].name || "商品名稱"}
+                        </h3>
+                        <p className="text-sm opacity-70 line-clamp-2">
+                          {newMenuItem.translations["zh-TW"].description ||
+                            "商品介紹會顯示在這裡"}
+                        </p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-2xl font-bold text-success">
+                            {formatMoney(newMenuItem.price)}
+                          </span>
+                          <button className="btn btn-primary btn-sm">
+                            加入購物車
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  </aside>
+                  </div>
                 </div>
-                <div className="p-4 border-t border-base-300">
+                <div className="p-4 border-t border-base-300 bg-base-100">
                   <button
                     className="btn btn-primary w-full"
                     onClick={() => {
@@ -2789,33 +2799,44 @@ export default function App() {
             <h2 className="text-2xl font-bold mb-3">優惠券管理</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="card bg-base-100 shadow">
-                <div className="card-body">
-                  <input
-                    className="input input-bordered"
-                    value={newCoupon.code}
-                    onChange={(event) => {
-                      const code = event.currentTarget.value;
-                      setNewCoupon((current) => ({
-                        ...current,
-                        code,
-                      }));
-                    }}
-                    placeholder="優惠碼"
-                  />
-                  <input
-                    className="input input-bordered"
-                    value={newCoupon.name}
-                    onChange={(event) => {
-                      const name = event.currentTarget.value;
-                      setNewCoupon((current) => ({
-                        ...current,
-                        name,
-                      }));
-                    }}
-                    placeholder="優惠券名稱"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="join w-full">
+                <div className="card-body space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label className="form-control">
+                      <span className="label-text mb-1">優惠碼</span>
+                      <input
+                        className="input input-bordered"
+                        value={newCoupon.code}
+                        onChange={(event) => {
+                          const code = event.currentTarget.value;
+                          setNewCoupon((current) => ({
+                            ...current,
+                            code,
+                          }));
+                        }}
+                        placeholder="例如 BREAKFAST10"
+                      />
+                    </label>
+                    <label className="form-control">
+                      <span className="label-text mb-1">優惠券名稱</span>
+                      <input
+                        className="input input-bordered"
+                        value={newCoupon.name}
+                        onChange={(event) => {
+                          const name = event.currentTarget.value;
+                          setNewCoupon((current) => ({
+                            ...current,
+                            name,
+                          }));
+                        }}
+                        placeholder="例如 早餐折 10 元"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-3">
+                    <div>
+                      <span className="label-text mb-1 block">優惠類型</span>
+                      <div className="join w-full">
                       <button
                         className={`btn join-item flex-1 ${
                           newCoupon.discountType === "amount"
@@ -2846,119 +2867,149 @@ export default function App() {
                       >
                         百分比 %
                       </button>
+                      </div>
                     </div>
-                    <input
-                      className="input input-bordered"
-                      inputMode="numeric"
-                      value={newCoupon.discountValue}
-                      onChange={(event) => {
-                        const discountValue = parseWholeNumber(
-                          event.currentTarget.value,
-                          1,
-                        );
-                        setNewCoupon((current) => ({
-                          ...current,
-                          discountValue:
-                            current.discountType === "percent"
-                              ? Math.min(100, Math.max(1, discountValue))
-                              : Math.max(1, discountValue),
-                        }));
-                      }}
-                    />
+                    <label className="form-control">
+                      <span className="label-text mb-1">
+                        {newCoupon.discountType === "amount"
+                          ? "折抵金額（NT）"
+                          : "實付比例（%）"}
+                      </span>
+                      <input
+                        className="input input-bordered"
+                        inputMode="numeric"
+                        value={newCoupon.discountValue}
+                        onChange={(event) => {
+                          const discountValue = parseWholeNumber(
+                            event.currentTarget.value,
+                            1,
+                          );
+                          setNewCoupon((current) => ({
+                            ...current,
+                            discountValue:
+                              current.discountType === "percent"
+                                ? Math.min(100, Math.max(1, discountValue))
+                                : Math.max(1, discountValue),
+                          }));
+                        }}
+                        placeholder={
+                          newCoupon.discountType === "amount" ? "10" : "80"
+                        }
+                      />
+                    </label>
                   </div>
-                  <p className="text-xs opacity-60">
-                    百分比請輸入實付比例，例如 80% 代表打八折；金額為 NT 折抵。
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <input
-                      className="input input-bordered"
-                      inputMode="numeric"
-                      value={newCoupon.minSpend}
-                      onChange={(event) => {
-                        const minSpend = parseWholeNumber(
-                          event.currentTarget.value,
-                        );
-                        setNewCoupon((current) => ({
-                          ...current,
-                          minSpend,
-                        }));
-                      }}
-                      placeholder="滿多少才折"
-                    />
-                    <input
-                      className="input input-bordered"
-                      inputMode="numeric"
-                      value={newCoupon.maxDiscount}
-                      onChange={(event) => {
-                        const maxDiscount = parseWholeNumber(
-                          event.currentTarget.value,
-                        );
-                        setNewCoupon((current) => ({
-                          ...current,
-                          maxDiscount,
-                        }));
-                      }}
-                      placeholder="最多折多少（0 不限）"
-                    />
-                    <input
-                      className="input input-bordered"
-                      inputMode="numeric"
-                      value={newCoupon.usageLimitPerUser}
-                      onChange={(event) => {
-                        const usageLimitPerUser = Math.max(
-                          1,
-                          parseWholeNumber(event.currentTarget.value, 1),
-                        );
-                        setNewCoupon((current) => ({
-                          ...current,
-                          usageLimitPerUser,
-                        }));
-                      }}
-                      placeholder="每帳號可用次數"
-                    />
-                    <input
-                      className="input input-bordered"
-                      inputMode="numeric"
-                      value={newCoupon.usageLimitTotal}
-                      onChange={(event) => {
-                        const usageLimitTotal = parseWholeNumber(
-                          event.currentTarget.value,
-                        );
-                        setNewCoupon((current) => ({
-                          ...current,
-                          usageLimitTotal,
-                        }));
-                      }}
-                      placeholder="總張數（0 不限）"
-                    />
+
+                  <div className="rounded-lg bg-base-200 p-3 text-sm opacity-80">
+                    金額 NT 是直接折抵；百分比是「實付比例」，例如 80% 代表打八折。
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <input
-                      className="input input-bordered"
-                      type="date"
-                      value={newCoupon.startsDate}
-                      onChange={(event) => {
-                        const startsDate = event.currentTarget.value;
-                        setNewCoupon((current) => ({
-                          ...current,
-                          startsDate,
-                        }));
-                      }}
-                      aria-label="開始日期"
-                    />
-                    <input
-                      className="input input-bordered"
-                      type="date"
-                      value={newCoupon.endsDate}
-                      onChange={(event) => {
-                        const endsDate = event.currentTarget.value;
-                        setNewCoupon((current) => ({
-                          ...current,
-                          endsDate,
-                        }));
-                      }}
-                      aria-label="結束日期"
-                    />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label className="form-control">
+                      <span className="label-text mb-1">最低消費（NT）</span>
+                      <input
+                        className="input input-bordered"
+                        inputMode="numeric"
+                        value={newCoupon.minSpend}
+                        onChange={(event) => {
+                          const minSpend = parseWholeNumber(
+                            event.currentTarget.value,
+                          );
+                          setNewCoupon((current) => ({
+                            ...current,
+                            minSpend,
+                          }));
+                        }}
+                        placeholder="0 代表無門檻"
+                      />
+                    </label>
+                    <label className="form-control">
+                      <span className="label-text mb-1">最多折抵（NT）</span>
+                      <input
+                        className="input input-bordered"
+                        inputMode="numeric"
+                        value={newCoupon.maxDiscount}
+                        onChange={(event) => {
+                          const maxDiscount = parseWholeNumber(
+                            event.currentTarget.value,
+                          );
+                          setNewCoupon((current) => ({
+                            ...current,
+                            maxDiscount,
+                          }));
+                        }}
+                        placeholder="0 代表不限"
+                      />
+                    </label>
+                    <label className="form-control">
+                      <span className="label-text mb-1">每個帳號可用次數</span>
+                      <input
+                        className="input input-bordered"
+                        inputMode="numeric"
+                        value={newCoupon.usageLimitPerUser}
+                        onChange={(event) => {
+                          const usageLimitPerUser = Math.max(
+                            1,
+                            parseWholeNumber(event.currentTarget.value, 1),
+                          );
+                          setNewCoupon((current) => ({
+                            ...current,
+                            usageLimitPerUser,
+                          }));
+                        }}
+                        placeholder="例如 1"
+                      />
+                    </label>
+                    <label className="form-control">
+                      <span className="label-text mb-1">總發放張數</span>
+                      <input
+                        className="input input-bordered"
+                        inputMode="numeric"
+                        value={newCoupon.usageLimitTotal}
+                        onChange={(event) => {
+                          const usageLimitTotal = parseWholeNumber(
+                            event.currentTarget.value,
+                          );
+                          setNewCoupon((current) => ({
+                            ...current,
+                            usageLimitTotal,
+                          }));
+                        }}
+                        placeholder="0 代表不限量"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label className="form-control">
+                      <span className="label-text mb-1">開始日期</span>
+                      <input
+                        className="input input-bordered"
+                        type="date"
+                        value={newCoupon.startsDate}
+                        onChange={(event) => {
+                          const startsDate = event.currentTarget.value;
+                          setNewCoupon((current) => ({
+                            ...current,
+                            startsDate,
+                          }));
+                        }}
+                      />
+                    </label>
+                    <label className="form-control">
+                      <span className="label-text mb-1">結束日期</span>
+                      <input
+                        className="input input-bordered"
+                        type="date"
+                        value={newCoupon.endsDate}
+                        onChange={(event) => {
+                          const endsDate = event.currentTarget.value;
+                          setNewCoupon((current) => ({
+                            ...current,
+                            endsDate,
+                          }));
+                        }}
+                      />
+                    </label>
                   </div>
                   <p className="text-xs opacity-60">
                     使用期間：

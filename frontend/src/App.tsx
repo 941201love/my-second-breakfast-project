@@ -61,12 +61,37 @@ function formatMoney(amount: number) {
   return `NT$${amount}`;
 }
 
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function parseWholeNumber(value: string, fallback = 0) {
+  const digits = onlyDigits(value);
+  if (!digits) return fallback;
+  return Number(digits);
+}
+
+function todayTaipeiDate() {
+  return new Date().toLocaleDateString("sv-SE", {
+    timeZone: "Asia/Taipei",
+  });
+}
+
+function taipeiDayBoundaryIso(date: string, endOfDay: boolean) {
+  if (!date) return "";
+  const time = endOfDay ? "23:59:59" : "00:00:00";
+  return new Date(`${date}T${time}+08:00`).toISOString();
+}
+
 function isTaiwanMobilePhone(phone: string) {
   return /^09\d{8}$/.test(phone);
 }
 
 function calculateCouponDiscount(coupon: Coupon | null, amount: number) {
   if (!coupon) return 0;
+  if (coupon.startsAt && new Date(coupon.startsAt).getTime() > Date.now()) {
+    return 0;
+  }
   if (coupon.discountType === "percent") {
     const discount = Math.floor((amount * (100 - coupon.discountValue)) / 100);
     return coupon.maxDiscount && coupon.maxDiscount > 0
@@ -770,7 +795,9 @@ export default function App() {
     minSpend: 0,
     maxDiscount: 0,
     usageLimitPerUser: 1,
-    expiresAt: "",
+    usageLimitTotal: 0,
+    startsDate: todayTaipeiDate(),
+    endsDate: todayTaipeiDate(),
   });
   const [newMenuItem, setNewMenuItem] = useState({
     price: 50,
@@ -818,6 +845,20 @@ export default function App() {
       name: item.name,
       description: item.description,
     };
+  const orderItemName = (detail: OrderItem) => {
+    const currentItem =
+      items.find((item) => item.id === detail.menuItemId) ??
+      items.find(
+        (item) =>
+          item.name === detail.menuItemName ||
+          item.translations?.["zh-TW"]?.name === detail.menuItemName,
+      );
+    if (currentItem) return menuCopy(currentItem).name;
+    return (
+      builtInMenuTranslations[detail.menuItemName]?.[profile.language]?.name ??
+      detail.menuItemName
+    );
+  };
   const categoryLabel = (category: string) =>
     categoryLabels[profile.language]?.[category] ?? category;
   const sugarLabel = (option: string) =>
@@ -1498,13 +1539,35 @@ export default function App() {
   }
 
   async function createAdminCoupon(): Promise<void> {
+    const code = newCoupon.code.trim().toUpperCase();
+    const name = newCoupon.name.trim();
+    if (!code || !name || newCoupon.discountValue <= 0) {
+      setAdminError("請輸入完整的優惠券資料。");
+      return;
+    }
+    if (!newCoupon.startsDate || !newCoupon.endsDate) {
+      setAdminError("請選擇優惠券開始日期與結束日期。");
+      return;
+    }
+    if (!window.confirm(`確定要新增 / 更新優惠券「${code}」嗎？`)) {
+      return;
+    }
+
     const response = await fetch(buildApiUrl("/api/coupons"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({
-        ...newCoupon,
-        expiresAt: newCoupon.expiresAt || undefined,
+        code,
+        name,
+        discountType: newCoupon.discountType,
+        discountValue: newCoupon.discountValue,
+        minSpend: newCoupon.minSpend,
+        maxDiscount: newCoupon.maxDiscount,
+        usageLimitPerUser: newCoupon.usageLimitPerUser,
+        usageLimitTotal: newCoupon.usageLimitTotal,
+        startsAt: taipeiDayBoundaryIso(newCoupon.startsDate, false),
+        expiresAt: taipeiDayBoundaryIso(newCoupon.endsDate, true),
         isActive: true,
       }),
     });
@@ -1516,6 +1579,7 @@ export default function App() {
 
     await loadAdminData();
     await loadCoupons();
+    setAdminError(`已新增 / 更新優惠券：${code}`);
   }
 
   function loadMenuImageFile(file: File | null): void {
@@ -1534,6 +1598,10 @@ export default function App() {
   }
 
   async function deleteAdminCoupon(code: string): Promise<void> {
+    if (!window.confirm(`確定要刪除優惠券「${code}」嗎？`)) {
+      return;
+    }
+
     const response = await fetch(buildApiUrl(`/api/coupons/${code}`), {
       method: "DELETE",
       credentials: "include",
@@ -1546,6 +1614,7 @@ export default function App() {
 
     await loadAdminData();
     await loadCoupons();
+    setAdminError(`已刪除優惠券：${code}`);
   }
 
   async function createAdminMenuItem(): Promise<void> {
@@ -1555,6 +1624,13 @@ export default function App() {
     });
     if (missingTranslation) {
       setAdminError("新增商品失敗：四種語言的名稱與介紹都要填。");
+      return;
+    }
+    if (!newMenuItem.imageUrl.trim() || newMenuItem.price < 0) {
+      setAdminError("請輸入完整的商品價格與圖片。");
+      return;
+    }
+    if (!window.confirm("確定要新增這個商品嗎？")) {
       return;
     }
 
@@ -1586,6 +1662,7 @@ export default function App() {
     }));
     setIsAdminMenuFormOpen(false);
     await Promise.all([loadMenu(), loadAdminData()]);
+    setAdminError("商品已新增。");
   }
 
   async function updateAdminMenuPrice(item: MenuItem): Promise<void> {
@@ -1593,6 +1670,9 @@ export default function App() {
     if (!raw) return;
     const price = Number(raw);
     if (!Number.isFinite(price) || price < 0) return;
+    if (!window.confirm(`確定要把「${item.name}」改成 ${formatMoney(price)} 嗎？`)) {
+      return;
+    }
 
     const response = await fetch(buildApiUrl(`/api/menu/${item.logicalId}`), {
       method: "PATCH",
@@ -1612,9 +1692,14 @@ export default function App() {
 
     await loadMenu();
     await loadAdminData();
+    setAdminError(`已調整「${item.name}」價格。`);
   }
 
   async function completeAdminOrder(orderId: number): Promise<void> {
+    if (!window.confirm(`確定要完成訂單 #${orderId} 嗎？`)) {
+      return;
+    }
+
     const response = await fetch(buildApiUrl(`/api/orders/${orderId}/complete`), {
       method: "PATCH",
       credentials: "include",
@@ -1626,6 +1711,7 @@ export default function App() {
     }
 
     await Promise.all([loadAdminData(), loadOrderProgress()]);
+    setAdminError(`訂單 #${orderId} 已完成。`);
   }
 
   function openAddToCart(item: MenuItem) {
@@ -1871,6 +1957,9 @@ export default function App() {
     if (!user || orderId === null || cartDetails.length === 0) {
       return;
     }
+    if (!window.confirm("確定要清空購物車嗎？")) {
+      return;
+    }
 
     setActionError("");
     setStaleCartItems([]);
@@ -1939,7 +2028,19 @@ export default function App() {
   function isCouponUsable(coupon: Coupon): boolean {
     if (coupon.isActive === false) return false;
     if ((coupon.minSpend ?? 0) > cartTotal) return false;
+    if (coupon.startsAt && new Date(coupon.startsAt).getTime() > Date.now()) {
+      return false;
+    }
     if (coupon.expiresAt && new Date(coupon.expiresAt).getTime() < Date.now()) {
+      return false;
+    }
+
+    const totalUsedCount = historyOrders.filter(
+      (order) =>
+        order.status !== "pending" &&
+        order.couponCode?.toUpperCase() === coupon.code.toUpperCase(),
+    ).length;
+    if ((coupon.usageLimitTotal ?? 0) > 0 && totalUsedCount >= coupon.usageLimitTotal) {
       return false;
     }
 
@@ -1965,6 +2066,9 @@ export default function App() {
     }
     if (!isTaiwanMobilePhone(normalizedPhone)) {
       setCheckoutNotice(text.phoneInvalid);
+      return;
+    }
+    if (!window.confirm("確定要送出訂單嗎？送出後店家會開始製作。")) {
       return;
     }
     setIsSubmittingOrder(true);
@@ -2144,7 +2248,7 @@ export default function App() {
             <div className="stats shadow bg-base-100">
               <div className="stat">
                 <div className="stat-title">今日單量</div>
-                <div className="stat-value text-primary">
+                <div className="stat-value text-primary text-3xl md:text-4xl">
                   {todayAdminStats.submittedToday.length}
                 </div>
               </div>
@@ -2152,7 +2256,7 @@ export default function App() {
             <div className="stats shadow bg-base-100">
               <div className="stat">
                 <div className="stat-title">今日營業額</div>
-                <div className="stat-value text-secondary">
+                <div className="stat-value text-secondary text-3xl md:text-4xl">
                   {formatMoney(todayAdminStats.revenue)}
                 </div>
               </div>
@@ -2160,7 +2264,7 @@ export default function App() {
             <div className="stats shadow bg-base-100">
               <div className="stat">
                 <div className="stat-title">待完成</div>
-                <div className="stat-value text-accent">
+                <div className="stat-value text-accent text-3xl md:text-4xl">
                   {todayAdminStats.pendingCount}
                 </div>
               </div>
@@ -2168,7 +2272,7 @@ export default function App() {
             <div className="stats shadow bg-base-100">
               <div className="stat">
                 <div className="stat-title">已完成</div>
-                <div className="stat-value text-success">
+                <div className="stat-value text-success text-3xl md:text-4xl">
                   {todayAdminStats.completedCount}
                 </div>
               </div>
@@ -2209,11 +2313,10 @@ export default function App() {
                       <span className="label-text mb-1">價格（NT）</span>
                       <input
                         className="input input-bordered"
-                        type="number"
-                        min="0"
+                        inputMode="numeric"
                         value={newMenuItem.price}
                         onChange={(event) => {
-                          const price = Number(event.currentTarget.value);
+                          const price = parseWholeNumber(event.currentTarget.value);
                           setNewMenuItem((current) => ({
                             ...current,
                             price,
@@ -2273,10 +2376,39 @@ export default function App() {
                         <img
                           src={newMenuItem.imageUrl}
                           alt="商品預覽"
-                          className="h-28 w-full rounded-lg object-cover border border-base-300"
+                          className="h-56 w-full rounded-lg object-cover border border-base-300 bg-white"
                         />
                       ) : null}
                     </div>
+                  </div>
+                  <div className="rounded-lg border border-base-300 bg-base-200 p-4">
+                    <div className="mb-3 font-semibold">前台預覽</div>
+                    <article className="max-w-md overflow-hidden rounded-lg bg-base-100 shadow">
+                      {newMenuItem.imageUrl ? (
+                        <img
+                          src={newMenuItem.imageUrl}
+                          alt="前台商品預覽"
+                          className="h-72 w-full object-cover bg-white"
+                        />
+                      ) : null}
+                      <div className="p-4 space-y-2">
+                        <h3 className="text-xl font-bold">
+                          {newMenuItem.translations["zh-TW"].name || "商品名稱"}
+                        </h3>
+                        <p className="text-sm opacity-70 line-clamp-2">
+                          {newMenuItem.translations["zh-TW"].description ||
+                            "商品介紹會顯示在這裡"}
+                        </p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-2xl font-bold text-success">
+                            {formatMoney(newMenuItem.price)}
+                          </span>
+                          <button className="btn btn-primary btn-sm">
+                            加入購物車
+                          </button>
+                        </div>
+                      </div>
+                    </article>
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {menuLanguageOptions.map((option) => (
@@ -2717,15 +2849,19 @@ export default function App() {
                     </div>
                     <input
                       className="input input-bordered"
-                      type="number"
-                      min="1"
-                      max={newCoupon.discountType === "percent" ? "100" : undefined}
+                      inputMode="numeric"
                       value={newCoupon.discountValue}
                       onChange={(event) => {
-                        const discountValue = Number(event.currentTarget.value);
+                        const discountValue = parseWholeNumber(
+                          event.currentTarget.value,
+                          1,
+                        );
                         setNewCoupon((current) => ({
                           ...current,
-                          discountValue,
+                          discountValue:
+                            current.discountType === "percent"
+                              ? Math.min(100, Math.max(1, discountValue))
+                              : Math.max(1, discountValue),
                         }));
                       }}
                     />
@@ -2733,14 +2869,15 @@ export default function App() {
                   <p className="text-xs opacity-60">
                     百分比請輸入實付比例，例如 80% 代表打八折；金額為 NT 折抵。
                   </p>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     <input
                       className="input input-bordered"
-                      type="number"
-                      min="0"
+                      inputMode="numeric"
                       value={newCoupon.minSpend}
                       onChange={(event) => {
-                        const minSpend = Number(event.currentTarget.value);
+                        const minSpend = parseWholeNumber(
+                          event.currentTarget.value,
+                        );
                         setNewCoupon((current) => ({
                           ...current,
                           minSpend,
@@ -2750,11 +2887,12 @@ export default function App() {
                     />
                     <input
                       className="input input-bordered"
-                      type="number"
-                      min="0"
+                      inputMode="numeric"
                       value={newCoupon.maxDiscount}
                       onChange={(event) => {
-                        const maxDiscount = Number(event.currentTarget.value);
+                        const maxDiscount = parseWholeNumber(
+                          event.currentTarget.value,
+                        );
                         setNewCoupon((current) => ({
                           ...current,
                           maxDiscount,
@@ -2764,13 +2902,12 @@ export default function App() {
                     />
                     <input
                       className="input input-bordered"
-                      type="number"
-                      min="1"
+                      inputMode="numeric"
                       value={newCoupon.usageLimitPerUser}
                       onChange={(event) => {
                         const usageLimitPerUser = Math.max(
                           1,
-                          Number(event.currentTarget.value),
+                          parseWholeNumber(event.currentTarget.value, 1),
                         );
                         setNewCoupon((current) => ({
                           ...current,
@@ -2781,18 +2918,58 @@ export default function App() {
                     />
                     <input
                       className="input input-bordered"
-                      type="datetime-local"
-                      value={newCoupon.expiresAt}
+                      inputMode="numeric"
+                      value={newCoupon.usageLimitTotal}
                       onChange={(event) => {
-                        const expiresAt = event.currentTarget.value;
+                        const usageLimitTotal = parseWholeNumber(
+                          event.currentTarget.value,
+                        );
                         setNewCoupon((current) => ({
                           ...current,
-                          expiresAt,
+                          usageLimitTotal,
                         }));
                       }}
-                      placeholder="到期時間"
+                      placeholder="總張數（0 不限）"
                     />
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <input
+                      className="input input-bordered"
+                      type="date"
+                      value={newCoupon.startsDate}
+                      onChange={(event) => {
+                        const startsDate = event.currentTarget.value;
+                        setNewCoupon((current) => ({
+                          ...current,
+                          startsDate,
+                        }));
+                      }}
+                      aria-label="開始日期"
+                    />
+                    <input
+                      className="input input-bordered"
+                      type="date"
+                      value={newCoupon.endsDate}
+                      onChange={(event) => {
+                        const endsDate = event.currentTarget.value;
+                        setNewCoupon((current) => ({
+                          ...current,
+                          endsDate,
+                        }));
+                      }}
+                      aria-label="結束日期"
+                    />
+                  </div>
+                  <p className="text-xs opacity-60">
+                    使用期間：
+                    {newCoupon.startsDate
+                      ? `${newCoupon.startsDate} 00:00:00`
+                      : "請選開始日"}{" "}
+                    -{" "}
+                    {newCoupon.endsDate
+                      ? `${newCoupon.endsDate} 23:59:59`
+                      : "請選結束日"}
+                  </p>
                   <button
                     className="btn btn-primary"
                     onClick={() => {
@@ -2817,8 +2994,14 @@ export default function App() {
                         <p className="text-xs opacity-70">
                           低消 {formatMoney(coupon.minSpend ?? 0)} · 每帳號{" "}
                           {coupon.usageLimitPerUser ?? 1} 次
+                          {coupon.usageLimitTotal
+                            ? ` · 限量 ${coupon.usageLimitTotal} 張`
+                            : " · 不限總張數"}
                           {coupon.maxDiscount
                             ? ` · 最高折 ${formatMoney(coupon.maxDiscount)}`
+                            : ""}
+                          {coupon.startsAt
+                            ? ` · 開始 ${formatTaipeiDateTime(coupon.startsAt)}`
                             : ""}
                           {coupon.expiresAt
                             ? ` · 到期 ${formatTaipeiDateTime(coupon.expiresAt)}`
@@ -3094,7 +3277,7 @@ export default function App() {
                       <ul className="text-sm list-disc pl-5 space-y-1">
                         {order.items.map((detail) => (
                           <li key={`${order.id}-${detail.menuItemId}-${detail.id ?? detail.menuItemName}`}>
-                            {detail.menuItemName} x {detail.qty}
+                            {orderItemName(detail)} x {detail.qty}
                             {detail.sugarLevel || detail.iceLevel ? (
                               <span className="opacity-60">
                                 {" "}
@@ -3233,33 +3416,22 @@ export default function App() {
                 <label className="label">
                   <span className="label-text">{text.qty}</span>
                 </label>
-                <div className="join">
-                  <button
-                    className="btn join-item"
-                    onClick={() =>
-                      setCartDraft((current) => ({
-                        ...current,
-                        qty: Math.max(1, current.qty - 1),
-                      }))
-                    }
-                  >
-                    -
-                  </button>
-                  <span className="btn join-item no-animation">
-                    {cartDraft.qty}
-                  </span>
-                  <button
-                    className="btn join-item"
-                    onClick={() =>
-                      setCartDraft((current) => ({
-                        ...current,
-                        qty: current.qty + 1,
-                      }))
-                    }
-                  >
-                    +
-                  </button>
-                </div>
+                <input
+                  className="input input-bordered w-32"
+                  inputMode="numeric"
+                  value={cartDraft.qty}
+                  onChange={(event) => {
+                    if (!event.currentTarget.value.trim()) return;
+                    const qty = Math.max(
+                      1,
+                      parseWholeNumber(event.currentTarget.value, 1),
+                    );
+                    setCartDraft((current) => ({
+                      ...current,
+                      qty,
+                    }));
+                  }}
+                />
               </div>
 
               {isDrink(customizingItem) ? (
@@ -3427,33 +3599,22 @@ export default function App() {
                                     </p>
                                   ) : null}
                                 </div>
-                                <div className="join shrink-0">
-                                  <button
-                                    className="btn btn-sm join-item"
-                                    onClick={() => {
-                                      void updateCartLineQty(
-                                        detail,
-                                        Math.max(0, detail.qty - 1),
-                                      );
-                                    }}
-                                  >
-                                    -
-                                  </button>
-                                  <span className="btn btn-sm join-item no-animation">
-                                    {detail.qty}
-                                  </span>
-                                  <button
-                                    className="btn btn-sm join-item"
-                                    onClick={() => {
-                                      void updateCartLineQty(
-                                        detail,
-                                        detail.qty + 1,
-                                      );
-                                    }}
-                                  >
-                                    +
-                                  </button>
-                                </div>
+                                <input
+                                  className="input input-sm input-bordered w-24 shrink-0"
+                                  inputMode="numeric"
+                                  value={detail.qty}
+                                  onChange={(event) => {
+                                    if (!event.currentTarget.value.trim()) {
+                                      return;
+                                    }
+                                    const qty = parseWholeNumber(
+                                      event.currentTarget.value,
+                                      detail.qty,
+                                    );
+                                    void updateCartLineQty(detail, qty);
+                                  }}
+                                  aria-label="數量"
+                                />
                               </div>
 
                               <details className="rounded-lg border border-base-300">
@@ -3616,15 +3777,22 @@ export default function App() {
                     onChange={(event) => setOrderNote(event.currentTarget.value)}
                   />
                   <div className="space-y-2">
-                    <input
-                      className="input input-bordered w-full focus:outline-none"
-                      placeholder="輸入優惠碼"
-                      value={couponCode}
-                      onBlur={applyCouponCode}
-                      onChange={(event) => {
-                        updateCouponCode(event.currentTarget.value);
-                      }}
-                    />
+                    <div className="join w-full">
+                      <input
+                        className="input input-bordered join-item flex-1 focus:outline-none"
+                        placeholder="輸入優惠碼"
+                        value={couponCode}
+                        onChange={(event) => {
+                          updateCouponCode(event.currentTarget.value);
+                        }}
+                      />
+                      <button
+                        className="btn btn-outline join-item"
+                        onClick={applyCouponCode}
+                      >
+                        {text.addCoupon}
+                      </button>
+                    </div>
                     {appliedCoupon ? (
                       <div className="rounded-lg bg-success/10 border border-success/30 px-3 py-2 text-sm">
                         <p className="font-semibold text-success">

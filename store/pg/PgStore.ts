@@ -498,6 +498,8 @@ export class PgStore implements Store {
         minSpend: input.minSpend ?? 0,
         maxDiscount: input.maxDiscount ?? 0,
         usageLimitPerUser: input.usageLimitPerUser ?? 1,
+        usageLimitTotal: input.usageLimitTotal ?? 0,
+        startsAt: input.startsAt ? new Date(input.startsAt) : null,
         expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
       })
       .onConflictDoUpdate({
@@ -509,6 +511,8 @@ export class PgStore implements Store {
           minSpend: input.minSpend ?? 0,
           maxDiscount: input.maxDiscount ?? 0,
           usageLimitPerUser: input.usageLimitPerUser ?? 1,
+          usageLimitTotal: input.usageLimitTotal ?? 0,
+          startsAt: input.startsAt ? new Date(input.startsAt) : null,
           expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
           isActive: input.isActive,
         },
@@ -524,6 +528,8 @@ export class PgStore implements Store {
       minSpend: row?.minSpend ?? input.minSpend ?? 0,
       maxDiscount: row?.maxDiscount ?? input.maxDiscount ?? 0,
       usageLimitPerUser: row?.usageLimitPerUser ?? input.usageLimitPerUser ?? 1,
+      usageLimitTotal: row?.usageLimitTotal ?? input.usageLimitTotal ?? 0,
+      startsAt: row?.startsAt?.toISOString() ?? input.startsAt,
       expiresAt: row?.expiresAt?.toISOString() ?? input.expiresAt,
       isActive: row?.isActive ?? input.isActive,
     };
@@ -675,6 +681,8 @@ export class PgStore implements Store {
       minSpend: row.minSpend,
       maxDiscount: row.maxDiscount,
       usageLimitPerUser: row.usageLimitPerUser,
+      usageLimitTotal: row.usageLimitTotal,
+      startsAt: row.startsAt?.toISOString(),
       expiresAt: row.expiresAt?.toISOString(),
       isActive: row.isActive,
     }));
@@ -695,6 +703,14 @@ export class PgStore implements Store {
     `);
     await db.execute(sql`
       ALTER TABLE "bf_v10"."coupons"
+        ADD COLUMN IF NOT EXISTS "usage_limit_total" integer DEFAULT 0 NOT NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE "bf_v10"."coupons"
+        ADD COLUMN IF NOT EXISTS "starts_at" timestamp with time zone
+    `);
+    await db.execute(sql`
+      ALTER TABLE "bf_v10"."coupons"
         ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone
     `);
   }
@@ -706,7 +722,18 @@ export class PgStore implements Store {
   ): coupon is Coupon {
     if (!coupon || !coupon.isActive) return false;
     if ((coupon.minSpend ?? 0) > order.total) return false;
+    if (coupon.startsAt && new Date(coupon.startsAt).getTime() > Date.now()) {
+      return false;
+    }
     if (coupon.expiresAt && new Date(coupon.expiresAt).getTime() < Date.now()) {
+      return false;
+    }
+    const totalUsedCount = this.orders.filter(
+      (item) =>
+        item.status !== "pending" &&
+        item.couponCode?.toUpperCase() === coupon.code.toUpperCase(),
+    ).length;
+    if ((coupon.usageLimitTotal ?? 0) > 0 && totalUsedCount >= coupon.usageLimitTotal) {
       return false;
     }
 

@@ -839,6 +839,8 @@ export class JsonFileStore implements Store {
       minSpend: input.minSpend ?? 0,
       maxDiscount: input.maxDiscount ?? 0,
       usageLimitPerUser: input.usageLimitPerUser ?? 1,
+      usageLimitTotal: input.usageLimitTotal ?? 0,
+      startsAt: input.startsAt || undefined,
       expiresAt: input.expiresAt || undefined,
     };
     const index = this.coupons.findIndex((item) => item.code === coupon.code);
@@ -868,7 +870,18 @@ export class JsonFileStore implements Store {
   ): coupon is Coupon {
     if (!coupon || !coupon.isActive) return false;
     if ((coupon.minSpend ?? 0) > order.total) return false;
+    if (coupon.startsAt && new Date(coupon.startsAt).getTime() > Date.now()) {
+      return false;
+    }
     if (coupon.expiresAt && new Date(coupon.expiresAt).getTime() < Date.now()) {
+      return false;
+    }
+    const totalUsedCount = this.orders.filter(
+      (item) =>
+        item.status !== "pending" &&
+        item.couponCode?.toUpperCase() === coupon.code.toUpperCase(),
+    ).length;
+    if ((coupon.usageLimitTotal ?? 0) > 0 && totalUsedCount >= coupon.usageLimitTotal) {
       return false;
     }
 

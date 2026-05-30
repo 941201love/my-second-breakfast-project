@@ -130,6 +130,16 @@ function submittedOrderDate(order: Order) {
   );
 }
 
+function submittedOrderHour(order: Order) {
+  return Number(
+    new Date(order.submittedAt ?? order.createdAt).toLocaleString("zh-TW", {
+      timeZone: "Asia/Taipei",
+      hour: "2-digit",
+      hour12: false,
+    }),
+  );
+}
+
 function buildOrderStats(orders: Order[], date: string) {
   const submittedOrders = orders.filter(
     (order) => submittedOrderDate(order) === date && order.status !== "pending",
@@ -139,7 +149,7 @@ function buildOrderStats(orders: Order[], date: string) {
   const hourlySales = new Map<number, number>();
 
   for (const order of submittedOrders) {
-    const hour = new Date(order.submittedAt ?? order.createdAt).getHours();
+    const hour = submittedOrderHour(order);
     hourlySales.set(hour, (hourlySales.get(hour) ?? 0) + 1);
 
     for (const item of order.items) {
@@ -159,6 +169,34 @@ function buildOrderStats(orders: Order[], date: string) {
     hourlyRanking: Array.from(hourlySales.entries())
       .map(([hour, count]) => ({ hour, count }))
       .sort((a, b) => a.hour - b.hour),
+  };
+}
+
+function buildOrderRangeStats(orders: Order[], startDate: string, endDate: string) {
+  const from = startDate || endDate;
+  const to = endDate || startDate;
+  const submittedOrders = orders.filter((order) => {
+    if (order.status === "pending") return false;
+    const orderDate = submittedOrderDate(order);
+    if (from && orderDate < from) return false;
+    if (to && orderDate > to) return false;
+    return true;
+  });
+  const revenue = submittedOrders.reduce((sum, order) => sum + order.total, 0);
+  const itemQty = submittedOrders.reduce(
+    (sum, order) =>
+      sum + order.items.reduce((itemSum, item) => itemSum + item.qty, 0),
+    0,
+  );
+
+  return {
+    submittedOrders,
+    revenue,
+    itemQty,
+    averageTicket:
+      submittedOrders.length === 0
+        ? 0
+        : Math.round(revenue / submittedOrders.length),
   };
 }
 
@@ -891,6 +929,12 @@ export default function App() {
   const [adminOrders, setAdminOrders] = useState<Order[]>([]);
   const [adminHistoryDate, setAdminHistoryDate] = useState(todayTaipeiDate());
   const [adminStatsDate, setAdminStatsDate] = useState(todayTaipeiDate());
+  const [adminRevenueStartDate, setAdminRevenueStartDate] = useState(
+    todayTaipeiDate(),
+  );
+  const [adminRevenueEndDate, setAdminRevenueEndDate] = useState(
+    todayTaipeiDate(),
+  );
   const [checkedPosItems, setCheckedPosItems] = useState<Record<string, boolean>>(
     {},
   );
@@ -1372,8 +1416,10 @@ export default function App() {
   }, [completedNoticeOrder, lastSubmittedOrder, orderProgress.latestCompletedOrderId]);
 
   const grouped = useMemo(() => {
+    const recentItems = items.filter((item) => item.isRecentlyUpdated);
     const groupedItems = items.reduce(
       (acc, item) => {
+        if (item.isRecentlyUpdated) return acc;
         const category = item?.category || "未分類";
         if (!acc[category]) {
           acc[category] = [];
@@ -1388,7 +1434,7 @@ export default function App() {
       a.localeCompare(b, "zh-Hant"),
     );
 
-    return { groupedItems, categories };
+    return { groupedItems, categories, recentItems };
   }, [items]);
 
   useEffect(() => {
@@ -1488,6 +1534,16 @@ export default function App() {
   const selectedAdminStats = useMemo(
     () => buildOrderStats(adminOrders, adminStatsDate),
     [adminOrders, adminStatsDate],
+  );
+
+  const adminRevenueRangeStats = useMemo(
+    () =>
+      buildOrderRangeStats(
+        adminOrders,
+        adminRevenueStartDate,
+        adminRevenueEndDate,
+      ),
+    [adminOrders, adminRevenueEndDate, adminRevenueStartDate],
   );
 
   const adminHistoryOrders = useMemo(
@@ -2744,6 +2800,67 @@ export default function App() {
               </div>
             </div>
           </section>
+
+          <section className="rounded-lg bg-base-100 p-5 shadow">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="text-2xl font-bold">營收查詢</h2>
+                <p className="text-sm opacity-60">
+                  選擇日期區間查看單量、營業額與客單價。
+                </p>
+              </div>
+              <div className="grid w-full grid-cols-1 gap-3 sm:w-auto sm:grid-cols-2">
+                <label className="form-control">
+                  <span className="label-text mb-1">開始日期</span>
+                  <input
+                    className="input input-bordered"
+                    type="date"
+                    value={adminRevenueStartDate}
+                    onChange={(event) => {
+                      setAdminRevenueStartDate(event.currentTarget.value);
+                    }}
+                  />
+                </label>
+                <label className="form-control">
+                  <span className="label-text mb-1">結束日期</span>
+                  <input
+                    className="input input-bordered"
+                    type="date"
+                    value={adminRevenueEndDate}
+                    onChange={(event) => {
+                      setAdminRevenueEndDate(event.currentTarget.value);
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              <div className="rounded-lg bg-base-200 p-4">
+                <div className="text-sm opacity-60">區間單量</div>
+                <div className="text-3xl font-bold text-primary">
+                  {adminRevenueRangeStats.submittedOrders.length}
+                </div>
+              </div>
+              <div className="rounded-lg bg-base-200 p-4">
+                <div className="text-sm opacity-60">區間營業額</div>
+                <div className="text-3xl font-bold text-secondary">
+                  {formatMoney(adminRevenueRangeStats.revenue)}
+                </div>
+              </div>
+              <div className="rounded-lg bg-base-200 p-4">
+                <div className="text-sm opacity-60">售出品項數</div>
+                <div className="text-3xl font-bold text-accent">
+                  {adminRevenueRangeStats.itemQty}
+                </div>
+              </div>
+              <div className="rounded-lg bg-base-200 p-4">
+                <div className="text-sm opacity-60">平均客單價</div>
+                <div className="text-3xl font-bold text-success">
+                  {formatMoney(adminRevenueRangeStats.averageTicket)}
+                </div>
+              </div>
+            </div>
+          </section>
             </>
           ) : null}
 
@@ -3853,13 +3970,74 @@ export default function App() {
             <span>目前沒有菜單資料</span>
           </div>
         ) : (
-          grouped.categories.map((category) => (
-            <div key={category} className="mb-8">
-              <h2 className="text-3xl font-bold mb-4 text-primary border-b-2 border-primary pb-2">
-                {categoryLabel(category)}
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(grouped.groupedItems[category] || []).map((item) => {
+          <>
+            {grouped.recentItems.length > 0 ? (
+              <div className="mb-10">
+                <h2 className="text-3xl font-bold mb-4 text-primary border-b-2 border-primary pb-2">
+                  新品推出
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {grouped.recentItems.map((item) => {
+                    const copy = menuCopy(item);
+                    return (
+                      <div
+                        key={`recent-${item.id}`}
+                        className="card bg-base-100 shadow-md hover:shadow-lg transition-shadow"
+                      >
+                        <figure className="h-44 overflow-hidden bg-base-300">
+                          <img
+                            src={item.imageUrl}
+                            alt={copy.name}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            onError={(event) => {
+                              const target = event.currentTarget;
+                              target.src =
+                                "https://images.unsplash.com/photo-1526318896980-cf78c088247c?auto=format&fit=crop&w=800&q=80";
+                            }}
+                          />
+                        </figure>
+                        <div className="card-body">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="card-title text-lg">{copy.name}</h3>
+                            <span className="badge badge-accent shrink-0">
+                              新品
+                            </span>
+                          </div>
+                          <p className="text-sm opacity-80 line-clamp-2 min-h-[2.75rem]">
+                            {copy.description}
+                          </p>
+                          <div className="card-actions justify-between items-center">
+                            <span className="text-xl font-bold text-success">
+                              {formatMoney(item.price)}
+                            </span>
+                            <button
+                              className="btn btn-sm btn-primary"
+                              onClick={() => {
+                                openAddToCart(item);
+                              }}
+                              disabled={activeItemId === item.id}
+                            >
+                              {activeItemId === item.id
+                                ? text.adding
+                                : `${text.addToCart}${cartQtyByItemId[item.id] ? ` (${cartQtyByItemId[item.id]})` : ""}`}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {grouped.categories.map((category) => (
+              <div key={category} className="mb-8">
+                <h2 className="text-3xl font-bold mb-4 text-primary border-b-2 border-primary pb-2">
+                  {categoryLabel(category)}
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {(grouped.groupedItems[category] || []).map((item) => {
                   const copy = menuCopy(item);
                   return (
                     <div
@@ -3910,10 +4088,11 @@ export default function App() {
                       </div>
                     </div>
                   );
-                })}
+                  })}
+                </div>
               </div>
-            </div>
-          ))
+            ))}
+          </>
         )}
 
       </main>

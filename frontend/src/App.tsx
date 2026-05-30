@@ -15,6 +15,7 @@ import type {
 } from "../../shared/contracts.ts";
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+const fallbackMenuImage = "/imgs/menu/鮪魚蛋吐司.webp";
 
 function buildApiUrl(path: string) {
   return `${apiBaseUrl}${path}`;
@@ -3897,20 +3898,19 @@ export default function App() {
           <div className="flex-1 overflow-auto pb-28">
             <figure className="bg-base-200">
               <img
-                src={activeCustomizingItem.image}
+                src={activeCustomizingItem.imageUrl || fallbackMenuImage}
                 alt={menuCopy(activeCustomizingItem).name}
                 className="h-[42vh] min-h-72 w-full object-cover bg-base-300"
                 loading="lazy"
                 onError={(event) => {
                   const target = event.currentTarget;
                   target.onerror = null;
-                  target.src =
-                    "https://images.unsplash.com/photo-1526318896980-cf78c088247c?auto=format&fit=crop&w=1200&q=80";
+                  target.src = fallbackMenuImage;
                 }}
               />
             </figure>
 
-            <div className="mx-auto w-full max-w-2xl">
+            <div className="w-full px-5 md:px-10 lg:px-16">
               <section className="border-b border-base-300 px-5 py-6 space-y-3">
                 <h3 className="text-2xl font-bold">
                   {menuCopy(activeCustomizingItem).name}
@@ -4017,7 +4017,7 @@ export default function App() {
             </div>
           </div>
           <div className="border-t border-base-300 p-4 bg-base-100">
-            <div className="mx-auto w-full max-w-2xl">
+            <div className="w-full px-1 md:px-6 lg:px-12">
               <button
                 className="btn btn-primary w-full"
                 disabled={activeItemId === activeCustomizingItem.id}

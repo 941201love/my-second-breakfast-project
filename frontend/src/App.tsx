@@ -816,6 +816,7 @@ export default function App() {
   const [pickupTime, setPickupTime] = useState("");
   const [checkoutNotice, setCheckoutNotice] = useState("");
   const [profileNotice, setProfileNotice] = useState("");
+  const [adminMenuNotice, setAdminMenuNotice] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [adminOrders, setAdminOrders] = useState<Order[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -1128,6 +1129,16 @@ export default function App() {
 
     return () => window.clearTimeout(timer);
   }, [profileNotice]);
+
+  useEffect(() => {
+    if (!adminMenuNotice) return;
+
+    const timer = window.setTimeout(() => {
+      setAdminMenuNotice("");
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [adminMenuNotice]);
 
   useEffect(() => {
     if (!user || !isCartOpen || cartView !== "checkout") return;
@@ -1623,11 +1634,11 @@ export default function App() {
       return !translation.name.trim() || !translation.description.trim();
     });
     if (missingTranslation) {
-      setAdminError("新增商品失敗：四種語言的名稱與介紹都要填。");
+      setAdminMenuNotice("新增商品失敗：四種語言的名稱與介紹都要填。");
       return;
     }
     if (!newMenuItem.imageUrl.trim() || newMenuItem.price < 0) {
-      setAdminError("請輸入完整的商品價格與圖片。");
+      setAdminMenuNotice("請輸入完整的商品價格與圖片。");
       return;
     }
     if (!window.confirm("確定要新增這個商品嗎？")) {
@@ -1647,7 +1658,7 @@ export default function App() {
     });
 
     if (!response.ok) {
-      setAdminError("新增商品失敗，請確認四種語言與商品資料都已填寫。");
+      setAdminMenuNotice("新增商品失敗，請確認四種語言與商品資料都已填寫。");
       return;
     }
 
@@ -2312,6 +2323,13 @@ export default function App() {
                     關閉
                   </button>
                 </div>
+                {adminMenuNotice ? (
+                  <div className="fixed left-1/2 top-20 z-[120] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 pointer-events-none">
+                    <div className="alert alert-warning shadow-lg justify-center">
+                      <span>{adminMenuNotice}</span>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="p-6 flex-1 overflow-auto">
                   <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-6">
                     <div className="space-y-4">
@@ -3467,22 +3485,33 @@ export default function App() {
                 <label className="label">
                   <span className="label-text">{text.qty}</span>
                 </label>
-                <input
-                  className="input input-bordered w-32"
-                  inputMode="numeric"
-                  value={cartDraft.qty}
-                  onChange={(event) => {
-                    if (!event.currentTarget.value.trim()) return;
-                    const qty = Math.max(
-                      1,
-                      parseWholeNumber(event.currentTarget.value, 1),
-                    );
-                    setCartDraft((current) => ({
-                      ...current,
-                      qty,
-                    }));
-                  }}
-                />
+                <div className="join">
+                  <button
+                    className="btn join-item"
+                    onClick={() =>
+                      setCartDraft((current) => ({
+                        ...current,
+                        qty: Math.max(1, current.qty - 1),
+                      }))
+                    }
+                  >
+                    -
+                  </button>
+                  <span className="btn join-item no-animation">
+                    {cartDraft.qty}
+                  </span>
+                  <button
+                    className="btn join-item"
+                    onClick={() =>
+                      setCartDraft((current) => ({
+                        ...current,
+                        qty: current.qty + 1,
+                      }))
+                    }
+                  >
+                    +
+                  </button>
+                </div>
               </div>
 
               {isDrink(customizingItem) ? (
@@ -3650,22 +3679,33 @@ export default function App() {
                                     </p>
                                   ) : null}
                                 </div>
-                                <input
-                                  className="input input-sm input-bordered w-24 shrink-0"
-                                  inputMode="numeric"
-                                  value={detail.qty}
-                                  onChange={(event) => {
-                                    if (!event.currentTarget.value.trim()) {
-                                      return;
-                                    }
-                                    const qty = parseWholeNumber(
-                                      event.currentTarget.value,
-                                      detail.qty,
-                                    );
-                                    void updateCartLineQty(detail, qty);
-                                  }}
-                                  aria-label="數量"
-                                />
+                                <div className="join shrink-0">
+                                  <button
+                                    className="btn btn-sm join-item"
+                                    onClick={() => {
+                                      void updateCartLineQty(
+                                        detail,
+                                        Math.max(0, detail.qty - 1),
+                                      );
+                                    }}
+                                  >
+                                    -
+                                  </button>
+                                  <span className="btn btn-sm join-item no-animation">
+                                    {detail.qty}
+                                  </span>
+                                  <button
+                                    className="btn btn-sm join-item"
+                                    onClick={() => {
+                                      void updateCartLineQty(
+                                        detail,
+                                        detail.qty + 1,
+                                      );
+                                    }}
+                                  >
+                                    +
+                                  </button>
+                                </div>
                               </div>
 
                               <details className="rounded-lg border border-base-300">

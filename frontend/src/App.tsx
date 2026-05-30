@@ -130,6 +130,38 @@ function submittedOrderDate(order: Order) {
   );
 }
 
+function buildOrderStats(orders: Order[], date: string) {
+  const submittedOrders = orders.filter(
+    (order) => submittedOrderDate(order) === date && order.status !== "pending",
+  );
+  const revenue = submittedOrders.reduce((sum, order) => sum + order.total, 0);
+  const itemSales = new Map<string, { name: string; qty: number }>();
+  const hourlySales = new Map<number, number>();
+
+  for (const order of submittedOrders) {
+    const hour = new Date(order.submittedAt ?? order.createdAt).getHours();
+    hourlySales.set(hour, (hourlySales.get(hour) ?? 0) + 1);
+
+    for (const item of order.items) {
+      const current = itemSales.get(item.menuItemId) ?? {
+        name: item.menuItemName,
+        qty: 0,
+      };
+      current.qty += item.qty;
+      itemSales.set(item.menuItemId, current);
+    }
+  }
+
+  return {
+    submittedOrders,
+    revenue,
+    itemRanking: Array.from(itemSales.values()).sort((a, b) => b.qty - a.qty),
+    hourlyRanking: Array.from(hourlySales.entries())
+      .map(([hour, count]) => ({ hour, count }))
+      .sort((a, b) => a.hour - b.hour),
+  };
+}
+
 type UserProfile = {
   nickname: string;
   phone: string;
@@ -858,6 +890,7 @@ export default function App() {
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [adminOrders, setAdminOrders] = useState<Order[]>([]);
   const [adminHistoryDate, setAdminHistoryDate] = useState(todayTaipeiDate());
+  const [adminStatsDate, setAdminStatsDate] = useState(todayTaipeiDate());
   const [checkedPosItems, setCheckedPosItems] = useState<Record<string, boolean>>(
     {},
   );
@@ -1437,43 +1470,25 @@ export default function App() {
     const today = new Date().toLocaleDateString("sv-SE", {
       timeZone: "Asia/Taipei",
     });
-    const submittedToday = adminOrders.filter((order) => {
-      return submittedOrderDate(order) === today && order.status !== "pending";
-    });
-    const revenue = submittedToday.reduce((sum, order) => sum + order.total, 0);
-    const itemSales = new Map<string, { name: string; qty: number }>();
-    const hourlySales = new Map<number, number>();
-
-    for (const order of submittedToday) {
-      const hour = new Date(order.submittedAt ?? order.createdAt).getHours();
-      hourlySales.set(hour, (hourlySales.get(hour) ?? 0) + 1);
-
-      for (const item of order.items) {
-        const current = itemSales.get(item.menuItemId) ?? {
-          name: item.menuItemName,
-          qty: 0,
-        };
-        current.qty += item.qty;
-        itemSales.set(item.menuItemId, current);
-      }
-    }
+    const todayStats = buildOrderStats(adminOrders, today);
 
     return {
-      submittedToday,
-      revenue,
+      submittedToday: todayStats.submittedOrders,
+      revenue: todayStats.revenue,
       pendingCount: adminOrders.filter((order) => order.status === "submitted")
         .length,
-      completedCount: submittedToday.filter(
+      completedCount: todayStats.submittedOrders.filter(
         (order) => order.status === "completed",
       ).length,
-      itemRanking: Array.from(itemSales.values()).sort(
-        (a, b) => b.qty - a.qty,
-      ),
-      hourlyRanking: Array.from(hourlySales.entries())
-        .map(([hour, count]) => ({ hour, count }))
-        .sort((a, b) => a.hour - b.hour),
+      itemRanking: todayStats.itemRanking,
+      hourlyRanking: todayStats.hourlyRanking,
     };
   }, [adminOrders]);
+
+  const selectedAdminStats = useMemo(
+    () => buildOrderStats(adminOrders, adminStatsDate),
+    [adminOrders, adminStatsDate],
+  );
 
   const adminHistoryOrders = useMemo(
     () =>
@@ -3190,13 +3205,26 @@ export default function App() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-bold mb-3">每日品項銷售排行</h2>
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+              <h2 className="text-2xl font-bold">每日品項銷售排行</h2>
+              <label className="form-control w-full max-w-xs">
+                <span className="label-text mb-1">查詢日期</span>
+                <input
+                  className="input input-bordered"
+                  type="date"
+                  value={adminStatsDate}
+                  onChange={(event) => {
+                    setAdminStatsDate(event.currentTarget.value);
+                  }}
+                />
+              </label>
+            </div>
             <div className="bg-base-100 rounded-lg shadow p-4">
-              {todayAdminStats.itemRanking.length === 0 ? (
-                <p className="opacity-60">今日尚無已送出訂單。</p>
+              {selectedAdminStats.itemRanking.length === 0 ? (
+                <p className="opacity-60">這天目前沒有銷售資料。</p>
               ) : (
                 <ol className="space-y-2">
-                  {todayAdminStats.itemRanking.slice(0, 10).map((item, index) => (
+                  {selectedAdminStats.itemRanking.slice(0, 4).map((item, index) => (
                     <li
                       key={item.name}
                       className="flex items-center justify-between border-b border-base-300 pb-2"
@@ -3209,6 +3237,26 @@ export default function App() {
                   ))}
                 </ol>
               )}
+              {selectedAdminStats.itemRanking.length > 4 ? (
+                <details className="collapse collapse-arrow mt-3 bg-base-200">
+                  <summary className="collapse-title font-bold">
+                    查看全部品項
+                  </summary>
+                  <ol className="collapse-content space-y-2">
+                    {selectedAdminStats.itemRanking.slice(4).map((item, index) => (
+                      <li
+                        key={`extra-${item.name}`}
+                        className="flex items-center justify-between border-b border-base-300 pb-2"
+                      >
+                        <span>
+                          {index + 5}. {item.name}
+                        </span>
+                        <span className="badge badge-primary">{item.qty} 份</span>
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              ) : null}
             </div>
           </section>
 
@@ -3218,11 +3266,11 @@ export default function App() {
                 下單時段統計
               </summary>
               <div className="collapse-content">
-                {todayAdminStats.hourlyRanking.length === 0 ? (
-                  <p className="opacity-60">今日尚無時段資料。</p>
+                {selectedAdminStats.hourlyRanking.length === 0 ? (
+                  <p className="opacity-60">這天目前沒有時段資料。</p>
                 ) : (
                   <div className="space-y-2">
-                    {todayAdminStats.hourlyRanking.map((row) => (
+                    {selectedAdminStats.hourlyRanking.map((row) => (
                       <div
                         key={row.hour}
                         className="flex items-center justify-between"
@@ -3232,7 +3280,7 @@ export default function App() {
                           className="progress progress-primary mx-3 flex-1"
                           value={row.count}
                           max={Math.max(
-                            ...todayAdminStats.hourlyRanking.map(
+                            ...selectedAdminStats.hourlyRanking.map(
                               (item) => item.count,
                             ),
                           )}
@@ -3247,158 +3295,130 @@ export default function App() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-bold mb-3">菜單版本管理</h2>
-            <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
-              <table className="table table-zebra">
-                <thead>
-                  <tr>
-                    <th>順序</th>
-                    <th>品項</th>
-                    <th>分級版本</th>
-                    <th>A/B</th>
-                    <th>促銷</th>
-                    <th>價格</th>
-                    <th>歷史</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => {
-                    const histories =
-                      versionHistoryByLogicalId[item.logicalId] ?? [];
-
-                    return (
-                      <tr key={item.id}>
-                        <td>{item.displayOrder ?? "-"}</td>
-                        <td>
-                          <div className="font-semibold">{item.name}</div>
-                          <div className="text-xs opacity-60">
-                            {item.logicalId} / {item.id}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="flex flex-wrap gap-1">
-                            <span className="badge badge-primary badge-sm">
-                              主版 {item.majorVersion}
-                            </span>
-                            <span className="badge badge-ghost badge-sm">
-                              修訂 {item.minorVersion}
-                            </span>
-                            <span className="badge badge-outline badge-sm">
-                              v{item.majorVersion}.{item.minorVersion}
-                            </span>
-                          </div>
-                        </td>
-                        <td>
-                          <span className="badge badge-secondary badge-sm">
-                            {item.testGroup}
-                          </span>
-                        </td>
-                        <td>
-                          {item.activePromotion ? (
-                            <span className="badge badge-accent badge-sm">
-                              {item.activePromotion.name}
-                            </span>
-                          ) : (
-                            <span className="text-sm opacity-50">無</span>
-                          )}
-                        </td>
-                        <td>
-                          <div className="flex items-center gap-2">
-                            <span>{formatMoney(item.price)}</span>
-                            <button
-                              className="btn btn-xs btn-outline"
-                              onClick={() => {
-                                void updateAdminMenuPrice(item);
-                              }}
-                            >
-                              調價
-                            </button>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="flex flex-wrap gap-1">
-                            {histories.slice(0, 3).map((history) => (
-                              <span
-                                key={history.id}
-                                className="badge badge-outline badge-sm"
-                              >
-                                {versionChangeLabel(history)} v
-                                {history.majorVersion}.{history.minorVersion}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
+            <details className="collapse collapse-arrow bg-base-100 shadow h-fit">
+              <summary className="collapse-title text-2xl font-bold">
+                菜單版本管理
+              </summary>
+              <div className="collapse-content">
+                <div className="overflow-x-auto rounded-lg border border-base-300">
+                  <table className="table table-zebra min-w-[1100px]">
+                    <thead>
+                      <tr>
+                        <th>順序</th>
+                        <th>品項</th>
+                        <th>分級版本</th>
+                        <th>A/B</th>
+                        <th>促銷</th>
+                        <th>價格</th>
+                        <th>歷史</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody>
+                      {items.map((item) => {
+                        const histories =
+                          versionHistoryByLogicalId[item.logicalId] ?? [];
+
+                        return (
+                          <tr key={item.id}>
+                            <td>{item.displayOrder ?? "-"}</td>
+                            <td>
+                              <div className="font-semibold">{item.name}</div>
+                              <div className="text-xs opacity-60">
+                                {item.logicalId} / {item.id}
+                              </div>
+                            </td>
+                            <td>
+                              <div className="flex flex-wrap gap-1">
+                                <span className="badge badge-primary badge-sm">
+                                  主版 {item.majorVersion}
+                                </span>
+                                <span className="badge badge-ghost badge-sm">
+                                  修訂 {item.minorVersion}
+                                </span>
+                                <span className="badge badge-outline badge-sm">
+                                  v{item.majorVersion}.{item.minorVersion}
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <span className="badge badge-secondary badge-sm">
+                                {item.testGroup}
+                              </span>
+                            </td>
+                            <td>
+                              {item.activePromotion ? (
+                                <span className="badge badge-accent badge-sm">
+                                  {item.activePromotion.name}
+                                </span>
+                              ) : (
+                                <span className="text-sm opacity-50">無</span>
+                              )}
+                            </td>
+                            <td>
+                              <div className="flex items-center gap-2">
+                                <span>{formatMoney(item.price)}</span>
+                                <button
+                                  className="btn btn-xs btn-outline"
+                                  onClick={() => {
+                                    void updateAdminMenuPrice(item);
+                                  }}
+                                >
+                                  調價
+                                </button>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="flex flex-wrap gap-1">
+                                {histories.slice(0, 3).map((history) => (
+                                  <span
+                                    key={history.id}
+                                    className="badge badge-outline badge-sm"
+                                  >
+                                    {versionChangeLabel(history)} v
+                                    {history.majorVersion}.{history.minorVersion}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
           </section>
 
-          <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div>
-              <h2 className="text-2xl font-bold mb-3">價格敏感度分析</h2>
-              <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
-                <table className="table table-zebra">
-                  <thead>
-                    <tr>
-                      <th>品項</th>
-                      <th>版本</th>
-                      <th>價格</th>
-                      <th>銷量</th>
-                      <th>營收</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {priceSensitivity.map((row) => (
-                      <tr
-                        key={`${row.logicalId}-${row.version}-${row.price}-${row.testGroup}`}
-                      >
-                        <td>{row.name}</td>
-                        <td>
-                          v{row.majorVersion}.{row.minorVersion}
-                        </td>
-                        <td>{formatMoney(row.price)}</td>
-                        <td>{row.totalQty}</td>
-                        <td>{formatMoney(row.totalRevenue)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-2xl font-bold mb-3">目前促銷</h2>
-              <div className="space-y-3">
-                {activePromotions.length === 0 ? (
-                  <div className="alert bg-base-100">
-                    <span>目前沒有啟用中的促銷。</span>
-                  </div>
-                ) : (
-                  activePromotions.map((promotion) => (
-                    <article
-                      key={promotion.id}
-                      className="card bg-base-100 shadow"
-                    >
-                      <div className="card-body p-4">
-                        <div className="flex items-center justify-between gap-2">
-                          <h3 className="font-bold">{promotion.name}</h3>
-                          <span className="badge badge-accent">
-                            {promotion.discountType === "percent"
-                              ? `${promotion.discountValue}%`
-                              : formatMoney(promotion.discountValue)}
-                          </span>
-                        </div>
-                        <p className="text-sm opacity-70">
-                          適用品項：{promotion.menuItemLogicalId}
-                        </p>
+          <section>
+            <h2 className="text-2xl font-bold mb-3">目前促銷</h2>
+            <div className="space-y-3">
+              {activePromotions.length === 0 ? (
+                <div className="alert bg-base-100">
+                  <span>目前沒有啟用中的促銷。</span>
+                </div>
+              ) : (
+                activePromotions.map((promotion) => (
+                  <article
+                    key={promotion.id}
+                    className="card bg-base-100 shadow"
+                  >
+                    <div className="card-body p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="font-bold">{promotion.name}</h3>
+                        <span className="badge badge-accent">
+                          {promotion.discountType === "percent"
+                            ? `${promotion.discountValue}%`
+                            : formatMoney(promotion.discountValue)}
+                        </span>
                       </div>
-                    </article>
-                  ))
-                )}
-              </div>
+                      <p className="text-sm opacity-70">
+                        適用品項：{promotion.menuItemLogicalId}
+                      </p>
+                    </div>
+                  </article>
+                ))
+              )}
             </div>
           </section>
 

@@ -58,6 +58,19 @@ function orderStatusBadgeClass(status: Order["status"]) {
   return "badge-ghost";
 }
 
+function orderWaitMinutes(order: Order) {
+  const value = order.submittedAt ?? order.createdAt;
+  const startedAt = new Date(value).getTime();
+  if (Number.isNaN(startedAt)) return 0;
+  return Math.max(0, Math.floor((Date.now() - startedAt) / 60000));
+}
+
+function orderWaitClass(minutes: number) {
+  if (minutes >= 15) return "bg-error/20";
+  if (minutes >= 10) return "bg-warning/20";
+  return "";
+}
+
 function formatMoney(amount: number) {
   return `NT$${amount}`;
 }
@@ -837,6 +850,9 @@ export default function App() {
   const [adminMenuNotice, setAdminMenuNotice] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [adminOrders, setAdminOrders] = useState<Order[]>([]);
+  const [checkedPosItems, setCheckedPosItems] = useState<Record<string, boolean>>(
+    {},
+  );
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [cartView, setCartView] = useState<"items" | "checkout">("items");
   const [isClearingCart, setIsClearingCart] = useState(false);
@@ -2909,8 +2925,13 @@ export default function App() {
                   {adminOrders
                     .filter((order) => order.status === "submitted")
                     .slice(0, 20)
-                    .map((order) => (
-                      <tr key={order.id}>
+                    .map((order) => {
+                      const waitMinutes = orderWaitMinutes(order);
+                      return (
+                      <tr
+                        key={order.id}
+                        className={orderWaitClass(waitMinutes)}
+                      >
                         <td className="font-bold">
                           #{order.dailySequence ?? order.id}
                           <div className="text-xs opacity-50">
@@ -2923,28 +2944,57 @@ export default function App() {
                           >
                             {orderStatusLabel(order.status)}
                           </span>
+                          <div className="mt-1 text-xs opacity-70">
+                            等待 {waitMinutes} 分鐘
+                          </div>
                         </td>
                         <td>{order.paymentMethod === "card" ? "刷卡" : "現金"}</td>
                         <td>
                           <ul className="space-y-1 text-sm">
-                            {order.items.map((item) => (
-                              <li key={`${order.id}-${item.menuItemId}`}>
-                                {item.menuItemName} x {item.qty}
-                                {item.sugarLevel || item.iceLevel ? (
-                                  <span className="opacity-60">
-                                    {" "}
-                                    ({item.sugarLevel ? sugarLabel(item.sugarLevel) : "預設糖"} /{" "}
-                                    {item.iceLevel ? iceLabel(item.iceLevel) : "預設冰"})
+                            {order.items.map((item, index) => {
+                              const checkboxId = `${order.id}-${item.id ?? item.menuItemId}-${index}`;
+                              return (
+                                <li
+                                  key={checkboxId}
+                                  className="flex items-start gap-2"
+                                >
+                                  <input
+                                    className="checkbox checkbox-xs mt-1"
+                                    type="checkbox"
+                                    checked={Boolean(checkedPosItems[checkboxId])}
+                                    onChange={(event) => {
+                                      const checked = event.currentTarget.checked;
+                                      setCheckedPosItems((current) => ({
+                                        ...current,
+                                        [checkboxId]: checked,
+                                      }));
+                                    }}
+                                  />
+                                  <span
+                                    className={
+                                      checkedPosItems[checkboxId]
+                                        ? "line-through opacity-50"
+                                        : ""
+                                    }
+                                  >
+                                    {item.menuItemName} x {item.qty}
+                                    {item.sugarLevel || item.iceLevel ? (
+                                      <span className="opacity-60">
+                                        {" "}
+                                        ({item.sugarLevel ? sugarLabel(item.sugarLevel) : "預設糖"} /{" "}
+                                        {item.iceLevel ? iceLabel(item.iceLevel) : "預設冰"})
+                                      </span>
+                                    ) : null}
+                                    {item.note ? (
+                                      <span className="opacity-60">
+                                        {" "}
+                                        - {item.note}
+                                      </span>
+                                    ) : null}
                                   </span>
-                                ) : null}
-                                {item.note ? (
-                                  <span className="opacity-60">
-                                    {" "}
-                                    - {item.note}
-                                  </span>
-                                ) : null}
-                              </li>
-                            ))}
+                                </li>
+                              );
+                            })}
                           </ul>
                         </td>
                         <td className="text-sm">
@@ -2985,7 +3035,8 @@ export default function App() {
                           )}
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                 </tbody>
               </table>
             </div>
@@ -3870,7 +3921,7 @@ export default function App() {
 
       {activeCustomizingItem ? (
         <section className="fixed inset-0 z-[2147483647] h-[100dvh] bg-base-100 flex flex-col">
-          <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4">
+          <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-start p-4">
             <button
               className="btn btn-circle bg-base-100/90 shadow"
               onClick={() => {
@@ -3880,18 +3931,6 @@ export default function App() {
               aria-label={text.back}
             >
               ×
-            </button>
-            <div className="rounded-full bg-base-100/90 px-4 py-2 text-sm font-bold shadow">
-              {text.addToCart}
-            </div>
-            <button
-              className="btn btn-sm bg-base-100/90 shadow"
-              onClick={() => {
-                setCustomizingItem(null);
-                navigate("/");
-              }}
-            >
-              {text.close}
             </button>
           </div>
 

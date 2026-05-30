@@ -123,6 +123,13 @@ function calculateCouponDiscount(coupon: Coupon | null, amount: number) {
   return Math.min(amount, coupon.discountValue);
 }
 
+function submittedOrderDate(order: Order) {
+  return new Date(order.submittedAt ?? order.createdAt).toLocaleDateString(
+    "sv-SE",
+    { timeZone: "Asia/Taipei" },
+  );
+}
+
 type UserProfile = {
   nickname: string;
   phone: string;
@@ -850,6 +857,7 @@ export default function App() {
   const [adminMenuNotice, setAdminMenuNotice] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [adminOrders, setAdminOrders] = useState<Order[]>([]);
+  const [adminHistoryDate, setAdminHistoryDate] = useState(todayTaipeiDate());
   const [checkedPosItems, setCheckedPosItems] = useState<Record<string, boolean>>(
     {},
   );
@@ -1408,12 +1416,7 @@ export default function App() {
       timeZone: "Asia/Taipei",
     });
     const submittedToday = adminOrders.filter((order) => {
-      const sourceDate = order.submittedAt ?? order.createdAt;
-      return (
-        new Date(sourceDate).toLocaleDateString("sv-SE", {
-          timeZone: "Asia/Taipei",
-        }) === today && order.status !== "pending"
-      );
+      return submittedOrderDate(order) === today && order.status !== "pending";
     });
     const revenue = submittedToday.reduce((sum, order) => sum + order.total, 0);
     const itemSales = new Map<string, { name: string; qty: number }>();
@@ -1449,6 +1452,22 @@ export default function App() {
         .sort((a, b) => a.hour - b.hour),
     };
   }, [adminOrders]);
+
+  const adminHistoryOrders = useMemo(
+    () =>
+      adminOrders
+        .filter(
+          (order) =>
+            order.status !== "pending" &&
+            submittedOrderDate(order) === adminHistoryDate,
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.submittedAt ?? b.createdAt).getTime() -
+            new Date(a.submittedAt ?? a.createdAt).getTime(),
+        ),
+    [adminHistoryDate, adminOrders],
+  );
 
   async function ensureOrder(): Promise<number> {
     if (!user) {
@@ -3042,6 +3061,110 @@ export default function App() {
             </div>
           </section>
 
+          <section>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-2xl font-bold">單日歷史訂單</h2>
+              <label className="form-control w-full max-w-xs">
+                <span className="label-text mb-1">查詢日期</span>
+                <input
+                  className="input input-bordered"
+                  type="date"
+                  value={adminHistoryDate}
+                  onChange={(event) => {
+                    setAdminHistoryDate(event.currentTarget.value);
+                  }}
+                />
+              </label>
+            </div>
+            <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
+              <table className="table table-zebra">
+                <thead>
+                  <tr>
+                    <th>單號</th>
+                    <th>狀態</th>
+                    <th>訂購人</th>
+                    <th>品項</th>
+                    <th>優惠券</th>
+                    <th>付款</th>
+                    <th>時間</th>
+                    <th>金額</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminHistoryOrders.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="opacity-60">
+                        這天目前沒有歷史訂單。
+                      </td>
+                    </tr>
+                  ) : (
+                    adminHistoryOrders.map((order) => (
+                      <tr key={`history-${order.id}`}>
+                        <td className="font-bold">
+                          #{order.dailySequence ?? order.id}
+                          <div className="text-xs opacity-50">
+                            系統 #{order.id}
+                          </div>
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${orderStatusBadgeClass(order.status)}`}
+                          >
+                            {orderStatusLabel(order.status)}
+                          </span>
+                        </td>
+                        <td className="text-sm">
+                          <div>{order.customerName || "-"}</div>
+                          <div className="opacity-70">{order.customerPhone || "-"}</div>
+                        </td>
+                        <td>
+                          <ul className="space-y-1 text-sm">
+                            {order.items.map((item) => (
+                              <li key={`history-${order.id}-${item.id ?? item.menuItemId}`}>
+                                {item.menuItemName} x {item.qty}
+                                {item.sugarLevel || item.iceLevel ? (
+                                  <span className="opacity-60">
+                                    {" "}
+                                    ({item.sugarLevel ? sugarLabel(item.sugarLevel) : "正常糖"} /{" "}
+                                    {item.iceLevel ? iceLabel(item.iceLevel) : "正常冰"})
+                                  </span>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                        <td>
+                          {order.couponCode ? (
+                            <div className="text-sm">
+                              <span className="badge badge-accent badge-sm">
+                                {order.couponCode}
+                              </span>
+                              <div className="opacity-70">
+                                折抵 {formatMoney(order.discountTotal ?? 0)}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="opacity-50">無</span>
+                          )}
+                        </td>
+                        <td>{order.paymentMethod === "card" ? "刷卡" : "現金"}</td>
+                        <td className="text-sm">
+                          <div>下單：{formatTaipeiDateTime(order.submittedAt)}</div>
+                          {order.completedAt ? (
+                            <div className="opacity-70">
+                              完成：{formatTaipeiDateTime(order.completedAt)}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="font-semibold">{formatMoney(order.total)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
               <h2 className="text-2xl font-bold mb-3">每日品項銷售排行</h2>
@@ -3796,7 +3919,6 @@ export default function App() {
                       <div className="text-sm opacity-70 space-y-1">
                         <p>{text.customerName}：{order.customerName || user.name}</p>
                         <p>{text.phone}：{order.customerPhone || "-"}</p>
-                        <p>{text.createdAt}：{formatTaipeiDateTime(order.createdAt)}</p>
                         <p>{text.submittedAt}：{formatTaipeiDateTime(order.submittedAt)}</p>
                         {order.completedAt ? (
                           <p>{text.completedAt}：{formatTaipeiDateTime(order.completedAt)}</p>
@@ -3809,8 +3931,8 @@ export default function App() {
                             {detail.sugarLevel || detail.iceLevel ? (
                               <span className="opacity-60">
                                 {" "}
-                                ({detail.sugarLevel ? sugarLabel(detail.sugarLevel) : text.defaultSugar} /{" "}
-                                {detail.iceLevel ? iceLabel(detail.iceLevel) : text.defaultIce})
+                                ({detail.sugarLevel ? sugarLabel(detail.sugarLevel) : "正常糖"} /{" "}
+                                {detail.iceLevel ? iceLabel(detail.iceLevel) : "正常冰"})
                               </span>
                             ) : null}
                           </li>

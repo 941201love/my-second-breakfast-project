@@ -46,6 +46,14 @@ export const menuItemsTable = appSchema.table(
     description: text("description").notNull(),
     translations: jsonb("translations"),
     imageUrl: text("image_url").notNull(),
+
+    // D: 大/中/小份與加蛋規則
+    // 允許複選：某商品可沒有某一種 size
+    // availableSizes：例如 ["small","medium"]
+    availableSizes: jsonb("available_sizes").notNull().default([]),
+    // sizePrices：例如 {"small":40,"medium":50,"large":60}
+    sizePrices: jsonb("size_prices").notNull().default({}),
+
     isCurrentVersion: boolean("is_current_version").notNull().default(true),
     supersedes: text("supersedes").references(
       (): AnyPgColumn => menuItemsTable.id,
@@ -145,6 +153,12 @@ export const orderItemsTable = appSchema.table(
     sugarLevel: text("sugar_level"),
     iceLevel: text("ice_level"),
     note: text("note"),
+
+    // D: 份與加蛋
+    // size: "small" | "medium" | "large"
+    size: text("size"),
+    // eggCount: 0..n；加蛋後每份 +10
+    eggCount: integer("egg_count").notNull().default(0),
   },
   (table) => ({
     orderMenuIdx: index("order_items_order_menu_idx").on(

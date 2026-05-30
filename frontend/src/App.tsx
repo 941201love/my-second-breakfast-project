@@ -131,13 +131,16 @@ function submittedOrderDate(order: Order) {
 }
 
 function submittedOrderHour(order: Order) {
-  return Number(
-    new Date(order.submittedAt ?? order.createdAt).toLocaleString("zh-TW", {
-      timeZone: "Asia/Taipei",
-      hour: "2-digit",
-      hour12: false,
-    }),
-  );
+  const value = order.submittedAt ?? order.createdAt;
+  const hourPart = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Taipei",
+    hour: "2-digit",
+    hour12: false,
+  })
+    .formatToParts(new Date(value))
+    .find((part) => part.type === "hour")?.value;
+  const hour = Number(hourPart);
+  return Number.isFinite(hour) ? hour % 24 : 0;
 }
 
 function buildOrderStats(orders: Order[], date: string) {
@@ -204,6 +207,19 @@ type UserProfile = {
   nickname: string;
   phone: string;
   language: "zh-TW" | "en" | "ja" | "ko";
+};
+
+type CouponFormState = {
+  code: string;
+  name: string;
+  discountType: "amount" | "percent";
+  discountValue: string;
+  minSpend: string;
+  maxDiscount: string;
+  usageLimitPerUser: string;
+  usageLimitTotal: string;
+  startsDate: string;
+  endsDate: string;
 };
 
 type CartDetail = {
@@ -285,28 +301,56 @@ const categoryLabels: Record<UserProfile["language"], Record<string, string>> = 
     飲料: "飲料",
     餐點: "餐點",
     主餐: "主餐",
+    蛋餅: "蛋餅",
+    吐司: "吐司",
+    漢堡: "漢堡",
+    飯糰: "飯糰",
+    麵食: "麵食",
     點心: "點心",
+    套餐: "套餐",
+    其他: "其他",
     未分類: "未分類",
   },
   en: {
     飲料: "Drinks",
     餐點: "Meals",
     主餐: "Mains",
+    蛋餅: "Egg Pancakes",
+    吐司: "Toast",
+    漢堡: "Burgers",
+    飯糰: "Rice Balls",
+    麵食: "Noodles",
     點心: "Snacks",
+    套餐: "Combos",
+    其他: "Other",
     未分類: "Other",
   },
   ja: {
     飲料: "ドリンク",
     餐點: "食事",
     主餐: "メイン",
+    蛋餅: "蛋餅",
+    吐司: "トースト",
+    漢堡: "バーガー",
+    飯糰: "おにぎり",
+    麵食: "麺類",
     點心: "軽食",
+    套餐: "セット",
+    其他: "その他",
     未分類: "その他",
   },
   ko: {
     飲料: "음료",
     餐點: "식사",
     主餐: "메인",
+    蛋餅: "단빙",
+    吐司: "토스트",
+    漢堡: "버거",
+    飯糰: "주먹밥",
+    麵食: "면류",
     點心: "간식",
+    套餐: "세트",
+    其他: "기타",
     未分類: "기타",
   },
 };
@@ -895,15 +939,15 @@ export default function App() {
   );
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [editingCouponCode, setEditingCouponCode] = useState<string | null>(null);
-  const [newCoupon, setNewCoupon] = useState({
-    code: "BREAKFAST10",
-    name: "早餐折 10 元",
+  const [newCoupon, setNewCoupon] = useState<CouponFormState>({
+    code: "",
+    name: "",
     discountType: "amount" as "amount" | "percent",
-    discountValue: 10,
-    minSpend: 0,
-    maxDiscount: 0,
-    usageLimitPerUser: 1,
-    usageLimitTotal: 0,
+    discountValue: "",
+    minSpend: "",
+    maxDiscount: "",
+    usageLimitPerUser: "",
+    usageLimitTotal: "",
     startsDate: todayTaipeiDate(),
     endsDate: todayTaipeiDate(),
   });
@@ -1813,9 +1857,22 @@ export default function App() {
   }
 
   async function createAdminCoupon(): Promise<void> {
-    const code = newCoupon.code.trim().toUpperCase();
+    const code = newCoupon.code.trim();
     const name = newCoupon.name.trim();
-    if (!code || !name || newCoupon.discountValue <= 0) {
+    const rawDiscountValue = parseWholeNumber(newCoupon.discountValue, 0);
+    const discountValue =
+      newCoupon.discountType === "percent"
+        ? Math.min(100, Math.max(1, rawDiscountValue))
+        : rawDiscountValue;
+    const minSpend = parseWholeNumber(newCoupon.minSpend, 0);
+    const maxDiscount = parseWholeNumber(newCoupon.maxDiscount, 0);
+    const usageLimitPerUser = Math.max(
+      1,
+      parseWholeNumber(newCoupon.usageLimitPerUser, 1),
+    );
+    const usageLimitTotal = parseWholeNumber(newCoupon.usageLimitTotal, 0);
+
+    if (!code || !name || discountValue <= 0) {
       setAdminError("請輸入完整的優惠券資料。");
       return;
     }
@@ -1827,10 +1884,7 @@ export default function App() {
       setAdminError("優惠碼已存在，請從右側已創優惠券按「編輯」。");
       return;
     }
-    if (
-      editingCouponCode &&
-      editingCouponCode.toUpperCase() !== code.toUpperCase()
-    ) {
+    if (editingCouponCode && editingCouponCode !== code) {
       setAdminError("編輯優惠券時不能更改優惠碼，請重新新增一張。");
       return;
     }
@@ -1846,11 +1900,11 @@ export default function App() {
         code,
         name,
         discountType: newCoupon.discountType,
-        discountValue: newCoupon.discountValue,
-        minSpend: newCoupon.minSpend,
-        maxDiscount: newCoupon.maxDiscount,
-        usageLimitPerUser: newCoupon.usageLimitPerUser,
-        usageLimitTotal: newCoupon.usageLimitTotal,
+        discountValue,
+        minSpend,
+        maxDiscount,
+        usageLimitPerUser,
+        usageLimitTotal,
         startsAt: taipeiDayBoundaryIso(newCoupon.startsDate, false),
         expiresAt: taipeiDayBoundaryIso(newCoupon.endsDate, true),
         isActive: true,
@@ -1874,11 +1928,15 @@ export default function App() {
       code: coupon.code,
       name: coupon.name,
       discountType: coupon.discountType,
-      discountValue: coupon.discountValue,
-      minSpend: coupon.minSpend ?? 0,
-      maxDiscount: coupon.maxDiscount ?? 0,
-      usageLimitPerUser: coupon.usageLimitPerUser ?? 1,
-      usageLimitTotal: coupon.usageLimitTotal ?? 0,
+      discountValue: String(coupon.discountValue),
+      minSpend: coupon.minSpend ? String(coupon.minSpend) : "",
+      maxDiscount: coupon.maxDiscount ? String(coupon.maxDiscount) : "",
+      usageLimitPerUser: coupon.usageLimitPerUser
+        ? String(coupon.usageLimitPerUser)
+        : "",
+      usageLimitTotal: coupon.usageLimitTotal
+        ? String(coupon.usageLimitTotal)
+        : "",
       startsDate: dateInputValue(coupon.startsAt),
       endsDate: dateInputValue(coupon.expiresAt),
     });
@@ -1891,11 +1949,11 @@ export default function App() {
       code: "",
       name: "",
       discountType: "amount",
-      discountValue: 10,
-      minSpend: 0,
-      maxDiscount: 0,
-      usageLimitPerUser: 1,
-      usageLimitTotal: 0,
+      discountValue: "",
+      minSpend: "",
+      maxDiscount: "",
+      usageLimitPerUser: "",
+      usageLimitTotal: "",
       startsDate: todayTaipeiDate(),
       endsDate: todayTaipeiDate(),
     });
@@ -2306,16 +2364,15 @@ export default function App() {
   }
 
   function applyCouponCode(): void {
-    const normalizedCode = couponCode.trim().toUpperCase();
-    if (!normalizedCode) {
+    const code = couponCode.trim();
+    if (!code) {
       setCheckoutNotice(text.couponInvalid);
       return;
     }
 
     const coupon =
       coupons.find(
-        (item) =>
-          item.code.toUpperCase() === normalizedCode && item.isActive !== false,
+        (item) => item.code === code && item.isActive !== false,
       ) ?? null;
 
     if (!coupon || !isCouponUsable(coupon)) {
@@ -2330,15 +2387,8 @@ export default function App() {
   }
 
   function updateCouponCode(nextCode: string): void {
-    const normalizedCode = nextCode.toUpperCase();
-    setCouponCode(normalizedCode);
-
-    const coupon =
-      coupons.find(
-        (item) =>
-          item.code.toUpperCase() === normalizedCode && item.isActive !== false,
-      ) ?? null;
-    setAppliedCoupon(coupon && isCouponUsable(coupon) ? coupon : null);
+    setCouponCode(nextCode);
+    setAppliedCoupon(null);
   }
 
   function isCouponUsable(coupon: Coupon): boolean {
@@ -2354,18 +2404,33 @@ export default function App() {
     const totalUsedCount = historyOrders.filter(
       (order) =>
         order.status !== "pending" &&
-        order.couponCode?.toUpperCase() === coupon.code.toUpperCase(),
+        order.couponCode === coupon.code,
     ).length;
-    if ((coupon.usageLimitTotal ?? 0) > 0 && totalUsedCount >= coupon.usageLimitTotal) {
+    const usageLimitTotal = coupon.usageLimitTotal ?? 0;
+    if (usageLimitTotal > 0 && totalUsedCount >= usageLimitTotal) {
       return false;
     }
 
     const usedCount = historyOrders.filter(
       (order) =>
         order.status !== "pending" &&
-        order.couponCode?.toUpperCase() === coupon.code.toUpperCase(),
+        order.couponCode === coupon.code,
     ).length;
     return usedCount < (coupon.usageLimitPerUser ?? 1);
+  }
+
+  function couponUsedCount(coupon: Coupon): number {
+    return adminOrders.filter(
+      (order) =>
+        order.status !== "pending" &&
+        order.couponCode === coupon.code,
+    ).length;
+  }
+
+  function couponRemainingText(coupon: Coupon): string {
+    const limit = coupon.usageLimitTotal ?? 0;
+    if (limit <= 0) return "不限量";
+    return `剩餘 ${Math.max(0, limit - couponUsedCount(coupon))} / ${limit} 張`;
   }
 
   async function submitOrder(): Promise<void> {
@@ -3378,37 +3443,46 @@ export default function App() {
           </section>
 
           <section>
-            <details className="collapse collapse-arrow bg-base-100 shadow h-fit">
-              <summary className="collapse-title text-2xl font-bold">
-                下單時段統計
-              </summary>
-              <div className="collapse-content">
-                {selectedAdminStats.hourlyRanking.length === 0 ? (
-                  <p className="opacity-60">這天目前沒有時段資料。</p>
-                ) : (
-                  <div className="space-y-2">
-                    {selectedAdminStats.hourlyRanking.map((row) => (
-                      <div
-                        key={row.hour}
-                        className="flex items-center justify-between"
-                      >
-                        <span>{String(row.hour).padStart(2, "0")}:00</span>
-                        <progress
-                          className="progress progress-primary mx-3 flex-1"
-                          value={row.count}
-                          max={Math.max(
-                            ...selectedAdminStats.hourlyRanking.map(
-                              (item) => item.count,
-                            ),
-                          )}
-                        />
-                        <span className="w-12 text-right">{row.count} 單</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+              <h2 className="text-2xl font-bold">下單時段統計</h2>
+              <label className="form-control w-full max-w-xs">
+                <span className="label-text mb-1">查詢日期</span>
+                <input
+                  className="input input-bordered"
+                  type="date"
+                  value={adminStatsDate}
+                  onChange={(event) => {
+                    setAdminStatsDate(event.currentTarget.value);
+                  }}
+                />
+              </label>
+            </div>
+            <div className="bg-base-100 rounded-lg shadow p-4">
+              {selectedAdminStats.hourlyRanking.length === 0 ? (
+                <p className="opacity-60">這天目前沒有時段資料。</p>
+              ) : (
+                <div className="space-y-2">
+                  {selectedAdminStats.hourlyRanking.map((row) => (
+                    <div
+                      key={row.hour}
+                      className="flex items-center justify-between"
+                    >
+                      <span>{String(row.hour).padStart(2, "0")}:00</span>
+                      <progress
+                        className="progress progress-primary mx-3 flex-1"
+                        value={row.count}
+                        max={Math.max(
+                          ...selectedAdminStats.hourlyRanking.map(
+                            (item) => item.count,
+                          ),
+                        )}
+                      />
+                      <span className="w-12 text-right">{row.count} 單</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               </div>
-            </details>
           </section>
 
           <section>
@@ -3635,16 +3709,11 @@ export default function App() {
                         inputMode="numeric"
                         value={newCoupon.discountValue}
                         onChange={(event) => {
-                          const discountValue = parseWholeNumber(
-                            event.currentTarget.value,
-                            1,
-                          );
+                          const discountValue =
+                            event.currentTarget.value.replace(/\D/g, "");
                           setNewCoupon((current) => ({
                             ...current,
-                            discountValue:
-                              current.discountType === "percent"
-                                ? Math.min(100, Math.max(1, discountValue))
-                                : Math.max(1, discountValue),
+                            discountValue,
                           }));
                         }}
                         placeholder={
@@ -3666,9 +3735,8 @@ export default function App() {
                         inputMode="numeric"
                         value={newCoupon.minSpend}
                         onChange={(event) => {
-                          const minSpend = parseWholeNumber(
-                            event.currentTarget.value,
-                          );
+                          const minSpend =
+                            event.currentTarget.value.replace(/\D/g, "");
                           setNewCoupon((current) => ({
                             ...current,
                             minSpend,
@@ -3684,9 +3752,8 @@ export default function App() {
                         inputMode="numeric"
                         value={newCoupon.maxDiscount}
                         onChange={(event) => {
-                          const maxDiscount = parseWholeNumber(
-                            event.currentTarget.value,
-                          );
+                          const maxDiscount =
+                            event.currentTarget.value.replace(/\D/g, "");
                           setNewCoupon((current) => ({
                             ...current,
                             maxDiscount,
@@ -3702,10 +3769,8 @@ export default function App() {
                         inputMode="numeric"
                         value={newCoupon.usageLimitPerUser}
                         onChange={(event) => {
-                          const usageLimitPerUser = Math.max(
-                            1,
-                            parseWholeNumber(event.currentTarget.value, 1),
-                          );
+                          const usageLimitPerUser =
+                            event.currentTarget.value.replace(/\D/g, "");
                           setNewCoupon((current) => ({
                             ...current,
                             usageLimitPerUser,
@@ -3721,9 +3786,8 @@ export default function App() {
                         inputMode="numeric"
                         value={newCoupon.usageLimitTotal}
                         onChange={(event) => {
-                          const usageLimitTotal = parseWholeNumber(
-                            event.currentTarget.value,
-                          );
+                          const usageLimitTotal =
+                            event.currentTarget.value.replace(/\D/g, "");
                           setNewCoupon((current) => ({
                             ...current,
                             usageLimitTotal,
@@ -3809,7 +3873,7 @@ export default function App() {
                           低消 {formatMoney(coupon.minSpend ?? 0)} · 每帳號{" "}
                           {coupon.usageLimitPerUser ?? 1} 次
                           {coupon.usageLimitTotal
-                            ? ` · 限量 ${coupon.usageLimitTotal} 張`
+                            ? ` · 數量有限 · ${couponRemainingText(coupon)}`
                             : " · 不限總張數"}
                           {coupon.maxDiscount
                             ? ` · 最高折 ${formatMoney(coupon.maxDiscount)}`
@@ -3866,15 +3930,31 @@ export default function App() {
         </div>
         <div className="flex-none w-full md:w-auto">
           <div className="flex flex-wrap gap-2 items-center md:justify-end">
-            <div className="rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-sm flex flex-wrap gap-x-4 gap-y-1">
-              <span>
-                {text.currentDone}：
-                <strong>#{orderProgress.latestCompletedOrderId ?? "-"}</strong>
-              </span>
-              <span>
-                {text.waitingCount}：
-                <strong>{orderProgress.waitingCount ?? 0}</strong>
-              </span>
+            <div className="rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm min-w-[320px]">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-success/40 bg-success/10 px-3 py-2">
+                  <div className="text-[11px] opacity-70">可取餐</div>
+                  <div className="font-bold">
+                    #{orderProgress.latestCompletedOrderId ?? "-"}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2">
+                  <div className="text-[11px] opacity-70">待取餐</div>
+                  <div className="font-bold">
+                    {orderProgress.waitingCount && orderProgress.waitingCount > 0
+                      ? `#${(orderProgress.latestCompletedOrderId ?? 0) + 1} ~ #${(orderProgress.latestCompletedOrderId ?? 0) + orderProgress.waitingCount}`
+                      : "-"}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-80">
+                <span>
+                  {text.currentDone}：<strong>#{orderProgress.latestCompletedOrderId ?? "-"}</strong>
+                </span>
+                <span>
+                  {text.waitingCount}：<strong>{orderProgress.waitingCount ?? 0}</strong>
+                </span>
+              </div>
             </div>
             <button
               className="btn btn-sm btn-outline"
@@ -4729,6 +4809,9 @@ export default function App() {
                         <p className="opacity-70">
                           {text.couponLimitOnce}，{text.discount}{" "}
                           {formatMoney(couponDiscountTotal)}
+                          {appliedCoupon.usageLimitTotal
+                            ? `，數量有限`
+                            : ""}
                         </p>
                       </div>
                     ) : null}

@@ -30,10 +30,10 @@ interface SeedData {
 }
 
 function calculateTotal(items: ReadonlyArray<OrderItem>): number {
-  return items.reduce(
-    (sum, item) => sum + item.menuItemPrice * item.qty,
-    0,
-  );
+  return items.reduce((sum, item) => {
+    const eggExtra = (item.eggCount ?? 0) * 10;
+    return sum + (item.menuItemPrice + eggExtra) * item.qty;
+  }, 0);
 }
 
 function toIsoString(value: Date | string): string {
@@ -50,7 +50,13 @@ function logicalIdFromSeedId(id: string | number | undefined, index: number) {
 
 function sameOrderItemOptions(
   item: OrderItem,
-  input: { sugarLevel?: string; iceLevel?: string; note?: string },
+  input: {
+    sugarLevel?: string;
+    iceLevel?: string;
+    note?: string;
+    size?: "small" | "medium" | "large";
+    eggCount?: number;
+  },
 ) {
   const sugar = (input.sugarLevel || "正常糖").trim();
   const ice = (input.iceLevel || "正常冰").trim();
@@ -59,8 +65,19 @@ function sameOrderItemOptions(
   return (
     (item.sugarLevel || "正常糖").trim() === sugar &&
     (item.iceLevel || "正常冰").trim() === ice &&
-    (item.note || "").trim() === note
+    (item.note || "").trim() === note &&
+    (item.size ?? "small") === (input.size ?? "small") &&
+    (item.eggCount ?? 0) === (input.eggCount ?? 0)
   );
+}
+
+function resolveSizePrice(
+  menuItem: MenuItem,
+  size?: "small" | "medium" | "large",
+): number {
+  const pickedSize = size ?? menuItem.availableSizes?.[0] ?? "small";
+  const price = menuItem.sizePrices?.[pickedSize];
+  return Number.isFinite(price) ? Number(price) : menuItem.price;
 }
 
 export class PgStore implements Store {
@@ -92,6 +109,8 @@ export class PgStore implements Store {
     description?: string;
     imageUrl: string;
     translations?: MenuItem["translations"];
+    availableSizes?: Array<"small" | "medium" | "large">;
+    sizePrices?: Partial<Record<"small" | "medium" | "large", number>>;
     createdBy?: string;
   }): Promise<MenuItem> {
     const logicalId = input.logicalId ?? (await this.nextLogicalId());
@@ -100,9 +119,15 @@ export class PgStore implements Store {
       logicalId,
     });
 
-    this.menu.push(created);
+    const normalizedCreated: MenuItem = {
+      ...created,
+      availableSizes: created.availableSizes ?? input.availableSizes ?? [],
+      sizePrices: created.sizePrices ?? input.sizePrices ?? {},
+    };
+
+    this.menu.push(normalizedCreated);
     this.menu.sort((a, b) => a.logicalId.localeCompare(b.logicalId));
-    return created;
+    return normalizedCreated;
   }
 
   async updateMenuItem(
@@ -162,6 +187,11 @@ export class PgStore implements Store {
           imageUrl: updated.imageUrl,
           isCurrentVersion: updated.isCurrentVersion,
           testGroup: updated.testGroup,
+          availableSizes:
+            (updated.availableSizes as Array<"small" | "medium" | "large"> | null) ?? [],
+          sizePrices:
+            (updated.sizePrices as Record<"small" | "medium" | "large", number> | null) ??
+            ({} as Record<"small" | "medium" | "large", number>),
         }
       : null;
   }
@@ -226,6 +256,8 @@ export class PgStore implements Store {
       sugarLevel?: string;
       iceLevel?: string;
       note?: string;
+      size?: "small" | "medium" | "large";
+      eggCount?: number;
       forceNew?: boolean;
     },
   ): Promise<
@@ -285,6 +317,8 @@ export class PgStore implements Store {
             sugarLevel: input.sugarLevel,
             iceLevel: input.iceLevel,
             note: input.note,
+            size: input.size,
+            eggCount: input.eggCount ?? 0,
           })
           .where(
             and(
@@ -300,23 +334,32 @@ export class PgStore implements Store {
           target.sugarLevel = input.sugarLevel;
           target.iceLevel = input.iceLevel;
           target.note = input.note;
+          target.size = input.size;
+          target.eggCount = input.eggCount ?? 0;
         }
       }
     } else if (input.qty > 0) {
-      const [insertedItem] = await db.insert(orderItemsTable).values({
-        orderId,
-        menuItemId: menuItem.id,
-        qty: input.qty,
-        sugarLevel: input.sugarLevel,
-        iceLevel: input.iceLevel,
-        note: input.note,
-      }).returning();
+      const [insertedItem] = await db
+        .insert(orderItemsTable)
+        .values({
+          orderId,
+          menuItemId: menuItem.id,
+          qty: input.qty,
+          sugarLevel: input.sugarLevel,
+          iceLevel: input.iceLevel,
+          note: input.note,
+          size: input.size,
+          eggCount: input.eggCount ?? 0,
+        })
+        .returning();
       order.items.push({
         id: insertedItem?.id,
         menuItemId: menuItem.id,
         menuItemName: menuItem.name,
-        menuItemPrice: menuItem.price,
+        menuItemPrice: resolveSizePrice(menuItem, input.size),
         qty: input.qty,
+        size: input.size,
+        eggCount: input.eggCount ?? 0,
         sugarLevel: input.sugarLevel,
         iceLevel: input.iceLevel,
         note: input.note,
@@ -587,11 +630,15 @@ export class PgStore implements Store {
         id: orderItemsTable.id,
         menuItemId: orderItemsTable.menuItemId,
         qty: orderItemsTable.qty,
+        size: orderItemsTable.size,
+        eggCount: orderItemsTable.eggCount,
         sugarLevel: orderItemsTable.sugarLevel,
         iceLevel: orderItemsTable.iceLevel,
         note: orderItemsTable.note,
         menuItemName: menuItemsTable.name,
         menuItemPrice: menuItemsTable.price,
+        availableSizes: menuItemsTable.availableSizes,
+        sizePrices: menuItemsTable.sizePrices,
       })
       .from(orderItemsTable)
       .innerJoin(
@@ -603,12 +650,22 @@ export class PgStore implements Store {
     const itemsByOrderId = new Map<number, OrderItem[]>();
     for (const row of orderItemRows) {
       const items = itemsByOrderId.get(row.orderId) ?? [];
+      const sizePrices =
+        (row.sizePrices as Partial<Record<"small" | "medium" | "large", number>> | null) ??
+        {};
+      const pickedSize = (row.size as "small" | "medium" | "large" | null) ?? "small";
+      const menuItemPrice = Number.isFinite(sizePrices[pickedSize])
+        ? Number(sizePrices[pickedSize])
+        : row.menuItemPrice;
+
       items.push({
         id: row.id,
         menuItemId: row.menuItemId,
         menuItemName: row.menuItemName,
-        menuItemPrice: row.menuItemPrice,
+        menuItemPrice,
         qty: row.qty,
+        size: row.size as "small" | "medium" | "large" | undefined,
+        eggCount: row.eggCount ?? 0,
         sugarLevel: row.sugarLevel ?? undefined,
         iceLevel: row.iceLevel ?? undefined,
         note: row.note ?? undefined,
@@ -733,7 +790,8 @@ export class PgStore implements Store {
         item.status !== "pending" &&
         item.couponCode?.toUpperCase() === coupon.code.toUpperCase(),
     ).length;
-    if ((coupon.usageLimitTotal ?? 0) > 0 && totalUsedCount >= coupon.usageLimitTotal) {
+    const usageLimitTotal = coupon.usageLimitTotal ?? 0;
+    if (usageLimitTotal > 0 && totalUsedCount >= usageLimitTotal) {
       return false;
     }
 

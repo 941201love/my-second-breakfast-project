@@ -4,7 +4,18 @@ import { z } from "zod";
 // 這裡是前後端共用的業務型別定義。
 // 型別（TypeScript type）由 Zod schema 自動推導，不需要手動維護兩份。
 
+export const sizeOptionSchema = z.enum(["small", "medium", "large"]);
+
 export const menuItemSchema = z.object({
+  availableSizes: z.array(sizeOptionSchema).default([]),
+  // sizePrices: {"small":40,"medium":50,"large":60}
+  // 僅要求有設定的 size key，不強制 small/medium/large 全部存在
+  sizePrices: z
+    .partialRecord(
+      sizeOptionSchema,
+      z.number().min(0).int().or(z.number().min(0)),
+    )
+    .default({}),
   id: z.string().min(1),
   entityId: z.string().min(1),
   logicalId: z.string().min(1),
@@ -141,8 +152,16 @@ export const orderItemSchema = z.object({
   id: z.number().int().min(1).optional(),
   menuItemId: z.string().min(1),
   menuItemName: z.string().min(1),
+
+  // menuItemPrice：份別基礎價（依 size 選擇寫入）
   menuItemPrice: z.number().min(0),
+
   qty: z.number().min(0),
+
+  // D: 份與加蛋
+  size: sizeOptionSchema.optional(),
+  eggCount: z.number().int().min(0).default(0),
+
   sugarLevel: z.string().optional(),
   iceLevel: z.string().optional(),
   note: z.string().optional(),

@@ -358,7 +358,11 @@ app.post(
   "/api/menu",
   async ({ body, request, set }) => {
     requireAdmin(request);
-    const newMenuItem = await store.createMenuItem(body);
+    const newMenuItem = await store.createMenuItem({
+      ...body,
+      availableSizes: body.availableSizes,
+      sizePrices: body.sizePrices,
+    });
     set.status = 201;
     return { data: newMenuItem };
   },
@@ -782,6 +786,8 @@ app.patch(
       sugarLevel: body.sugarLevel,
       iceLevel: body.iceLevel,
       note: body.note,
+      size: body.size,
+      eggCount: body.eggCount,
       forceNew: body.forceNew,
     });
 

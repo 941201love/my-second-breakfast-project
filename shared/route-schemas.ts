@@ -9,6 +9,7 @@ import {
   orderProgressSchema,
   priceSensitivitySchema,
   staleCartItemSchema,
+  sizeOptionSchema,
 } from "./contracts.ts";
 import toTaipeiDateTime from "../util.ts";
 
@@ -65,13 +66,34 @@ const menuTranslationsBodySchema = z.object({
   }),
 });
 
-export const createMenuItemBodySchema = z.object({
-  logicalId: z.string().min(1).optional(),
-  price: z.number().int().min(0),
-  category: z.string().min(1),
-  imageUrl: z.string().min(1),
-  translations: menuTranslationsBodySchema,
-});
+export const createMenuItemBodySchema = z
+  .object({
+    logicalId: z.string().min(1).optional(),
+    price: z.number().int().min(0),
+    category: z.string().min(1),
+    imageUrl: z.string().min(1),
+    translations: menuTranslationsBodySchema,
+    availableSizes: z.array(sizeOptionSchema).optional(),
+    sizePrices: z
+      .partialRecord(sizeOptionSchema, z.number().int().min(0))
+      .optional(),
+  })
+  .superRefine((value, ctx) => {
+    const sizes = value.availableSizes ?? [];
+    const prices = (value.sizePrices ?? {}) as Partial<
+      Record<z.infer<typeof sizeOptionSchema>, number>
+    >;
+
+    for (const size of sizes) {
+      if (prices[size] === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["sizePrices", size],
+          message: `Missing sizePrices.${size} for selected size`,
+        });
+      }
+    }
+  });
 
 /** PATCH /api/menu/:id */
 export const updateMenuItemParamsSchema = z.object({
@@ -138,6 +160,8 @@ export const updateOrderBodySchema = z.object({
   sugarLevel: z.string().optional(),
   iceLevel: z.string().optional(),
   note: z.string().optional(),
+  size: sizeOptionSchema.optional(),
+  eggCount: z.number().int().min(0).optional(),
   forceNew: z.boolean().optional(),
 });
 

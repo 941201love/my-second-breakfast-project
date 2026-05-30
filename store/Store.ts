@@ -37,6 +37,8 @@ export interface Store {
     description?: string;
     imageUrl: string;
     translations?: MenuTranslations;
+    availableSizes?: Array<"small" | "medium" | "large">;
+    sizePrices?: Partial<Record<"small" | "medium" | "large", number>>;
     createdBy?: string;
   }): Promise<MenuItem>;
   updateMenuItem(
@@ -72,6 +74,8 @@ export interface Store {
       sugarLevel?: string;
       iceLevel?: string;
       note?: string;
+      size?: "small" | "medium" | "large";
+      eggCount?: number;
       forceNew?: boolean;
     },
   ): Promise<

@@ -865,6 +865,20 @@ export default function App() {
     setCurrentPath(path);
   }
 
+  function resetNewMenuItemForm(): void {
+    setNewMenuItem({
+      price: 50,
+      category: "主餐",
+      imageUrl: "",
+      translations: {
+        "zh-TW": { name: "", description: "" },
+        en: { name: "", description: "" },
+        ja: { name: "", description: "" },
+        ko: { name: "", description: "" },
+      },
+    });
+  }
+
   const statusText = (status: Order["status"]) => {
     if (status === "completed") return text.completed;
     if (status === "submitted") return text.making;
@@ -1189,7 +1203,6 @@ export default function App() {
   useEffect(() => {
     const shouldLockBody =
       isAdminMenuFormOpen ||
-      isAdminAddProductPage ||
       isCartOpen ||
       isCartPage ||
       isHistoryOpen ||
@@ -1211,7 +1224,6 @@ export default function App() {
     };
   }, [
     customizingItem,
-    isAdminAddProductPage,
     isAdminMenuFormOpen,
     isCartOpen,
     isCartPage,
@@ -1249,6 +1261,12 @@ export default function App() {
       note: "",
     });
   }, [isItemPage, items.length, loading, routeItem?.id, user]);
+
+  useEffect(() => {
+    if (!isAdminAddProductPage) return;
+
+    resetNewMenuItemForm();
+  }, [isAdminAddProductPage]);
 
   useEffect(() => {
     if (!user || !(isCartOpen || isCartPage) || cartView !== "checkout") return;
@@ -1823,15 +1841,7 @@ export default function App() {
       return;
     }
 
-    setNewMenuItem((current) => ({
-      ...current,
-      translations: {
-        "zh-TW": { name: "", description: "" },
-        en: { name: "", description: "" },
-        ja: { name: "", description: "" },
-        ko: { name: "", description: "" },
-      },
-    }));
+    resetNewMenuItemForm();
     setIsAdminMenuFormOpen(false);
     navigate("/admin");
     await Promise.all([loadMenu(), loadAdminData()]);
@@ -2677,6 +2687,7 @@ export default function App() {
                 className="btn btn-primary"
                 onClick={() => {
                   setAdminMenuNotice("");
+                  resetNewMenuItemForm();
                   navigate("/admin/add-product");
                 }}
               >
@@ -3656,15 +3667,6 @@ export default function App() {
                             </span>
                           ) : null}
                         </div>
-                        <div className="flex flex-wrap gap-2 min-h-6">
-                          {item.priceChanged &&
-                          typeof item.previousPrice === "number" ? (
-                            <span className="badge badge-warning badge-sm">
-                              {formatMoney(item.previousPrice)} →{" "}
-                              {formatMoney(item.price)}
-                            </span>
-                          ) : null}
-                        </div>
                         <p className="text-sm opacity-80 line-clamp-2 min-h-[2.75rem]">
                           {copy.description}
                         </p>
@@ -3867,28 +3869,22 @@ export default function App() {
 
       {activeCustomizingItem ? (
         <section className="fixed inset-0 z-[2147483647] h-[100dvh] bg-base-100 flex flex-col">
-          <div className="p-4 border-b border-base-300 flex items-start justify-between gap-3">
-            <div>
-              <button
-                className="btn btn-sm btn-ghost -ml-2 mb-3"
-                onClick={() => {
-                  setCustomizingItem(null);
-                  navigate("/");
-                }}
-              >
-                {text.back}
-              </button>
-              <div>
-                <h2 className="text-xl font-bold">
-                  {menuCopy(activeCustomizingItem).name}
-                </h2>
-                <p className="text-sm opacity-70">
-                  {formatMoney(activeCustomizingItem.price)}
-                </p>
-              </div>
+          <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4">
+            <button
+              className="btn btn-circle bg-base-100/90 shadow"
+              onClick={() => {
+                setCustomizingItem(null);
+                navigate("/");
+              }}
+              aria-label={text.back}
+            >
+              ×
+            </button>
+            <div className="rounded-full bg-base-100/90 px-4 py-2 text-sm font-bold shadow">
+              {text.addToCart}
             </div>
             <button
-              className="btn btn-sm btn-ghost"
+              className="btn btn-sm bg-base-100/90 shadow"
               onClick={() => {
                 setCustomizingItem(null);
                 navigate("/");
@@ -3897,29 +3893,37 @@ export default function App() {
               {text.close}
             </button>
           </div>
-          <div className="flex-1 overflow-auto">
-            <div className="mx-auto w-full max-w-2xl p-4 space-y-5">
-              <div className="rounded-lg overflow-hidden bg-base-200 border border-base-300">
-                <img
-                  src={activeCustomizingItem.image}
-                  alt={menuCopy(activeCustomizingItem).name}
-                  className="h-64 w-full object-cover"
-                  loading="lazy"
-                />
-              </div>
-              <div className="rounded-lg bg-base-200 p-4 space-y-2">
+
+          <div className="flex-1 overflow-auto pb-28">
+            <figure className="bg-base-200">
+              <img
+                src={activeCustomizingItem.image}
+                alt={menuCopy(activeCustomizingItem).name}
+                className="h-[42vh] min-h-72 w-full object-cover bg-base-300"
+                loading="lazy"
+                onError={(event) => {
+                  const target = event.currentTarget;
+                  target.onerror = null;
+                  target.src =
+                    "https://images.unsplash.com/photo-1526318896980-cf78c088247c?auto=format&fit=crop&w=1200&q=80";
+                }}
+              />
+            </figure>
+
+            <div className="mx-auto w-full max-w-2xl">
+              <section className="border-b border-base-300 px-5 py-6 space-y-3">
                 <h3 className="text-2xl font-bold">
                   {menuCopy(activeCustomizingItem).name}
                 </h3>
-                <p className="text-base opacity-75">
+                <p className="text-base leading-relaxed opacity-75">
                   {menuCopy(activeCustomizingItem).description}
                 </p>
                 <p className="text-2xl font-black text-success">
                   {formatMoney(activeCustomizingItem.price)}
                 </p>
-              </div>
+              </section>
 
-              <div>
+              <section className="border-b border-base-300 px-5 py-6">
                 <label className="label">
                   <span className="label-text">{text.qty}</span>
                 </label>
@@ -3950,11 +3954,11 @@ export default function App() {
                     +
                   </button>
                 </div>
-              </div>
+              </section>
 
               {isDrink(activeCustomizingItem) ? (
-                <div className="space-y-3">
-                  <div>
+                <section className="divide-y divide-base-300 border-b border-base-300">
+                  <div className="px-5 py-6">
                     <span className="label-text mb-2 block">{text.sugar}</span>
                     <div className="grid grid-cols-3 gap-2">
                       {sugarOptions.map((option) => (
@@ -3973,7 +3977,7 @@ export default function App() {
                       ))}
                     </div>
                   </div>
-                  <div>
+                  <div className="px-5 py-6">
                     <span className="label-text mb-2 block">{text.ice}</span>
                     <div className="grid grid-cols-3 gap-2">
                       {iceOptions.map((option) => (
@@ -3992,10 +3996,10 @@ export default function App() {
                       ))}
                     </div>
                   </div>
-                </div>
+                </section>
               ) : null}
 
-              <label className="form-control">
+              <label className="form-control px-5 py-6">
                 <span className="label-text mb-1">{text.note}</span>
                 <textarea
                   className="textarea textarea-bordered"

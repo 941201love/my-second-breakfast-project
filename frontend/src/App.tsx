@@ -2619,7 +2619,7 @@ export default function App() {
           </div>
         </div>
 
-        <main className="container mx-auto p-6 space-y-6">
+        <main className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 space-y-6">
           {!adminAuthed ? (
             <section className="max-w-md mx-auto card bg-base-100 shadow">
               <div className="card-body">
@@ -2928,7 +2928,7 @@ export default function App() {
           <section>
             <h2 className="text-2xl font-bold mb-3">POS 訂單看板</h2>
             <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
-              <table className="table table-zebra">
+              <table className="table table-zebra min-w-[1120px]">
                 <thead>
                   <tr>
                     <th>單號</th>
@@ -2957,9 +2957,9 @@ export default function App() {
                             系統 #{order.id}
                           </div>
                         </td>
-                        <td>
+                        <td className="w-28">
                           <span
-                            className={`badge ${orderStatusBadgeClass(order.status)}`}
+                            className={`badge min-w-[4rem] whitespace-nowrap justify-center ${orderStatusBadgeClass(order.status)}`}
                           >
                             {orderStatusLabel(order.status)}
                           </span>
@@ -2967,7 +2967,9 @@ export default function App() {
                             等待 {waitMinutes} 分鐘
                           </div>
                         </td>
-                        <td>{order.paymentMethod === "card" ? "刷卡" : "現金"}</td>
+                        <td className="whitespace-nowrap">
+                          {order.paymentMethod === "card" ? "刷卡" : "現金"}
+                        </td>
                         <td>
                           <ul className="space-y-1 text-sm">
                             {order.items.map((item, index) => {
@@ -3042,7 +3044,7 @@ export default function App() {
                         <td>
                           {order.status === "submitted" ? (
                             <button
-                              className="btn btn-xs btn-success"
+                              className="btn btn-xs btn-success min-w-12 whitespace-nowrap"
                               onClick={() => {
                                 void completeAdminOrder(order.id);
                               }}
@@ -3062,22 +3064,24 @@ export default function App() {
           </section>
 
           <section>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-2xl font-bold">單日歷史訂單</h2>
-              <label className="form-control w-full max-w-xs">
-                <span className="label-text mb-1">查詢日期</span>
-                <input
-                  className="input input-bordered"
-                  type="date"
-                  value={adminHistoryDate}
-                  onChange={(event) => {
-                    setAdminHistoryDate(event.currentTarget.value);
-                  }}
-                />
-              </label>
-            </div>
-            <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
-              <table className="table table-zebra">
+            <details className="collapse collapse-arrow bg-base-100 shadow">
+              <summary className="collapse-title text-2xl font-bold">
+                單日歷史訂單
+              </summary>
+              <div className="collapse-content space-y-4">
+                <label className="form-control w-full max-w-xs">
+                  <span className="label-text mb-1">查詢日期</span>
+                  <input
+                    className="input input-bordered"
+                    type="date"
+                    value={adminHistoryDate}
+                    onChange={(event) => {
+                      setAdminHistoryDate(event.currentTarget.value);
+                    }}
+                  />
+                </label>
+                <div className="overflow-x-auto rounded-lg border border-base-300">
+              <table className="table table-zebra min-w-[1080px]">
                 <thead>
                   <tr>
                     <th>單號</th>
@@ -3108,7 +3112,7 @@ export default function App() {
                         </td>
                         <td>
                           <span
-                            className={`badge ${orderStatusBadgeClass(order.status)}`}
+                            className={`badge min-w-[4rem] whitespace-nowrap justify-center ${orderStatusBadgeClass(order.status)}`}
                           >
                             {orderStatusLabel(order.status)}
                           </span>
@@ -3162,7 +3166,9 @@ export default function App() {
                   )}
                 </tbody>
               </table>
-            </div>
+                </div>
+              </div>
+            </details>
           </section>
 
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -3189,9 +3195,11 @@ export default function App() {
               </div>
             </div>
 
-            <div>
-              <h2 className="text-2xl font-bold mb-3">下單時段統計</h2>
-              <div className="bg-base-100 rounded-lg shadow p-4">
+            <details className="collapse collapse-arrow bg-base-100 shadow">
+              <summary className="collapse-title text-2xl font-bold">
+                下單時段統計
+              </summary>
+              <div className="collapse-content">
                 {todayAdminStats.hourlyRanking.length === 0 ? (
                   <p className="opacity-60">今日尚無時段資料。</p>
                 ) : (
@@ -3217,7 +3225,7 @@ export default function App() {
                   </div>
                 )}
               </div>
-            </div>
+            </details>
           </section>
 
           <section>

@@ -735,7 +735,12 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
 };
 
 export default function App() {
-  const isAdminPage = window.location.pathname.startsWith("/admin");
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  const isAdminPage = currentPath.startsWith("/admin");
+  const isAdminAddProductPage = currentPath === "/admin/add-product";
+  const isCartPage = currentPath === "/cart";
+  const isOrderHistoryPage = currentPath === "/orders";
+  const isProfilePage = currentPath === "/profile";
   const [user, setUser] = useState<SessionUser | null>(null);
   const [authError, setAuthError] = useState("");
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
@@ -842,6 +847,13 @@ export default function App() {
     note: "",
   });
   const text = uiText[profile.language] ?? uiText["zh-TW"];
+  function navigate(path: string): void {
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, "", path);
+    }
+    setCurrentPath(path);
+  }
+
   const statusText = (status: Order["status"]) => {
     if (status === "completed") return text.completed;
     if (status === "submitted") return text.making;
@@ -1052,6 +1064,9 @@ export default function App() {
       setIsHistoryOpen(false);
       setIsProfileOpen(false);
       setIsCartOpen(false);
+      if (["/cart", "/orders", "/profile"].includes(currentPath)) {
+        navigate("/");
+      }
       resetCartState();
       return;
     }
@@ -1081,7 +1096,7 @@ export default function App() {
       setActionError("載入使用者訂單資料失敗，請稍後再試。");
       console.error(refreshError);
     });
-  }, [user]);
+  }, [currentPath, user]);
 
   function saveProfile(nextProfile: UserProfile) {
     if (!user) return;
@@ -1106,7 +1121,19 @@ export default function App() {
       JSON.stringify(normalizedProfile),
     );
     setIsProfileOpen(false);
+    navigate("/");
   }
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
 
   useEffect(() => {
     if (!completedNoticeOrder) return;
@@ -1151,9 +1178,13 @@ export default function App() {
   useEffect(() => {
     const shouldLockBody =
       isAdminMenuFormOpen ||
+      isAdminAddProductPage ||
       isCartOpen ||
+      isCartPage ||
       isHistoryOpen ||
+      isOrderHistoryPage ||
       isProfileOpen ||
+      isProfilePage ||
       Boolean(customizingItem);
     if (!shouldLockBody) return;
 
@@ -1168,18 +1199,27 @@ export default function App() {
     };
   }, [
     customizingItem,
+    isAdminAddProductPage,
     isAdminMenuFormOpen,
     isCartOpen,
+    isCartPage,
     isHistoryOpen,
+    isOrderHistoryPage,
+    isProfilePage,
     isProfileOpen,
   ]);
 
   useEffect(() => {
-    if (!user || !isCartOpen || cartView !== "checkout") return;
+    if (!user || !(isCartOpen || isCartPage) || cartView !== "checkout") return;
 
     setCustomerName((current) => current.trim() || profile.nickname || user.name);
     setCustomerPhone((current) => current.trim() || profile.phone);
-  }, [cartView, isCartOpen, profile.nickname, profile.phone, user]);
+  }, [cartView, isCartOpen, isCartPage, profile.nickname, profile.phone, user]);
+
+  useEffect(() => {
+    if (!user || !isOrderHistoryPage) return;
+    void loadOrderHistory();
+  }, [isOrderHistoryPage, user]);
 
   useEffect(() => {
     if (!lastSubmittedOrder || completedNoticeOrder) return;
@@ -1581,6 +1621,7 @@ export default function App() {
     setActivePromotions([]);
     setPriceSensitivity([]);
     setVersionHistoryByLogicalId({});
+    navigate("/admin");
   }
 
   async function createAdminCoupon(): Promise<void> {
@@ -1751,6 +1792,7 @@ export default function App() {
       },
     }));
     setIsAdminMenuFormOpen(false);
+    navigate("/admin");
     await Promise.all([loadMenu(), loadAdminData()]);
     setAdminError("商品已新增。");
   }
@@ -1965,7 +2007,7 @@ export default function App() {
       if (latestOrder) syncCartFromOrder(latestOrder);
       setCartView("items");
       setIsHistoryOpen(false);
-      setIsCartOpen(true);
+      navigate("/cart");
     } catch (buyAgainError) {
       setActionError("重新加入購物車失敗，可能有品項已下架或版本已更新。");
       console.error(buyAgainError);
@@ -2214,6 +2256,7 @@ export default function App() {
       setLastSubmittedOrder(payload.data);
       resetCartState();
       setIsCartOpen(false);
+      navigate("/");
       await loadOrderProgress();
       await loadOrderHistory();
     } catch (submitError) {
@@ -2380,7 +2423,7 @@ export default function App() {
                 className="btn btn-primary"
                 onClick={() => {
                   setAdminMenuNotice("");
-                  setIsAdminMenuFormOpen(true);
+                  navigate("/admin/add-product");
                 }}
               >
                 新增商品
@@ -2388,7 +2431,7 @@ export default function App() {
             </div>
           </section>
 
-          {isAdminMenuFormOpen ? (
+          {(isAdminMenuFormOpen || isAdminAddProductPage) ? (
             <>
               <section className="fixed inset-0 z-[9999] h-[100dvh] w-screen overflow-hidden bg-base-100 flex flex-col isolate">
                 <div className="px-6 py-4 border-b border-base-300 flex items-center justify-between">
@@ -2403,6 +2446,7 @@ export default function App() {
                     onClick={() => {
                       setAdminMenuNotice("");
                       setIsAdminMenuFormOpen(false);
+                      navigate("/admin");
                     }}
                   >
                     關閉
@@ -3237,7 +3281,7 @@ export default function App() {
                   setCustomerPhone(profile.phone);
                 }
                 setCartView("items");
-                setIsCartOpen(true);
+                navigate("/cart");
               }}
               disabled={!user}
             >
@@ -3246,7 +3290,7 @@ export default function App() {
             <button
               className="btn btn-sm btn-outline"
               onClick={() => {
-                setIsHistoryOpen(true);
+                navigate("/orders");
                 void loadOrderHistory();
               }}
               disabled={!user}
@@ -3256,7 +3300,7 @@ export default function App() {
             {user ? (
               <button
                 className="btn btn-sm btn-outline"
-                onClick={() => setIsProfileOpen(true)}
+                onClick={() => navigate("/profile")}
               >
                 {text.profile}
               </button>
@@ -3397,14 +3441,17 @@ export default function App() {
 
       </main>
 
-      {user && isHistoryOpen ? (
+      {user && (isHistoryOpen || isOrderHistoryPage) ? (
         <>
           <section className="fixed inset-0 z-50 bg-base-100 shadow-2xl flex flex-col">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
               <h2 className="text-xl font-bold">{text.orderHistory}</h2>
               <button
                 className="btn btn-sm btn-ghost"
-                onClick={() => setIsHistoryOpen(false)}
+                onClick={() => {
+                  setIsHistoryOpen(false);
+                  navigate("/");
+                }}
               >
                 {text.close}
               </button>
@@ -3485,7 +3532,7 @@ export default function App() {
         </>
       ) : null}
 
-      {user && isProfileOpen ? (
+      {user && (isProfileOpen || isProfilePage) ? (
         <>
           <div
             className="fixed inset-0 bg-black/35 z-40 pointer-events-none"
@@ -3496,7 +3543,10 @@ export default function App() {
               <h2 className="text-xl font-bold">{text.profileTitle}</h2>
               <button
                 className="btn btn-sm btn-ghost"
-                onClick={() => setIsProfileOpen(false)}
+                onClick={() => {
+                  setIsProfileOpen(false);
+                  navigate("/");
+                }}
               >
                 {text.close}
               </button>
@@ -3693,7 +3743,7 @@ export default function App() {
         </>
       ) : null}
 
-      {user && isCartOpen ? (
+      {user && (isCartOpen || isCartPage) ? (
         <>
           <aside className="fixed inset-0 bg-base-100 shadow-2xl z-50 flex flex-col">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
@@ -3712,7 +3762,13 @@ export default function App() {
                     : `${text.cartDetails} (${cartItemCount})`}
                 </h2>
               </div>
-              <button className="btn btn-sm btn-ghost" onClick={() => setIsCartOpen(false)}>
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => {
+                  setIsCartOpen(false);
+                  navigate("/");
+                }}
+              >
                 {text.close}
               </button>
             </div>

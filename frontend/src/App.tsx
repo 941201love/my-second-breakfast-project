@@ -3082,7 +3082,7 @@ export default function App() {
           </section>
 
           <section>
-            <details className="collapse collapse-arrow bg-base-100 shadow">
+            <details className="collapse collapse-arrow bg-base-100 shadow h-fit">
               <summary className="collapse-title text-2xl font-bold">
                 單日歷史訂單
               </summary>
@@ -3189,7 +3189,7 @@ export default function App() {
             </details>
           </section>
 
-          <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
             <div>
               <h2 className="text-2xl font-bold mb-3">每日品項銷售排行</h2>
               <div className="bg-base-100 rounded-lg shadow p-4">
@@ -3213,7 +3213,7 @@ export default function App() {
               </div>
             </div>
 
-            <details className="collapse collapse-arrow bg-base-100 shadow">
+            <details className="collapse collapse-arrow bg-base-100 shadow h-fit">
               <summary className="collapse-title text-2xl font-bold">
                 下單時段統計
               </summary>

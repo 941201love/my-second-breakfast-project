@@ -930,6 +930,18 @@ export default function App() {
       detail.menuItemName
     );
   };
+  const orderItemMenuItem = (detail: OrderItem) =>
+    items.find((item) => item.id === detail.menuItemId) ??
+    items.find(
+      (item) =>
+        item.logicalId === detail.menuItemId ||
+        item.name === detail.menuItemName ||
+        item.translations?.["zh-TW"]?.name === detail.menuItemName,
+    );
+  const orderItemIsDrink = (detail: OrderItem) => {
+    const currentItem = orderItemMenuItem(detail);
+    return currentItem ? isDrink(currentItem) : Boolean(detail.sugarLevel || detail.iceLevel);
+  };
   const categoryLabel = (category: string) =>
     categoryLabels[profile.language]?.[category] ?? category;
   const sugarLabel = (option: string) =>
@@ -1214,6 +1226,16 @@ export default function App() {
 
     return () => window.clearTimeout(timer);
   }, [profileNotice]);
+
+  useEffect(() => {
+    if (!adminError) return;
+
+    const timer = window.setTimeout(() => {
+      setAdminError("");
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [adminError]);
 
   useEffect(() => {
     if (!adminMenuNotice) return;
@@ -2618,6 +2640,13 @@ export default function App() {
             ) : null}
           </div>
         </div>
+        {adminError ? (
+          <div className="fixed left-1/2 top-24 z-[2147483647] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 pointer-events-none">
+            <div className="alert alert-warning shadow-lg justify-center">
+              <span>{adminError}</span>
+            </div>
+          </div>
+        ) : null}
 
         <main className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 space-y-6">
           {!adminAuthed ? (
@@ -2652,11 +2681,6 @@ export default function App() {
                 <p className="text-xs opacity-60">
                   預設帳號 admin，預設密碼 admin1234。
                 </p>
-                {adminError ? (
-                  <div className="alert alert-warning">
-                    <span>{adminError}</span>
-                  </div>
-                ) : null}
                 <button
                   className="btn btn-primary"
                   onClick={() => {
@@ -2671,12 +2695,6 @@ export default function App() {
 
           {adminAuthed ? (
             <>
-          {adminError ? (
-            <div className="alert alert-warning">
-              <span>{adminError}</span>
-            </div>
-          ) : null}
-
           <section className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="stats shadow bg-base-100">
               <div className="stat">
@@ -2999,11 +3017,11 @@ export default function App() {
                                     }
                                   >
                                     {item.menuItemName} x {item.qty}
-                                    {item.sugarLevel || item.iceLevel ? (
+                                    {orderItemIsDrink(item) ? (
                                       <span className="opacity-60">
                                         {" "}
-                                        ({item.sugarLevel ? sugarLabel(item.sugarLevel) : "預設糖"} /{" "}
-                                        {item.iceLevel ? iceLabel(item.iceLevel) : "預設冰"})
+                                        ({item.sugarLevel ? sugarLabel(item.sugarLevel) : "正常糖"} /{" "}
+                                        {item.iceLevel ? iceLabel(item.iceLevel) : "正常冰"})
                                       </span>
                                     ) : null}
                                     {item.note ? (
@@ -3126,7 +3144,7 @@ export default function App() {
                             {order.items.map((item) => (
                               <li key={`history-${order.id}-${item.id ?? item.menuItemId}`}>
                                 {item.menuItemName} x {item.qty}
-                                {item.sugarLevel || item.iceLevel ? (
+                                {orderItemIsDrink(item) ? (
                                   <span className="opacity-60">
                                     {" "}
                                     ({item.sugarLevel ? sugarLabel(item.sugarLevel) : "正常糖"} /{" "}
@@ -3936,7 +3954,7 @@ export default function App() {
                         {order.items.map((detail) => (
                           <li key={`${order.id}-${detail.menuItemId}-${detail.id ?? detail.menuItemName}`}>
                             {orderItemName(detail)} x {detail.qty}
-                            {detail.sugarLevel || detail.iceLevel ? (
+                            {orderItemIsDrink(detail) ? (
                               <span className="opacity-60">
                                 {" "}
                                 ({detail.sugarLevel ? sugarLabel(detail.sugarLevel) : "正常糖"} /{" "}

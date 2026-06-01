@@ -15,6 +15,7 @@ export const menuItemSchema = z.object({
   price: z.number().min(0),
   largePrice: z.number().min(0).optional(),
   eggPrice: z.number().min(0).optional(),
+  cheesePrice: z.number().min(0).optional(),
   category: z.string().min(1),
   description: z.string(),
   translations: z
@@ -114,6 +115,7 @@ export const staleCartItemSchema = z.object({
   qty: z.number().min(0),
   size: z.enum(["small", "large"]).optional(),
   eggQty: z.number().int().min(0).optional(),
+  cheeseQty: z.number().int().min(0).optional(),
   currentMenuItemId: z.string().min(1).optional(),
   currentMenuItemName: z.string().min(1).optional(),
   currentMenuItemPrice: z.number().min(0).optional(),
@@ -149,6 +151,7 @@ export const orderItemSchema = z.object({
   qty: z.number().min(0),
   size: z.enum(["small", "large"]).optional(),
   eggQty: z.number().int().min(0).optional(),
+  cheeseQty: z.number().int().min(0).optional(),
   sugarLevel: z.string().optional(),
   iceLevel: z.string().optional(),
   note: z.string().optional(),

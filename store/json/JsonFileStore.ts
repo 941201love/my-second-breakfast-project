@@ -225,6 +225,9 @@ function normalizeMenuItem(item: LegacyMenuItem): MenuItem {
     minorVersion: item.minorVersion ?? Math.max(0, version - 1),
     name: item.name ?? "",
     price: item.price ?? 0,
+    largePrice: item.largePrice,
+    eggPrice: item.eggPrice,
+    cheesePrice: item.cheesePrice,
     category: item.category ?? "",
     description: item.description ?? "",
     translations:
@@ -245,6 +248,7 @@ function normalizeOrderItem(orderItem: LegacyOrderItem): OrderItem {
       qty: orderItem.qty ?? 0,
       size: orderItem.size,
       eggQty: orderItem.eggQty,
+      cheeseQty: orderItem.cheeseQty,
     };
   }
 
@@ -256,6 +260,7 @@ function normalizeOrderItem(orderItem: LegacyOrderItem): OrderItem {
     qty: orderItem.qty ?? 0,
     size: orderItem.size,
     eggQty: orderItem.eggQty,
+    cheeseQty: orderItem.cheeseQty,
   };
 }
 
@@ -292,6 +297,7 @@ function sameOrderItemOptions(
     note?: string;
     size?: "small" | "large";
     eggQty?: number;
+    cheeseQty?: number;
   },
 ) {
   const sugar = (input.sugarLevel || "正常糖").trim();
@@ -303,7 +309,8 @@ function sameOrderItemOptions(
     (item.iceLevel || "正常冰").trim() === ice &&
     (item.note || "").trim() === note &&
     (item.size || "small") === (input.size || "small") &&
-    (item.eggQty || 0) === (input.eggQty || 0)
+    (item.eggQty || 0) === (input.eggQty || 0) &&
+    (item.cheeseQty || 0) === (input.cheeseQty || 0)
   );
 }
 
@@ -442,6 +449,7 @@ export class JsonFileStore implements Store {
     price: number;
     largePrice?: number;
     eggPrice?: number;
+    cheesePrice?: number;
     category: string;
     description?: string;
     imageUrl: string;
@@ -462,6 +470,7 @@ export class JsonFileStore implements Store {
       price: input.price,
       largePrice: input.largePrice,
       eggPrice: input.eggPrice,
+      cheesePrice: input.cheesePrice,
       category: input.category,
       description: input.description ?? zh?.description ?? "",
       translations: input.translations,
@@ -485,6 +494,7 @@ export class JsonFileStore implements Store {
         price?: number;
         largePrice?: number | null;
         eggPrice?: number | null;
+        cheesePrice?: number | null;
         category?: string;
         description?: string;
         imageUrl?: string;
@@ -528,6 +538,10 @@ export class JsonFileStore implements Store {
         patch.changes.eggPrice === undefined
           ? menuItem.eggPrice
           : patch.changes.eggPrice ?? undefined,
+      cheesePrice:
+        patch.changes.cheesePrice === undefined
+          ? menuItem.cheesePrice
+          : patch.changes.cheesePrice ?? undefined,
       category: patch.changes.category ?? menuItem.category,
       description: patch.changes.description ?? zh?.description ?? menuItem.description,
       translations,
@@ -617,6 +631,7 @@ export class JsonFileStore implements Store {
       qty: number;
       size?: "small" | "large";
       eggQty?: number;
+      cheeseQty?: number;
       sugarLevel?: string;
       iceLevel?: string;
       note?: string;
@@ -652,6 +667,11 @@ export class JsonFileStore implements Store {
     if (!menuItem) {
       return { ok: false, code: "MENU_ITEM_NOT_FOUND" };
     }
+    input = {
+      ...input,
+      eggQty: menuItem.eggPrice === undefined ? 0 : input.eggQty ?? 0,
+      cheeseQty: menuItem.cheesePrice === undefined ? 0 : input.cheeseQty ?? 0,
+    };
 
     const existingItemIndex =
       input.orderItemId !== undefined
@@ -679,11 +699,13 @@ export class JsonFileStore implements Store {
         existingOrderItem.note = input.note;
         existingOrderItem.size = input.size;
         existingOrderItem.eggQty = input.eggQty;
+        existingOrderItem.cheeseQty = input.cheeseQty;
         existingOrderItem.menuItemPrice =
           (input.size === "large" && menuItem.largePrice !== undefined
             ? menuItem.largePrice
             : menuItem.price) +
-          (menuItem.eggPrice ?? 0) * (input.eggQty ?? 0);
+          (menuItem.eggPrice ?? 0) * (input.eggQty ?? 0) +
+          (menuItem.cheesePrice ?? 0) * (input.cheeseQty ?? 0);
       }
     } else if (input.qty > 0) {
       order.items.push({
@@ -694,13 +716,15 @@ export class JsonFileStore implements Store {
           (input.size === "large" && menuItem.largePrice !== undefined
             ? menuItem.largePrice
             : menuItem.price) +
-          (menuItem.eggPrice ?? 0) * (input.eggQty ?? 0),
+          (menuItem.eggPrice ?? 0) * (input.eggQty ?? 0) +
+          (menuItem.cheesePrice ?? 0) * (input.cheeseQty ?? 0),
         qty: input.qty,
         sugarLevel: input.sugarLevel,
         iceLevel: input.iceLevel,
         note: input.note,
         size: input.size,
         eggQty: input.eggQty,
+        cheeseQty: input.cheeseQty,
       });
     }
 

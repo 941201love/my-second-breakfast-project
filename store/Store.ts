@@ -35,6 +35,7 @@ export interface Store {
     price: number;
     largePrice?: number;
     eggPrice?: number;
+    cheesePrice?: number;
     category: string;
     description?: string;
     imageUrl: string;
@@ -49,6 +50,7 @@ export interface Store {
         price?: number;
         largePrice?: number | null;
         eggPrice?: number | null;
+        cheesePrice?: number | null;
         category?: string;
         description?: string;
         imageUrl?: string;
@@ -76,6 +78,7 @@ export interface Store {
       qty: number;
       size?: "small" | "large";
       eggQty?: number;
+      cheeseQty?: number;
       sugarLevel?: string;
       iceLevel?: string;
       note?: string;

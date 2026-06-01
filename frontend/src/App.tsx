@@ -624,6 +624,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     small: "小份",
     large: "大份",
     addEgg: "加蛋",
+    addCheese: "加起司",
     sugar: "糖度",
     ice: "冰塊",
     note: "備註",
@@ -697,6 +698,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     small: "Small",
     large: "Large",
     addEgg: "Add egg",
+    addCheese: "Add cheese",
     sugar: "Sugar",
     ice: "Ice",
     note: "Note",
@@ -770,6 +772,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     small: "小",
     large: "大",
     addEgg: "卵追加",
+    addCheese: "チーズ追加",
     sugar: "甘さ",
     ice: "氷",
     note: "メモ",
@@ -843,6 +846,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     small: "소",
     large: "대",
     addEgg: "계란 추가",
+    addCheese: "치즈 추가",
     sugar: "당도",
     ice: "얼음",
     note: "메모",
@@ -978,7 +982,10 @@ export default function App() {
   const [newMenuItem, setNewMenuItem] = useState({
     price: 50,
     largePrice: "",
-    eggPrice: "",
+    allowEgg: false,
+    eggPrice: "10",
+    allowCheese: false,
+    cheesePrice: "10",
     category: "主餐",
     imageUrl: "",
     translations: {
@@ -1023,6 +1030,7 @@ export default function App() {
     qty: 1,
     size: "small" as "small" | "large",
     eggQty: 0,
+    cheeseQty: 0,
     sugarLevel: "",
     iceLevel: "",
     note: "",
@@ -1047,7 +1055,10 @@ export default function App() {
     setNewMenuItem({
       price: 50,
       largePrice: "",
-      eggPrice: "",
+      allowEgg: false,
+      eggPrice: "10",
+      allowCheese: false,
+      cheesePrice: "10",
       category: "主餐",
       imageUrl: "",
       translations: {
@@ -1064,7 +1075,11 @@ export default function App() {
     setNewMenuItem({
       price: item.price,
       largePrice: item.largePrice === undefined ? "" : String(item.largePrice),
-      eggPrice: item.eggPrice === undefined ? "" : String(item.eggPrice),
+      allowEgg: item.eggPrice !== undefined,
+      eggPrice: item.eggPrice === undefined ? "10" : String(item.eggPrice),
+      allowCheese: item.cheesePrice !== undefined,
+      cheesePrice:
+        item.cheesePrice === undefined ? "10" : String(item.cheesePrice),
       category: item.category,
       imageUrl: item.imageUrl,
       translations:
@@ -1134,6 +1149,9 @@ export default function App() {
     if ((detail.eggQty ?? 0) > 0) {
       parts.push(`${text.addEgg} x ${detail.eggQty}`);
     }
+    if ((detail.cheeseQty ?? 0) > 0) {
+      parts.push(`${text.addCheese} x ${detail.cheeseQty}`);
+    }
     return parts.join(" / ");
   };
   const couponDiscountTotal = useMemo(
@@ -1147,6 +1165,7 @@ export default function App() {
         ? activeCustomizingItem.largePrice
         : activeCustomizingItem.price) +
       (activeCustomizingItem.eggPrice ?? 0) * cartDraft.eggQty
+      + (activeCustomizingItem.cheesePrice ?? 0) * cartDraft.cheeseQty
     : 0;
 
   function syncCartFromOrder(order: Order) {
@@ -1524,6 +1543,7 @@ export default function App() {
       qty: 1,
       size: "small",
       eggQty: 0,
+      cheeseQty: 0,
       sugarLevel: "",
       iceLevel: "",
       note: "",
@@ -2111,6 +2131,13 @@ export default function App() {
       return;
     }
     if (
+      (newMenuItem.allowEgg && !newMenuItem.eggPrice.trim()) ||
+      (newMenuItem.allowCheese && !newMenuItem.cheesePrice.trim())
+    ) {
+      setAdminMenuNotice("已勾選的加料選項必須填寫價格。");
+      return;
+    }
+    if (
       !window.confirm(
         editingAdminMenuLogicalId
           ? "確定要更新這個商品嗎？"
@@ -2140,9 +2167,13 @@ export default function App() {
                       ? null
                       : Number(newMenuItem.largePrice),
                   eggPrice:
-                    newMenuItem.eggPrice === ""
+                    !newMenuItem.allowEgg || newMenuItem.eggPrice === ""
                       ? null
                       : Number(newMenuItem.eggPrice),
+                  cheesePrice:
+                    !newMenuItem.allowCheese || newMenuItem.cheesePrice === ""
+                      ? null
+                      : Number(newMenuItem.cheesePrice),
                   category: newMenuItem.category,
                   imageUrl: newMenuItem.imageUrl,
                   translations: newMenuItem.translations,
@@ -2157,9 +2188,13 @@ export default function App() {
                     ? undefined
                     : Number(newMenuItem.largePrice),
                 eggPrice:
-                  newMenuItem.eggPrice === ""
+                  !newMenuItem.allowEgg || newMenuItem.eggPrice === ""
                     ? undefined
                     : Number(newMenuItem.eggPrice),
+                cheesePrice:
+                  !newMenuItem.allowCheese || newMenuItem.cheesePrice === ""
+                    ? undefined
+                    : Number(newMenuItem.cheesePrice),
                 category: newMenuItem.category,
                 imageUrl: newMenuItem.imageUrl,
                 translations: newMenuItem.translations,
@@ -2259,6 +2294,7 @@ export default function App() {
       qty: 1,
       size: "small",
       eggQty: 0,
+      cheeseQty: 0,
       sugarLevel: "",
       iceLevel: "",
       note: "",
@@ -2273,6 +2309,7 @@ export default function App() {
       qty: number;
       size?: "small" | "large";
       eggQty?: number;
+      cheeseQty?: number;
       sugarLevel?: string;
       iceLevel?: string;
       note?: string;
@@ -2302,6 +2339,7 @@ export default function App() {
               qty,
               size: options.size,
               eggQty: options.eggQty,
+              cheeseQty: options.cheeseQty,
               sugarLevel: options.sugarLevel || undefined,
               iceLevel: options.iceLevel || undefined,
               note: options.note?.trim() || undefined,
@@ -2407,6 +2445,7 @@ export default function App() {
             note: orderItem.note,
             size: orderItem.size,
             eggQty: orderItem.eggQty,
+            cheeseQty: orderItem.cheeseQty,
             forceNew: true,
           }),
         });
@@ -2440,6 +2479,7 @@ export default function App() {
       note?: string;
       size?: "small" | "large";
       eggQty?: number;
+      cheeseQty?: number;
     },
   ): Promise<void> {
     if (!user || orderId === null) return;
@@ -2462,6 +2502,7 @@ export default function App() {
         note: next.note ?? current?.note,
         size: next.size ?? current?.size,
         eggQty: next.eggQty ?? current?.eggQty,
+        cheeseQty: next.cheeseQty ?? current?.cheeseQty,
       }),
     });
 
@@ -2498,6 +2539,7 @@ export default function App() {
         note: detail.orderItem?.note,
         size: detail.orderItem?.size,
         eggQty: detail.orderItem?.eggQty,
+        cheeseQty: detail.orderItem?.cheeseQty,
       }),
     });
 
@@ -2773,7 +2815,7 @@ export default function App() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label className="form-control">
                   <span className="label-text mb-1">價格（NT）</span>
                   <input
@@ -2803,19 +2845,66 @@ export default function App() {
                     placeholder="例如 70"
                   />
                 </label>
-                <label className="form-control">
-                  <span className="label-text mb-1">加蛋單價（選填）</span>
-                  <input
-                    className="input input-bordered"
-                    inputMode="numeric"
-                    value={newMenuItem.eggPrice}
-                    onChange={(event) => {
-                      const eggPrice = event.currentTarget.value.replace(/\D/g, "");
-                      setNewMenuItem((current) => ({ ...current, eggPrice }));
-                    }}
-                    placeholder="例如 10"
-                  />
-                </label>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="rounded-lg border border-base-300 p-4">
+                  <label className="flex cursor-pointer items-center gap-3">
+                    <input
+                      className="checkbox checkbox-primary"
+                      type="checkbox"
+                      checked={newMenuItem.allowEgg}
+                      onChange={(event) => {
+                        const allowEgg = event.currentTarget.checked;
+                        setNewMenuItem((current) => ({ ...current, allowEgg }));
+                      }}
+                    />
+                    <span className="font-semibold">允許加蛋</span>
+                  </label>
+                  {newMenuItem.allowEgg ? (
+                    <label className="form-control mt-4">
+                      <span className="label-text mb-1">加蛋單價（NT）</span>
+                      <input
+                        className="input input-bordered"
+                        inputMode="numeric"
+                        value={newMenuItem.eggPrice}
+                        onChange={(event) => {
+                          const eggPrice = event.currentTarget.value.replace(/\D/g, "");
+                          setNewMenuItem((current) => ({ ...current, eggPrice }));
+                        }}
+                        placeholder="例如 10"
+                      />
+                    </label>
+                  ) : null}
+                </div>
+                <div className="rounded-lg border border-base-300 p-4">
+                  <label className="flex cursor-pointer items-center gap-3">
+                    <input
+                      className="checkbox checkbox-primary"
+                      type="checkbox"
+                      checked={newMenuItem.allowCheese}
+                      onChange={(event) => {
+                        const allowCheese = event.currentTarget.checked;
+                        setNewMenuItem((current) => ({ ...current, allowCheese }));
+                      }}
+                    />
+                    <span className="font-semibold">允許加起司</span>
+                  </label>
+                  {newMenuItem.allowCheese ? (
+                    <label className="form-control mt-4">
+                      <span className="label-text mb-1">加起司單價（NT）</span>
+                      <input
+                        className="input input-bordered"
+                        inputMode="numeric"
+                        value={newMenuItem.cheesePrice}
+                        onChange={(event) => {
+                          const cheesePrice = event.currentTarget.value.replace(/\D/g, "");
+                          setNewMenuItem((current) => ({ ...current, cheesePrice }));
+                        }}
+                        placeholder="例如 10"
+                      />
+                    </label>
+                  ) : null}
+                </div>
               </div>
               <div>
                 <span className="label-text mb-1 block">分類</span>
@@ -4742,6 +4831,41 @@ export default function App() {
                 </section>
               ) : null}
 
+              {activeCustomizingItem.cheesePrice !== undefined ? (
+                <section className="border-b border-base-300 px-5 py-6">
+                  <span className="label-text mb-2 block">
+                    {text.addCheese} +{formatMoney(activeCustomizingItem.cheesePrice)}
+                  </span>
+                  <div className="join">
+                    <button
+                      className="btn join-item"
+                      onClick={() =>
+                        setCartDraft((current) => ({
+                          ...current,
+                          cheeseQty: Math.max(0, current.cheeseQty - 1),
+                        }))
+                      }
+                    >
+                      -
+                    </button>
+                    <span className="btn join-item no-animation">
+                      {cartDraft.cheeseQty}
+                    </span>
+                    <button
+                      className="btn join-item"
+                      onClick={() =>
+                        setCartDraft((current) => ({
+                          ...current,
+                          cheeseQty: current.cheeseQty + 1,
+                        }))
+                      }
+                    >
+                      +
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+
               {isDrink(activeCustomizingItem) ? (
                 <section className="divide-y divide-base-300 border-b border-base-300">
                   <div className="px-5 py-6">
@@ -5076,6 +5200,50 @@ export default function App() {
                                               {
                                                 eggQty:
                                                   (detail.orderItem.eggQty ?? 0) + 1,
+                                              },
+                                            );
+                                          }}
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                  {detail.item.cheesePrice !== undefined ? (
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="text-sm">
+                                        {text.addCheese} +{formatMoney(detail.item.cheesePrice)}
+                                      </span>
+                                      <div className="join">
+                                        <button
+                                          className="btn btn-xs join-item"
+                                          onClick={() => {
+                                            void updateCartItemOptions(
+                                              detail.orderItemId,
+                                              detail.itemId,
+                                              {
+                                                cheeseQty: Math.max(
+                                                  0,
+                                                  (detail.orderItem.cheeseQty ?? 0) - 1,
+                                                ),
+                                              },
+                                            );
+                                          }}
+                                        >
+                                          -
+                                        </button>
+                                        <span className="btn btn-xs join-item no-animation">
+                                          {detail.orderItem.cheeseQty ?? 0}
+                                        </span>
+                                        <button
+                                          className="btn btn-xs join-item"
+                                          onClick={() => {
+                                            void updateCartItemOptions(
+                                              detail.orderItemId,
+                                              detail.itemId,
+                                              {
+                                                cheeseQty:
+                                                  (detail.orderItem.cheeseQty ?? 0) + 1,
                                               },
                                             );
                                           }}

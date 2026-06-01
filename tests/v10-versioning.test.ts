@@ -212,6 +212,7 @@ test("cart snapshots size and egg extras into the order price", async () => {
     changes: {
       largePrice: item.price + 15,
       eggPrice: 10,
+      cheesePrice: 10,
     },
     reason: "add product options",
     userId: "tester",
@@ -225,13 +226,14 @@ test("cart snapshots size and egg extras into the order price", async () => {
     qty: 2,
     size: "large",
     eggQty: 2,
+    cheeseQty: 1,
     forceNew: true,
   });
 
   expect(added.ok).toBe(true);
   if (!added.ok) return;
-  expect(added.order.items[0]?.menuItemPrice).toBe(item.price + 35);
-  expect(added.order.total).toBe((item.price + 35) * 2);
+  expect(added.order.items[0]?.menuItemPrice).toBe(item.price + 45);
+  expect(added.order.total).toBe((item.price + 45) * 2);
 
   const line = added.order.items[0]!;
   const changed = await store.updateOrderItem(order.id, {
@@ -241,10 +243,11 @@ test("cart snapshots size and egg extras into the order price", async () => {
     qty: 2,
     size: "small",
     eggQty: 1,
+    cheeseQty: 2,
   });
 
   expect(changed.ok).toBe(true);
   if (!changed.ok) return;
-  expect(changed.order.items[0]?.menuItemPrice).toBe(item.price + 10);
-  expect(changed.order.total).toBe((item.price + 10) * 2);
+  expect(changed.order.items[0]?.menuItemPrice).toBe(item.price + 30);
+  expect(changed.order.total).toBe((item.price + 30) * 2);
 });

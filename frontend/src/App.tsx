@@ -646,6 +646,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     addCoupon: "新增",
     couponApplied: "已使用優惠券",
     couponInvalid: "找不到可使用的優惠券。",
+    couponAlreadyUsed: "你已用過此優惠券。",
     discount: "優惠折抵",
     couponLimitOnce: "每個帳號限一次",
     clearing: "清空中...",
@@ -720,6 +721,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     addCoupon: "Add",
     couponApplied: "Coupon applied",
     couponInvalid: "No available coupon found.",
+    couponAlreadyUsed: "You have already used this coupon.",
     discount: "Discount",
     couponLimitOnce: "Once per account",
     clearing: "Clearing...",
@@ -794,6 +796,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     addCoupon: "追加",
     couponApplied: "クーポン適用済み",
     couponInvalid: "利用できるクーポンが見つかりません。",
+    couponAlreadyUsed: "このクーポンはすでに使用済みです。",
     discount: "割引",
     couponLimitOnce: "1アカウント1回まで",
     clearing: "削除中...",
@@ -868,6 +871,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     addCoupon: "추가",
     couponApplied: "쿠폰 적용됨",
     couponInvalid: "사용 가능한 쿠폰을 찾을 수 없습니다.",
+    couponAlreadyUsed: "이미 사용한 쿠폰입니다.",
     discount: "할인",
     couponLimitOnce: "계정당 1회",
     clearing: "비우는 중...",
@@ -2610,7 +2614,19 @@ export default function App() {
         (item) => item.code === code && item.isActive !== false,
       ) ?? null;
 
-    if (!coupon || !isCouponUsable(coupon)) {
+    if (!coupon) {
+      setAppliedCoupon(null);
+      setCheckoutNotice(text.couponInvalid);
+      return;
+    }
+
+    if (hasUsedCoupon(coupon)) {
+      setAppliedCoupon(null);
+      setCheckoutNotice(text.couponAlreadyUsed);
+      return;
+    }
+
+    if (!isCouponUsable(coupon)) {
       setAppliedCoupon(null);
       setCheckoutNotice(text.couponInvalid);
       return;
@@ -2645,12 +2661,16 @@ export default function App() {
       return false;
     }
 
+    return !hasUsedCoupon(coupon);
+  }
+
+  function hasUsedCoupon(coupon: Coupon): boolean {
     const usedCount = historyOrders.filter(
       (order) =>
         order.status !== "pending" &&
         order.couponCode === coupon.code,
     ).length;
-    return usedCount < (coupon.usageLimitPerUser ?? 1);
+    return usedCount >= (coupon.usageLimitPerUser ?? 1);
   }
 
   async function submitOrder(): Promise<void> {

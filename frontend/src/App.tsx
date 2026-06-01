@@ -2147,71 +2147,81 @@ export default function App() {
       return;
     }
 
-    const response = await fetch(
-      buildApiUrl(
-        editingAdminMenuLogicalId
-          ? `/api/menu/${editingAdminMenuLogicalId}`
-          : "/api/menu",
-      ),
-      {
-        method: editingAdminMenuLogicalId ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(
-          editingAdminMenuLogicalId
-            ? {
-                changes: {
-                  price: newMenuItem.price,
-                  largePrice:
-                    newMenuItem.largePrice === ""
-                      ? null
-                      : Number(newMenuItem.largePrice),
-                  eggPrice:
-                    !newMenuItem.allowEgg || newMenuItem.eggPrice === ""
-                      ? null
-                      : Number(newMenuItem.eggPrice),
-                  cheesePrice:
-                    !newMenuItem.allowCheese || newMenuItem.cheesePrice === ""
-                      ? null
-                      : Number(newMenuItem.cheesePrice),
-                  category: newMenuItem.category,
-                  imageUrl: newMenuItem.imageUrl,
-                  translations: newMenuItem.translations,
-                },
-                reason: "POS 後台更新商品資料",
-                versionLevel: "minor",
-              }
-            : {
-                price: newMenuItem.price,
-                largePrice:
-                  newMenuItem.largePrice === ""
-                    ? undefined
-                    : Number(newMenuItem.largePrice),
-                eggPrice:
-                  !newMenuItem.allowEgg || newMenuItem.eggPrice === ""
-                    ? undefined
-                    : Number(newMenuItem.eggPrice),
-                cheesePrice:
-                  !newMenuItem.allowCheese || newMenuItem.cheesePrice === ""
-                    ? undefined
-                    : Number(newMenuItem.cheesePrice),
-                category: newMenuItem.category,
-                imageUrl: newMenuItem.imageUrl,
-                translations: newMenuItem.translations,
-              },
-        ),
-      },
-    );
+    const isEditing = Boolean(editingAdminMenuLogicalId);
+    const targetLogicalId = editingAdminMenuLogicalId;
+    const requestBody = isEditing
+      ? {
+          changes: {
+            price: newMenuItem.price,
+            largePrice:
+              newMenuItem.largePrice === ""
+                ? null
+                : Number(newMenuItem.largePrice),
+            eggPrice:
+              !newMenuItem.allowEgg || newMenuItem.eggPrice === ""
+                ? null
+                : Number(newMenuItem.eggPrice),
+            cheesePrice:
+              !newMenuItem.allowCheese || newMenuItem.cheesePrice === ""
+                ? null
+                : Number(newMenuItem.cheesePrice),
+            category: newMenuItem.category,
+            imageUrl: newMenuItem.imageUrl,
+            translations: newMenuItem.translations,
+          },
+          reason: "POS 後台更新商品資料",
+          versionLevel: "minor" as const,
+        }
+      : {
+          price: newMenuItem.price,
+          largePrice:
+            newMenuItem.largePrice === ""
+              ? undefined
+              : Number(newMenuItem.largePrice),
+          eggPrice:
+            !newMenuItem.allowEgg || newMenuItem.eggPrice === ""
+              ? undefined
+              : Number(newMenuItem.eggPrice),
+          cheesePrice:
+            !newMenuItem.allowCheese || newMenuItem.cheesePrice === ""
+              ? undefined
+              : Number(newMenuItem.cheesePrice),
+          category: newMenuItem.category,
+          imageUrl: newMenuItem.imageUrl,
+          translations: newMenuItem.translations,
+        };
 
-    if (!response.ok) {
-      setAdminMenuNotice("儲存商品失敗，請確認四種語言與商品資料都已填寫。");
-      return;
-    }
-
-    const notice = editingAdminMenuLogicalId ? "商品已更新。" : "商品已新增。";
     resetNewMenuItemForm();
     setIsAdminMenuFormOpen(false);
     navigate("/admin");
+    setAdminError(isEditing ? "商品更新中..." : "商品新增中...");
+
+    let response: Response;
+    try {
+      response = await fetch(
+        buildApiUrl(
+          targetLogicalId
+            ? `/api/menu/${targetLogicalId}`
+            : "/api/menu",
+        ),
+        {
+          method: isEditing ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(requestBody),
+        },
+      );
+    } catch {
+      setAdminError("儲存商品失敗，請檢查網路後重新開啟商品編輯。");
+      return;
+    }
+
+    if (!response.ok) {
+      setAdminError("儲存商品失敗，請重新開啟商品編輯並確認資料。");
+      return;
+    }
+
+    const notice = isEditing ? "商品已更新。" : "商品已新增。";
     await Promise.all([loadMenu(), loadAdminData()]);
     setAdminError(notice);
   }

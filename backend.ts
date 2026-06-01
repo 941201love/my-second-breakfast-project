@@ -534,7 +534,8 @@ app.get(
 
 app.delete(
   "/api/menu/:id",
-  async ({ params, set }) => {
+  async ({ params, request, set }) => {
+    requireAdmin(request);
     const removedMenuItem = await store.deleteMenuItem(params.id);
 
     if (!removedMenuItem) {
@@ -553,6 +554,7 @@ app.delete(
     },
     response: {
       200: menuItemResponseSchema,
+      401: apiErrorResponseSchema,
       404: apiErrorResponseSchema,
     },
   },

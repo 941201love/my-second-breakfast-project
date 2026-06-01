@@ -9,7 +9,6 @@ import type {
   Order,
   OrderItem,
   OrderProgress,
-  PriceSensitivity,
   SessionUser,
   StaleCartItem,
 } from "../../shared/contracts.ts";
@@ -19,11 +18,6 @@ const fallbackMenuImage = "/imgs/menu/鮪魚蛋吐司.webp";
 
 function buildApiUrl(path: string) {
   return `${apiBaseUrl}${path}`;
-}
-
-function versionChangeLabel(history: MenuItemVersionHistory) {
-  if (history.version === 1) return "初版";
-  return history.minorVersion === 0 ? "主版更新" : "修訂更新";
 }
 
 function isDrink(item: MenuItem) {
@@ -600,6 +594,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     completedTitle: "餐點已完成，可以取餐",
     pickupNumber: "取餐編號",
     addToCart: "加入購物車",
+    newItems: "新品推出",
+    newBadge: "新品",
     adding: "加入中...",
     loading: "讀取中...",
     noHistory: "目前尚無歷史訂單。",
@@ -667,6 +663,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     completedTitle: "Your order is ready for pickup",
     pickupNumber: "Pickup number",
     addToCart: "Add to cart",
+    newItems: "New arrivals",
+    newBadge: "New",
     adding: "Adding...",
     loading: "Loading...",
     noHistory: "No order history yet.",
@@ -734,6 +732,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     completedTitle: "注文ができました。受け取りできます",
     pickupNumber: "受取番号",
     addToCart: "カートに追加",
+    newItems: "新商品",
+    newBadge: "新商品",
     adding: "追加中...",
     loading: "読み込み中...",
     noHistory: "注文履歴はまだありません。",
@@ -801,6 +801,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     completedTitle: "주문이 준비되었습니다. 픽업하세요",
     pickupNumber: "픽업 번호",
     addToCart: "장바구니 담기",
+    newItems: "신상품",
+    newBadge: "신상품",
     adding: "담는 중...",
     loading: "불러오는 중...",
     noHistory: "아직 주문 내역이 없습니다.",
@@ -930,9 +932,6 @@ export default function App() {
     password: "admin1234",
   });
   const [adminError, setAdminError] = useState("");
-  const [priceSensitivity, setPriceSensitivity] = useState<
-    PriceSensitivity[]
-  >([]);
   const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>(
     [],
   );
@@ -1755,11 +1754,8 @@ export default function App() {
     setAdminError("");
 
     try {
-      const [analyticsResponse, promotionsResponse, ordersResponse, couponsResponse] =
+      const [promotionsResponse, ordersResponse, couponsResponse] =
         await Promise.all([
-          fetch(buildApiUrl("/api/menu/analytics/price-sensitivity"), {
-            credentials: "include",
-          }),
           fetch(buildApiUrl("/api/promotions/active"), {
             credentials: "include",
           }),
@@ -1772,21 +1768,16 @@ export default function App() {
         ]);
 
       if (
-        !analyticsResponse.ok ||
         !promotionsResponse.ok ||
         !ordersResponse.ok ||
         !couponsResponse.ok
       ) {
-        if (ordersResponse.status === 401 || analyticsResponse.status === 401) {
+        if (ordersResponse.status === 401) {
           setAdminAuthed(false);
         }
         throw new Error("Admin API failed");
       }
 
-      const analyticsPayload =
-        (await analyticsResponse.json()) as ApiDataResponse<
-          PriceSensitivity[]
-        >;
       const promotionsPayload =
         (await promotionsResponse.json()) as ApiDataResponse<
           ActivePromotion[]
@@ -1796,9 +1787,6 @@ export default function App() {
       const couponsPayload =
         (await couponsResponse.json()) as ApiDataResponse<Coupon[]>;
 
-      setPriceSensitivity(
-        Array.isArray(analyticsPayload?.data) ? analyticsPayload.data : [],
-      );
       setActivePromotions(
         Array.isArray(promotionsPayload?.data) ? promotionsPayload.data : [],
       );
@@ -1863,7 +1851,6 @@ export default function App() {
     setAdminOrders([]);
     setCoupons([]);
     setActivePromotions([]);
-    setPriceSensitivity([]);
     setVersionHistoryByLogicalId({});
     navigate("/admin");
   }
@@ -2077,6 +2064,25 @@ export default function App() {
     await loadMenu();
     await loadAdminData();
     setAdminError(`已調整「${item.name}」價格。`);
+  }
+
+  async function deleteAdminMenuItem(item: MenuItem): Promise<void> {
+    if (!window.confirm(`確定要刪除商品「${item.name}」嗎？`)) {
+      return;
+    }
+
+    const response = await fetch(buildApiUrl(`/api/menu/${item.logicalId}`), {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      setAdminError("刪除商品失敗。");
+      return;
+    }
+
+    await Promise.all([loadMenu(), loadAdminData()]);
+    setAdminError(`已刪除商品：${item.name}`);
   }
 
   async function completeAdminOrder(orderId: number): Promise<void> {
@@ -3487,20 +3493,19 @@ export default function App() {
           <section>
             <details className="collapse collapse-arrow bg-base-100 shadow h-fit">
               <summary className="collapse-title text-2xl font-bold">
-                菜單版本管理
+                菜單商品管理
               </summary>
               <div className="collapse-content">
                 <div className="overflow-x-auto rounded-lg border border-base-300">
-                  <table className="table table-zebra min-w-[1100px]">
+                  <table className="table table-zebra min-w-[960px]">
                     <thead>
                       <tr>
-                        <th>順序</th>
                         <th>品項</th>
-                        <th>分級版本</th>
-                        <th>A/B</th>
-                        <th>促銷</th>
-                        <th>價格</th>
-                        <th>歷史</th>
+                        <th>分類</th>
+                        <th>上架／更新</th>
+                        <th>目前價格</th>
+                        <th>最近改價紀錄</th>
+                        <th>操作</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3510,54 +3515,46 @@ export default function App() {
 
                         return (
                           <tr key={item.id}>
-                            <td>{item.displayOrder ?? "-"}</td>
                             <td>
                               <div className="font-semibold">{item.name}</div>
                               <div className="text-xs opacity-60">
-                                {item.logicalId} / {item.id}
+                                商品代碼：{item.logicalId}
                               </div>
-                              <div className="mt-1 text-xs opacity-70">
-                                上架／更新：
+                            </td>
+                            <td>
+                              <span className="badge badge-outline">
+                                {item.category}
+                              </span>
+                            </td>
+                            <td className="text-sm">
+                              <div>
                                 {histories[0]?.createdAt
                                   ? formatTaipeiDateTime(histories[0].createdAt)
                                   : "尚無紀錄"}
                               </div>
                               {item.isRecentlyUpdated ? (
-                                <span className="badge badge-accent badge-sm mt-1">
+                                <span className="badge badge-accent badge-sm">
                                   新品展示中
                                 </span>
                               ) : null}
                             </td>
                             <td>
-                              <div className="flex flex-wrap gap-1">
-                                <span className="badge badge-primary badge-sm">
-                                  主版 {item.majorVersion}
-                                </span>
-                                <span className="badge badge-ghost badge-sm">
-                                  修訂 {item.minorVersion}
-                                </span>
-                                <span className="badge badge-outline badge-sm">
-                                  v{item.majorVersion}.{item.minorVersion}
-                                </span>
-                              </div>
-                            </td>
-                            <td>
-                              <span className="badge badge-secondary badge-sm">
-                                {item.testGroup}
+                              <span className="font-semibold">
+                                {formatMoney(item.price)}
                               </span>
                             </td>
                             <td>
-                              {item.activePromotion ? (
-                                <span className="badge badge-accent badge-sm">
-                                  {item.activePromotion.name}
-                                </span>
-                              ) : (
-                                <span className="text-sm opacity-50">無</span>
-                              )}
+                              <div className="space-y-1 text-xs">
+                                {histories.slice(0, 3).map((history) => (
+                                  <div key={history.id}>
+                                    {formatTaipeiDateTime(history.createdAt)} ·{" "}
+                                    {formatMoney(history.price)}
+                                  </div>
+                                ))}
+                              </div>
                             </td>
                             <td>
-                              <div className="flex items-center gap-2">
-                                <span>{formatMoney(item.price)}</span>
+                              <div className="flex gap-2">
                                 <button
                                   className="btn btn-xs btn-outline"
                                   onClick={() => {
@@ -3566,19 +3563,14 @@ export default function App() {
                                 >
                                   調價
                                 </button>
-                              </div>
-                            </td>
-                            <td>
-                              <div className="flex flex-wrap gap-1">
-                                {histories.slice(0, 3).map((history) => (
-                                  <span
-                                    key={history.id}
-                                    className="badge badge-outline badge-sm"
-                                  >
-                                    {versionChangeLabel(history)} v
-                                    {history.majorVersion}.{history.minorVersion}
-                                  </span>
-                                ))}
+                                <button
+                                  className="btn btn-xs btn-error btn-outline"
+                                  onClick={() => {
+                                    void deleteAdminMenuItem(item);
+                                  }}
+                                >
+                                  刪除
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -4051,7 +4043,7 @@ export default function App() {
             {grouped.recentItems.length > 0 ? (
               <div className="mb-10">
                 <h2 className="text-3xl font-bold mb-4 text-primary border-b-2 border-primary pb-2">
-                  新品推出
+                  {text.newItems}
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {grouped.recentItems.map((item) => {
@@ -4078,7 +4070,7 @@ export default function App() {
                           <div className="flex items-start justify-between gap-2">
                             <h3 className="card-title text-lg">{copy.name}</h3>
                             <span className="badge badge-accent shrink-0">
-                              新品
+                              {text.newBadge}
                             </span>
                           </div>
                           <p className="text-sm opacity-80 line-clamp-2 min-h-[2.75rem]">

@@ -929,6 +929,10 @@ export default function App() {
   const [versionHistoryByLogicalId, setVersionHistoryByLogicalId] = useState<
     Record<string, MenuItemVersionHistory[]>
   >({});
+  const [adminPriceHistoryModal, setAdminPriceHistoryModal] = useState<{
+    itemName: string;
+    histories: MenuItemVersionHistory[];
+  } | null>(null);
   const [loadingHistoryId, setLoadingHistoryId] = useState<string | null>(null);
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminAuthed, setAdminAuthed] = useState(false);
@@ -1419,6 +1423,7 @@ export default function App() {
   useEffect(() => {
     const shouldLockBody =
       isAdminMenuFormOpen ||
+      Boolean(adminPriceHistoryModal) ||
       isCartOpen ||
       isCartPage ||
       isHistoryOpen ||
@@ -1441,6 +1446,7 @@ export default function App() {
   }, [
     customizingItem,
     isAdminMenuFormOpen,
+    adminPriceHistoryModal,
     isCartOpen,
     isCartPage,
     isHistoryOpen,
@@ -2867,6 +2873,53 @@ export default function App() {
             </div>
           </div>
         ) : null}
+        {adminPriceHistoryModal ? (
+          <div
+            className="fixed inset-0 z-[2147483646] flex items-center justify-center bg-black/60 p-4"
+            onClick={() => {
+              setAdminPriceHistoryModal(null);
+            }}
+          >
+            <section
+              className="w-full max-w-md rounded-lg border border-base-300 bg-base-100 p-5 shadow-2xl"
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold">價格異動紀錄</h2>
+                  <p className="text-sm opacity-60">
+                    {adminPriceHistoryModal.itemName}
+                  </p>
+                </div>
+                <button
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => {
+                    setAdminPriceHistoryModal(null);
+                  }}
+                >
+                  關閉
+                </button>
+              </div>
+              <div className="max-h-[60vh] space-y-3 overflow-y-auto">
+                {adminPriceHistoryModal.histories.map((history) => (
+                  <div
+                    key={history.id}
+                    className="flex items-center justify-between gap-4 border-b border-base-300 pb-3 last:border-0 last:pb-0"
+                  >
+                    <span className="text-sm">
+                      {formatTaipeiDateTime(history.createdAt)}
+                    </span>
+                    <span className="font-semibold">
+                      {formatMoney(history.price)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+        ) : null}
 
         <main className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 space-y-6">
           {!adminAuthed ? (
@@ -3583,7 +3636,7 @@ export default function App() {
                         <th>分類</th>
                         <th>上架／更新</th>
                         <th>目前價格</th>
-                        <th>改價紀錄</th>
+                        <th className="text-center">改價紀錄</th>
                         <th>操作</th>
                       </tr>
                     </thead>
@@ -3627,34 +3680,18 @@ export default function App() {
                                 {formatMoney(item.price)}
                               </span>
                             </td>
-                            <td>
-                              <details className="dropdown dropdown-end">
-                                <summary className="btn btn-xs btn-outline">
-                                  查看紀錄 ({priceHistories.length})
-                                </summary>
-                                <div className="dropdown-content z-50 mt-2 w-64 rounded-lg border border-base-300 bg-base-100 p-3 shadow-xl">
-                                  <div className="mb-2 text-sm font-bold">
-                                    價格異動紀錄
-                                  </div>
-                                  <div className="max-h-56 space-y-2 overflow-y-auto text-xs">
-                                    {priceHistories.map((history) => (
-                                      <div
-                                        key={history.id}
-                                        className="flex items-center justify-between gap-3 border-b border-base-300 pb-2 last:border-0 last:pb-0"
-                                      >
-                                        <span>
-                                          {formatTaipeiDateTime(
-                                            history.createdAt,
-                                          )}
-                                        </span>
-                                        <span className="font-semibold">
-                                          {formatMoney(history.price)}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              </details>
+                            <td className="text-center">
+                              <button
+                                className="btn btn-xs btn-outline"
+                                onClick={() => {
+                                  setAdminPriceHistoryModal({
+                                    itemName: item.name,
+                                    histories: priceHistories,
+                                  });
+                                }}
+                              >
+                                查看紀錄
+                              </button>
                             </td>
                             <td>
                               <div className="flex gap-2">

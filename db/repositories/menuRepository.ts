@@ -31,6 +31,8 @@ function fallbackTranslations(
 export interface MenuItemChanges {
   name?: string;
   price?: number;
+  largePrice?: number | null;
+  eggPrice?: number | null;
   category?: string;
   description?: string;
   imageUrl?: string;
@@ -49,6 +51,8 @@ function toMenuItem(row: MenuRow): MenuItem {
     minorVersion: row.minorVersion,
     name: row.name,
     price: row.price,
+    largePrice: row.largePrice ?? undefined,
+    eggPrice: row.eggPrice ?? undefined,
     category: row.category,
     description: row.description,
     translations: translations ?? fallbackTranslations(row.name, row.description),
@@ -184,6 +188,8 @@ export class MenuRepository {
     logicalId: string;
     name?: string;
     price: number;
+    largePrice?: number;
+    eggPrice?: number;
     category: string;
     description?: string;
     imageUrl: string;
@@ -203,6 +209,8 @@ export class MenuRepository {
         minorVersion: 0,
         name: input.name ?? zh?.name ?? "",
         price: input.price,
+        largePrice: input.largePrice,
+        eggPrice: input.eggPrice,
         category: input.category,
         description: input.description ?? zh?.description ?? "",
         translations: input.translations,
@@ -268,6 +276,10 @@ export class MenuRepository {
           minorVersion: nextMinorVersion,
           name: changes.name ?? zh?.name ?? current.name,
           price: changes.price ?? current.price,
+          largePrice:
+            changes.largePrice === undefined ? current.largePrice : changes.largePrice,
+          eggPrice:
+            changes.eggPrice === undefined ? current.eggPrice : changes.eggPrice,
           category: changes.category ?? current.category,
           description: changes.description ?? zh?.description ?? current.description,
           translations: nextTranslations,

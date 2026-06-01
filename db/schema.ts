@@ -42,6 +42,8 @@ export const menuItemsTable = appSchema.table(
     minorVersion: integer("minor_version").notNull().default(0),
     name: text("name").notNull(),
     price: integer("price").notNull(),
+    largePrice: integer("large_price"),
+    eggPrice: integer("egg_price"),
     category: text("category").notNull(),
     description: text("description").notNull(),
     translations: jsonb("translations"),
@@ -142,6 +144,9 @@ export const orderItemsTable = appSchema.table(
       .notNull()
       .references(() => menuItemsTable.id),
     qty: integer("qty").notNull(),
+    unitPrice: integer("unit_price"),
+    size: text("size"),
+    eggQty: integer("egg_qty").notNull().default(0),
     sugarLevel: text("sugar_level"),
     iceLevel: text("ice_level"),
     note: text("note"),

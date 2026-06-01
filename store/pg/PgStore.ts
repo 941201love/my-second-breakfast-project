@@ -50,7 +50,13 @@ function logicalIdFromSeedId(id: string | number | undefined, index: number) {
 
 function sameOrderItemOptions(
   item: OrderItem,
-  input: { sugarLevel?: string; iceLevel?: string; note?: string },
+  input: {
+    sugarLevel?: string;
+    iceLevel?: string;
+    note?: string;
+    size?: "small" | "large";
+    eggQty?: number;
+  },
 ) {
   const sugar = (input.sugarLevel || "正常糖").trim();
   const ice = (input.iceLevel || "正常冰").trim();
@@ -59,7 +65,9 @@ function sameOrderItemOptions(
   return (
     (item.sugarLevel || "正常糖").trim() === sugar &&
     (item.iceLevel || "正常冰").trim() === ice &&
-    (item.note || "").trim() === note
+    (item.note || "").trim() === note &&
+    (item.size || "small") === (input.size || "small") &&
+    (item.eggQty || 0) === (input.eggQty || 0)
   );
 }
 
@@ -75,6 +83,7 @@ export class PgStore implements Store {
 
   async init(): Promise<void> {
     await db.execute(sql`select 1`);
+    await this.ensureProductOptionColumns();
     await this.ensureCouponRuleColumns();
     await this.seedFromJsonIfEmpty();
     await this.reloadFromDatabase();
@@ -88,6 +97,8 @@ export class PgStore implements Store {
     logicalId?: string;
     name?: string;
     price: number;
+    largePrice?: number;
+    eggPrice?: number;
     category: string;
     description?: string;
     imageUrl: string;
@@ -111,6 +122,8 @@ export class PgStore implements Store {
       changes: {
         name?: string;
         price?: number;
+        largePrice?: number | null;
+        eggPrice?: number | null;
         category?: string;
         description?: string;
         imageUrl?: string;
@@ -224,6 +237,8 @@ export class PgStore implements Store {
       orderItemId?: number;
       itemId: string;
       qty: number;
+      size?: "small" | "large";
+      eggQty?: number;
       sugarLevel?: string;
       iceLevel?: string;
       note?: string;
@@ -286,6 +301,13 @@ export class PgStore implements Store {
             sugarLevel: input.sugarLevel,
             iceLevel: input.iceLevel,
             note: input.note,
+            size: input.size,
+            eggQty: input.eggQty ?? 0,
+            unitPrice:
+              (input.size === "large" && menuItem.largePrice !== undefined
+                ? menuItem.largePrice
+                : menuItem.price) +
+              (menuItem.eggPrice ?? 0) * (input.eggQty ?? 0),
           })
           .where(
             and(
@@ -301,6 +323,13 @@ export class PgStore implements Store {
           target.sugarLevel = input.sugarLevel;
           target.iceLevel = input.iceLevel;
           target.note = input.note;
+          target.size = input.size;
+          target.eggQty = input.eggQty;
+          target.menuItemPrice =
+            (input.size === "large" && menuItem.largePrice !== undefined
+              ? menuItem.largePrice
+              : menuItem.price) +
+            (menuItem.eggPrice ?? 0) * (input.eggQty ?? 0);
         }
       }
     } else if (input.qty > 0) {
@@ -311,16 +340,29 @@ export class PgStore implements Store {
         sugarLevel: input.sugarLevel,
         iceLevel: input.iceLevel,
         note: input.note,
+        size: input.size,
+        eggQty: input.eggQty ?? 0,
+        unitPrice:
+          (input.size === "large" && menuItem.largePrice !== undefined
+            ? menuItem.largePrice
+            : menuItem.price) +
+          (menuItem.eggPrice ?? 0) * (input.eggQty ?? 0),
       }).returning();
       order.items.push({
         id: insertedItem?.id,
         menuItemId: menuItem.id,
         menuItemName: menuItem.name,
-        menuItemPrice: menuItem.price,
+        menuItemPrice:
+          (input.size === "large" && menuItem.largePrice !== undefined
+            ? menuItem.largePrice
+            : menuItem.price) +
+          (menuItem.eggPrice ?? 0) * (input.eggQty ?? 0),
         qty: input.qty,
         sugarLevel: input.sugarLevel,
         iceLevel: input.iceLevel,
         note: input.note,
+        size: input.size,
+        eggQty: input.eggQty,
       });
     }
 
@@ -590,6 +632,9 @@ export class PgStore implements Store {
         sugarLevel: orderItemsTable.sugarLevel,
         iceLevel: orderItemsTable.iceLevel,
         note: orderItemsTable.note,
+        size: orderItemsTable.size,
+        eggQty: orderItemsTable.eggQty,
+        unitPrice: orderItemsTable.unitPrice,
         menuItemName: menuItemsTable.name,
         menuItemPrice: menuItemsTable.price,
       })
@@ -607,11 +652,13 @@ export class PgStore implements Store {
         id: row.id,
         menuItemId: row.menuItemId,
         menuItemName: row.menuItemName,
-        menuItemPrice: row.menuItemPrice,
+        menuItemPrice: row.unitPrice ?? row.menuItemPrice,
         qty: row.qty,
         sugarLevel: row.sugarLevel ?? undefined,
         iceLevel: row.iceLevel ?? undefined,
         note: row.note ?? undefined,
+        size: row.size === "large" ? "large" : "small",
+        eggQty: row.eggQty,
       });
       itemsByOrderId.set(row.orderId, items);
     }
@@ -712,6 +759,29 @@ export class PgStore implements Store {
     await db.execute(sql`
       ALTER TABLE "bf_v10"."coupons"
         ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone
+    `);
+  }
+
+  private async ensureProductOptionColumns(): Promise<void> {
+    await db.execute(sql`
+      ALTER TABLE "bf_v10"."menu_items"
+        ADD COLUMN IF NOT EXISTS "large_price" integer
+    `);
+    await db.execute(sql`
+      ALTER TABLE "bf_v10"."menu_items"
+        ADD COLUMN IF NOT EXISTS "egg_price" integer
+    `);
+    await db.execute(sql`
+      ALTER TABLE "bf_v10"."order_items"
+        ADD COLUMN IF NOT EXISTS "unit_price" integer
+    `);
+    await db.execute(sql`
+      ALTER TABLE "bf_v10"."order_items"
+        ADD COLUMN IF NOT EXISTS "size" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "bf_v10"."order_items"
+        ADD COLUMN IF NOT EXISTS "egg_qty" integer DEFAULT 0 NOT NULL
     `);
   }
 

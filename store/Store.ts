@@ -33,6 +33,8 @@ export interface Store {
     logicalId?: string;
     name?: string;
     price: number;
+    largePrice?: number;
+    eggPrice?: number;
     category: string;
     description?: string;
     imageUrl: string;
@@ -45,6 +47,8 @@ export interface Store {
       changes: {
         name?: string;
         price?: number;
+        largePrice?: number | null;
+        eggPrice?: number | null;
         category?: string;
         description?: string;
         imageUrl?: string;
@@ -70,6 +74,8 @@ export interface Store {
       orderItemId?: number;
       itemId: string;
       qty: number;
+      size?: "small" | "large";
+      eggQty?: number;
       sugarLevel?: string;
       iceLevel?: string;
       note?: string;

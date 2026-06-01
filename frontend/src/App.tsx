@@ -620,6 +620,10 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     phonePlaceholder: "電話",
     save: "儲存",
     qty: "數量",
+    portion: "份量",
+    small: "小份",
+    large: "大份",
+    addEgg: "加蛋",
     sugar: "糖度",
     ice: "冰塊",
     note: "備註",
@@ -689,6 +693,10 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     phonePlaceholder: "Phone",
     save: "Save",
     qty: "Quantity",
+    portion: "Portion",
+    small: "Small",
+    large: "Large",
+    addEgg: "Add egg",
     sugar: "Sugar",
     ice: "Ice",
     note: "Note",
@@ -758,6 +766,10 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     phonePlaceholder: "電話",
     save: "保存",
     qty: "数量",
+    portion: "サイズ",
+    small: "小",
+    large: "大",
+    addEgg: "卵追加",
     sugar: "甘さ",
     ice: "氷",
     note: "メモ",
@@ -827,6 +839,10 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     phonePlaceholder: "전화",
     save: "저장",
     qty: "수량",
+    portion: "사이즈",
+    small: "소",
+    large: "대",
+    addEgg: "계란 추가",
     sugar: "당도",
     ice: "얼음",
     note: "메모",
@@ -961,6 +977,8 @@ export default function App() {
   });
   const [newMenuItem, setNewMenuItem] = useState({
     price: 50,
+    largePrice: "",
+    eggPrice: "",
     category: "主餐",
     imageUrl: "",
     translations: {
@@ -1003,6 +1021,8 @@ export default function App() {
   const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
   const [cartDraft, setCartDraft] = useState({
     qty: 1,
+    size: "small" as "small" | "large",
+    eggQty: 0,
     sugarLevel: "",
     iceLevel: "",
     note: "",
@@ -1026,6 +1046,8 @@ export default function App() {
     setEditingAdminMenuLogicalId(null);
     setNewMenuItem({
       price: 50,
+      largePrice: "",
+      eggPrice: "",
       category: "主餐",
       imageUrl: "",
       translations: {
@@ -1041,6 +1063,8 @@ export default function App() {
     setEditingAdminMenuLogicalId(item.logicalId);
     setNewMenuItem({
       price: item.price,
+      largePrice: item.largePrice === undefined ? "" : String(item.largePrice),
+      eggPrice: item.eggPrice === undefined ? "" : String(item.eggPrice),
       category: item.category,
       imageUrl: item.imageUrl,
       translations:
@@ -1099,11 +1123,31 @@ export default function App() {
     sugarOptionLabels[profile.language]?.[option] ?? option;
   const iceLabel = (option: string) =>
     iceOptionLabels[profile.language]?.[option] ?? option;
+  const orderItemSpecification = (detail: OrderItem) => {
+    const item = orderItemMenuItem(detail);
+    const parts: string[] = [];
+    if (detail.size === "large") {
+      parts.push(text.large);
+    } else if (detail.size === "small" && item?.largePrice !== undefined) {
+      parts.push(text.small);
+    }
+    if ((detail.eggQty ?? 0) > 0) {
+      parts.push(`${text.addEgg} x ${detail.eggQty}`);
+    }
+    return parts.join(" / ");
+  };
   const couponDiscountTotal = useMemo(
     () => calculateCouponDiscount(appliedCoupon, cartTotal),
     [appliedCoupon, cartTotal],
   );
   const checkoutTotal = Math.max(0, cartTotal - couponDiscountTotal);
+  const customizingUnitPrice = activeCustomizingItem
+    ? (cartDraft.size === "large" &&
+      activeCustomizingItem.largePrice !== undefined
+        ? activeCustomizingItem.largePrice
+        : activeCustomizingItem.price) +
+      (activeCustomizingItem.eggPrice ?? 0) * cartDraft.eggQty
+    : 0;
 
   function syncCartFromOrder(order: Order) {
     const nextQtyByItemId = order.items.reduce(
@@ -1478,6 +1522,8 @@ export default function App() {
     setCustomizingItem(routeItem);
     setCartDraft({
       qty: 1,
+      size: "small",
+      eggQty: 0,
       sugarLevel: "",
       iceLevel: "",
       note: "",
@@ -1572,7 +1618,7 @@ export default function App() {
           qty: orderItem.qty,
           item,
           orderItem,
-          subtotal: item.price * orderItem.qty,
+          subtotal: orderItem.menuItemPrice * orderItem.qty,
         };
       })
       .filter((entry): entry is CartDetail => entry !== null);
@@ -2089,6 +2135,14 @@ export default function App() {
             ? {
                 changes: {
                   price: newMenuItem.price,
+                  largePrice:
+                    newMenuItem.largePrice === ""
+                      ? null
+                      : Number(newMenuItem.largePrice),
+                  eggPrice:
+                    newMenuItem.eggPrice === ""
+                      ? null
+                      : Number(newMenuItem.eggPrice),
                   category: newMenuItem.category,
                   imageUrl: newMenuItem.imageUrl,
                   translations: newMenuItem.translations,
@@ -2098,6 +2152,14 @@ export default function App() {
               }
             : {
                 price: newMenuItem.price,
+                largePrice:
+                  newMenuItem.largePrice === ""
+                    ? undefined
+                    : Number(newMenuItem.largePrice),
+                eggPrice:
+                  newMenuItem.eggPrice === ""
+                    ? undefined
+                    : Number(newMenuItem.eggPrice),
                 category: newMenuItem.category,
                 imageUrl: newMenuItem.imageUrl,
                 translations: newMenuItem.translations,
@@ -2195,6 +2257,8 @@ export default function App() {
 
     setCartDraft({
       qty: 1,
+      size: "small",
+      eggQty: 0,
       sugarLevel: "",
       iceLevel: "",
       note: "",
@@ -2207,6 +2271,8 @@ export default function App() {
     item: MenuItem,
     options: {
       qty: number;
+      size?: "small" | "large";
+      eggQty?: number;
       sugarLevel?: string;
       iceLevel?: string;
       note?: string;
@@ -2234,6 +2300,8 @@ export default function App() {
             body: JSON.stringify({
               itemId: item.id,
               qty,
+              size: options.size,
+              eggQty: options.eggQty,
               sugarLevel: options.sugarLevel || undefined,
               iceLevel: options.iceLevel || undefined,
               note: options.note?.trim() || undefined,
@@ -2337,6 +2405,8 @@ export default function App() {
             sugarLevel: orderItem.sugarLevel,
             iceLevel: orderItem.iceLevel,
             note: orderItem.note,
+            size: orderItem.size,
+            eggQty: orderItem.eggQty,
             forceNew: true,
           }),
         });
@@ -2364,7 +2434,13 @@ export default function App() {
   async function updateCartItemOptions(
     orderItemId: number | undefined,
     itemId: string,
-    next: { sugarLevel?: string; iceLevel?: string; note?: string },
+    next: {
+      sugarLevel?: string;
+      iceLevel?: string;
+      note?: string;
+      size?: "small" | "large";
+      eggQty?: number;
+    },
   ): Promise<void> {
     if (!user || orderId === null) return;
 
@@ -2384,6 +2460,8 @@ export default function App() {
         sugarLevel: next.sugarLevel ?? current?.sugarLevel,
         iceLevel: next.iceLevel ?? current?.iceLevel,
         note: next.note ?? current?.note,
+        size: next.size ?? current?.size,
+        eggQty: next.eggQty ?? current?.eggQty,
       }),
     });
 
@@ -2418,6 +2496,8 @@ export default function App() {
         sugarLevel: detail.orderItem?.sugarLevel,
         iceLevel: detail.orderItem?.iceLevel,
         note: detail.orderItem?.note,
+        size: detail.orderItem?.size,
+        eggQty: detail.orderItem?.eggQty,
       }),
     });
 
@@ -2693,7 +2773,7 @@ export default function App() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-[160px_1fr]">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <label className="form-control">
                   <span className="label-text mb-1">價格（NT）</span>
                   <input
@@ -2710,31 +2790,57 @@ export default function App() {
                     placeholder="例如 50"
                   />
                 </label>
-                <div>
-                  <span className="label-text mb-1 block">分類</span>
-                  <details className="dropdown w-full">
-                    <summary className="btn btn-outline w-full justify-between">
-                      {newMenuItem.category}
-                      <span>⌄</span>
-                    </summary>
-                    <ul className="menu dropdown-content z-40 mt-2 w-full rounded-lg bg-base-100 p-2 shadow border border-base-300">
-                      {breakfastCategoryOptions.map((category) => (
-                        <li key={category}>
-                          <button
-                            onClick={() =>
-                              setNewMenuItem((current) => ({
-                                ...current,
-                                category,
-                              }))
-                            }
-                          >
-                            {category}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                </div>
+                <label className="form-control">
+                  <span className="label-text mb-1">大份價格（選填）</span>
+                  <input
+                    className="input input-bordered"
+                    inputMode="numeric"
+                    value={newMenuItem.largePrice}
+                    onChange={(event) => {
+                      const largePrice = event.currentTarget.value.replace(/\D/g, "");
+                      setNewMenuItem((current) => ({ ...current, largePrice }));
+                    }}
+                    placeholder="例如 70"
+                  />
+                </label>
+                <label className="form-control">
+                  <span className="label-text mb-1">加蛋單價（選填）</span>
+                  <input
+                    className="input input-bordered"
+                    inputMode="numeric"
+                    value={newMenuItem.eggPrice}
+                    onChange={(event) => {
+                      const eggPrice = event.currentTarget.value.replace(/\D/g, "");
+                      setNewMenuItem((current) => ({ ...current, eggPrice }));
+                    }}
+                    placeholder="例如 10"
+                  />
+                </label>
+              </div>
+              <div>
+                <span className="label-text mb-1 block">分類</span>
+                <details className="dropdown w-full">
+                  <summary className="btn btn-outline w-full justify-between">
+                    {newMenuItem.category}
+                    <span>⌄</span>
+                  </summary>
+                  <ul className="menu dropdown-content z-40 mt-2 w-full rounded-lg bg-base-100 p-2 shadow border border-base-300">
+                    {breakfastCategoryOptions.map((category) => (
+                      <li key={category}>
+                        <button
+                          onClick={() =>
+                            setNewMenuItem((current) => ({
+                              ...current,
+                              category,
+                            }))
+                          }
+                        >
+                          {category}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
               </div>
 
               <div className="divide-y divide-base-300 border-y border-base-300">
@@ -3358,6 +3464,12 @@ export default function App() {
                                         {item.iceLevel ? iceLabel(item.iceLevel) : "正常冰"})
                                       </span>
                                     ) : null}
+                                    {orderItemSpecification(item) ? (
+                                      <span className="opacity-60">
+                                        {" "}
+                                        ({orderItemSpecification(item)})
+                                      </span>
+                                    ) : null}
                                     {item.note ? (
                                       <span className="opacity-60">
                                         {" "}
@@ -3483,6 +3595,12 @@ export default function App() {
                                     {" "}
                                     ({item.sugarLevel ? sugarLabel(item.sugarLevel) : "正常糖"} /{" "}
                                     {item.iceLevel ? iceLabel(item.iceLevel) : "正常冰"})
+                                  </span>
+                                ) : null}
+                                {orderItemSpecification(item) ? (
+                                  <span className="opacity-60">
+                                    {" "}
+                                    ({orderItemSpecification(item)})
                                   </span>
                                 ) : null}
                               </li>
@@ -4377,6 +4495,12 @@ export default function App() {
                                 {detail.iceLevel ? iceLabel(detail.iceLevel) : "正常冰"})
                               </span>
                             ) : null}
+                            {orderItemSpecification(detail) ? (
+                              <span className="opacity-60">
+                                {" "}
+                                ({orderItemSpecification(detail)})
+                              </span>
+                            ) : null}
                           </li>
                         ))}
                       </ul>
@@ -4559,6 +4683,65 @@ export default function App() {
                 </div>
               </section>
 
+              {activeCustomizingItem.largePrice !== undefined ? (
+                <section className="border-b border-base-300 px-5 py-6">
+                  <span className="label-text mb-2 block">{text.portion}</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      className={`btn ${cartDraft.size === "small" ? "btn-primary" : "btn-outline"}`}
+                      onClick={() =>
+                        setCartDraft((current) => ({ ...current, size: "small" }))
+                      }
+                    >
+                      {text.small} {formatMoney(activeCustomizingItem.price)}
+                    </button>
+                    <button
+                      className={`btn ${cartDraft.size === "large" ? "btn-primary" : "btn-outline"}`}
+                      onClick={() =>
+                        setCartDraft((current) => ({ ...current, size: "large" }))
+                      }
+                    >
+                      {text.large} {formatMoney(activeCustomizingItem.largePrice)}
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+
+              {activeCustomizingItem.eggPrice !== undefined ? (
+                <section className="border-b border-base-300 px-5 py-6">
+                  <span className="label-text mb-2 block">
+                    {text.addEgg} +{formatMoney(activeCustomizingItem.eggPrice)}
+                  </span>
+                  <div className="join">
+                    <button
+                      className="btn join-item"
+                      onClick={() =>
+                        setCartDraft((current) => ({
+                          ...current,
+                          eggQty: Math.max(0, current.eggQty - 1),
+                        }))
+                      }
+                    >
+                      -
+                    </button>
+                    <span className="btn join-item no-animation">
+                      {cartDraft.eggQty}
+                    </span>
+                    <button
+                      className="btn join-item"
+                      onClick={() =>
+                        setCartDraft((current) => ({
+                          ...current,
+                          eggQty: current.eggQty + 1,
+                        }))
+                      }
+                    >
+                      +
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+
               {isDrink(activeCustomizingItem) ? (
                 <section className="divide-y divide-base-300 border-b border-base-300">
                   <div className="px-5 py-6">
@@ -4630,7 +4813,7 @@ export default function App() {
               >
                 {activeItemId === activeCustomizingItem.id
                   ? text.adding
-                  : `${text.addToCart} ${formatMoney(activeCustomizingItem.price * cartDraft.qty)}`}
+                  : `${text.addToCart} ${formatMoney(customizingUnitPrice * cartDraft.qty)}`}
               </button>
             </div>
           </div>
@@ -4704,7 +4887,7 @@ export default function App() {
                               {menuCopy(group.item).name}
                             </p>
                             <p className="text-sm opacity-70">
-                              {formatMoney(group.item.price)} x {group.qty}
+                              {text.totalItems} {group.qty}
                             </p>
                           </div>
                           <p className="font-bold">
@@ -4723,6 +4906,9 @@ export default function App() {
                                     {isDrink(detail.item)
                                       ? `${sugarLabel(detail.orderItem.sugarLevel || "正常糖")} / ${iceLabel(detail.orderItem.iceLevel || "正常冰")}`
                                       : text.qty}
+                                    {orderItemSpecification(detail.orderItem)
+                                      ? ` / ${orderItemSpecification(detail.orderItem)}`
+                                      : ""}
                                     <span className="ml-2 opacity-70">
                                       x {detail.qty}
                                     </span>
@@ -4824,6 +5010,78 @@ export default function App() {
                                             </button>
                                           );
                                         })}
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                  {detail.item.largePrice !== undefined ? (
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <button
+                                        className={`btn btn-xs ${detail.orderItem.size !== "large" ? "btn-primary" : "btn-outline"}`}
+                                        onClick={() => {
+                                          void updateCartItemOptions(
+                                            detail.orderItemId,
+                                            detail.itemId,
+                                            { size: "small" },
+                                          );
+                                        }}
+                                      >
+                                        {text.small} {formatMoney(detail.item.price)}
+                                      </button>
+                                      <button
+                                        className={`btn btn-xs ${detail.orderItem.size === "large" ? "btn-primary" : "btn-outline"}`}
+                                        onClick={() => {
+                                          void updateCartItemOptions(
+                                            detail.orderItemId,
+                                            detail.itemId,
+                                            { size: "large" },
+                                          );
+                                        }}
+                                      >
+                                        {text.large} {formatMoney(detail.item.largePrice)}
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                  {detail.item.eggPrice !== undefined ? (
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="text-sm">
+                                        {text.addEgg} +{formatMoney(detail.item.eggPrice)}
+                                      </span>
+                                      <div className="join">
+                                        <button
+                                          className="btn btn-xs join-item"
+                                          onClick={() => {
+                                            void updateCartItemOptions(
+                                              detail.orderItemId,
+                                              detail.itemId,
+                                              {
+                                                eggQty: Math.max(
+                                                  0,
+                                                  (detail.orderItem.eggQty ?? 0) - 1,
+                                                ),
+                                              },
+                                            );
+                                          }}
+                                        >
+                                          -
+                                        </button>
+                                        <span className="btn btn-xs join-item no-animation">
+                                          {detail.orderItem.eggQty ?? 0}
+                                        </span>
+                                        <button
+                                          className="btn btn-xs join-item"
+                                          onClick={() => {
+                                            void updateCartItemOptions(
+                                              detail.orderItemId,
+                                              detail.itemId,
+                                              {
+                                                eggQty:
+                                                  (detail.orderItem.eggQty ?? 0) + 1,
+                                              },
+                                            );
+                                          }}
+                                        >
+                                          +
+                                        </button>
                                       </div>
                                     </div>
                                   ) : null}

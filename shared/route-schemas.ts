@@ -68,6 +68,8 @@ const menuTranslationsBodySchema = z.object({
 export const createMenuItemBodySchema = z.object({
   logicalId: z.string().min(1).optional(),
   price: z.number().int().min(0),
+  largePrice: z.number().int().min(0).optional(),
+  eggPrice: z.number().int().min(0).optional(),
   category: z.string().min(1),
   imageUrl: z.string().min(1),
   translations: menuTranslationsBodySchema,
@@ -83,6 +85,8 @@ export const updateMenuItemBodySchema = z.object({
     .object({
       name: z.string().min(1).optional(),
       price: z.number().int().min(0).optional(),
+      largePrice: z.number().int().min(0).nullable().optional(),
+      eggPrice: z.number().int().min(0).nullable().optional(),
       category: z.string().min(1).optional(),
       description: z.string().min(1).optional(),
       imageUrl: z.string().min(1).optional(),
@@ -136,6 +140,8 @@ export const updateOrderBodySchema = z.object({
   orderItemId: z.number().int().min(1).optional(),
   itemId: z.string().min(1),
   qty: z.number().min(0),
+  size: z.enum(["small", "large"]).optional(),
+  eggQty: z.number().int().min(0).optional(),
   sugarLevel: z.string().optional(),
   iceLevel: z.string().optional(),
   note: z.string().optional(),

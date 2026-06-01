@@ -200,3 +200,51 @@ test("cart can keep separate option lines and clear all items", async () => {
     expect(cleared.order.total).toBe(0);
   }
 });
+
+test("cart snapshots size and egg extras into the order price", async () => {
+  const store = new JsonFileStore({
+    dataFilePath: join(tempDir, "store.json"),
+  });
+  await store.init();
+
+  const item = store.getMenu()[0]!;
+  const configured = await store.updateMenuItem(item.id, {
+    changes: {
+      largePrice: item.price + 15,
+      eggPrice: 10,
+    },
+    reason: "add product options",
+    userId: "tester",
+  });
+  expect(configured).not.toBeNull();
+
+  const order = await store.createOrder({ userId: "user-1" });
+  const added = await store.updateOrderItem(order.id, {
+    userId: "user-1",
+    itemId: configured!.id,
+    qty: 2,
+    size: "large",
+    eggQty: 2,
+    forceNew: true,
+  });
+
+  expect(added.ok).toBe(true);
+  if (!added.ok) return;
+  expect(added.order.items[0]?.menuItemPrice).toBe(item.price + 35);
+  expect(added.order.total).toBe((item.price + 35) * 2);
+
+  const line = added.order.items[0]!;
+  const changed = await store.updateOrderItem(order.id, {
+    userId: "user-1",
+    itemId: configured!.id,
+    orderItemId: line.id,
+    qty: 2,
+    size: "small",
+    eggQty: 1,
+  });
+
+  expect(changed.ok).toBe(true);
+  if (!changed.ok) return;
+  expect(changed.order.items[0]?.menuItemPrice).toBe(item.price + 10);
+  expect(changed.order.total).toBe((item.price + 10) * 2);
+});

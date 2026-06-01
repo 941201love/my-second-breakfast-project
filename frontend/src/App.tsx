@@ -4134,9 +4134,9 @@ export default function App() {
                   {coupons.map((coupon) => (
                     <li
                       key={coupon.code}
-                      className="flex items-start justify-between gap-3 border-b border-base-300 pb-2"
+                      className="flex flex-col gap-3 border-b border-base-300 pb-3 sm:flex-row sm:items-start sm:justify-between"
                     >
-                      <div>
+                      <div className="min-w-0">
                         <p className="font-semibold">
                           {coupon.code} - {coupon.name}
                         </p>
@@ -4157,7 +4157,7 @@ export default function App() {
                             : ""}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
                         <span className="badge badge-accent">
                           {coupon.discountType === "percent"
                             ? `${coupon.discountValue}%`

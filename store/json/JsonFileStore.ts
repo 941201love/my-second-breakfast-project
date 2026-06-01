@@ -389,7 +389,7 @@ export class JsonFileStore implements Store {
         })),
         coupons: Array.isArray(parsed.coupons)
           ? parsed.coupons.map((coupon) => ({
-              code: coupon.code.toUpperCase(),
+              code: coupon.code,
               name: coupon.name,
               discountType:
                 coupon.discountType === "percent" ? "percent" : "amount",
@@ -783,7 +783,7 @@ export class JsonFileStore implements Store {
     const coupon = input.couponCode
       ? this.coupons.find(
           (item) =>
-            item.code.toUpperCase() === input.couponCode?.toUpperCase() &&
+            item.code === input.couponCode &&
             item.isActive,
         )
       : undefined;
@@ -835,7 +835,7 @@ export class JsonFileStore implements Store {
   async createCoupon(input: Coupon): Promise<Coupon> {
     const coupon = {
       ...input,
-      code: input.code.toUpperCase(),
+      code: input.code,
       minSpend: input.minSpend ?? 0,
       maxDiscount: input.maxDiscount ?? 0,
       usageLimitPerUser: input.usageLimitPerUser ?? 1,
@@ -854,11 +854,10 @@ export class JsonFileStore implements Store {
   }
 
   async deleteCoupon(code: string): Promise<Coupon | null> {
-    const normalizedCode = code.toUpperCase();
-    const coupon = this.coupons.find((item) => item.code === normalizedCode);
+    const coupon = this.coupons.find((item) => item.code === code);
     if (!coupon) return null;
 
-    this.coupons = this.coupons.filter((item) => item.code !== normalizedCode);
+    this.coupons = this.coupons.filter((item) => item.code !== code);
     await this.persist();
     return coupon;
   }
@@ -879,7 +878,7 @@ export class JsonFileStore implements Store {
     const totalUsedCount = this.orders.filter(
       (item) =>
         item.status !== "pending" &&
-        item.couponCode?.toUpperCase() === coupon.code.toUpperCase(),
+        item.couponCode === coupon.code,
     ).length;
     if ((coupon.usageLimitTotal ?? 0) > 0 && totalUsedCount >= coupon.usageLimitTotal) {
       return false;
@@ -889,7 +888,7 @@ export class JsonFileStore implements Store {
       (item) =>
         item.userId === userId &&
         item.status !== "pending" &&
-        item.couponCode?.toUpperCase() === coupon.code.toUpperCase(),
+        item.couponCode === coupon.code,
     ).length;
     return usedCount < (coupon.usageLimitPerUser ?? 1);
   }

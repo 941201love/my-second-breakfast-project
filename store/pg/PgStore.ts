@@ -421,7 +421,7 @@ export class PgStore implements Store {
     const coupon = input.couponCode
       ? this.coupons.find(
           (item) =>
-            item.code.toUpperCase() === input.couponCode?.toUpperCase() &&
+            item.code === input.couponCode &&
             item.isActive,
         )
       : undefined;
@@ -494,7 +494,7 @@ export class PgStore implements Store {
       .insert(couponsTable)
       .values({
         ...input,
-        code: input.code.toUpperCase(),
+        code: input.code,
         minSpend: input.minSpend ?? 0,
         maxDiscount: input.maxDiscount ?? 0,
         usageLimitPerUser: input.usageLimitPerUser ?? 1,
@@ -521,7 +521,7 @@ export class PgStore implements Store {
 
     await this.reloadCoupons();
     return {
-      code: row?.code ?? input.code.toUpperCase(),
+      code: row?.code ?? input.code,
       name: row?.name ?? input.name,
       discountType: row?.discountType === "percent" ? "percent" : "amount",
       discountValue: row?.discountValue ?? input.discountValue,
@@ -536,11 +536,10 @@ export class PgStore implements Store {
   }
 
   async deleteCoupon(code: string): Promise<Coupon | null> {
-    const normalizedCode = code.toUpperCase();
-    const coupon = this.coupons.find((item) => item.code === normalizedCode);
+    const coupon = this.coupons.find((item) => item.code === code);
     if (!coupon) return null;
 
-    await db.delete(couponsTable).where(eq(couponsTable.code, normalizedCode));
+    await db.delete(couponsTable).where(eq(couponsTable.code, code));
     await this.reloadCoupons();
     return coupon;
   }
@@ -731,7 +730,7 @@ export class PgStore implements Store {
     const totalUsedCount = this.orders.filter(
       (item) =>
         item.status !== "pending" &&
-        item.couponCode?.toUpperCase() === coupon.code.toUpperCase(),
+        item.couponCode === coupon.code,
     ).length;
     if ((coupon.usageLimitTotal ?? 0) > 0 && totalUsedCount >= coupon.usageLimitTotal) {
       return false;
@@ -741,7 +740,7 @@ export class PgStore implements Store {
       (item) =>
         item.userId === userId &&
         item.status !== "pending" &&
-        item.couponCode?.toUpperCase() === coupon.code.toUpperCase(),
+        item.couponCode === coupon.code,
     ).length;
     return usedCount < (coupon.usageLimitPerUser ?? 1);
   }

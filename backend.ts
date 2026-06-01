@@ -475,6 +475,8 @@ app.post(
       minSpend: body.minSpend,
       maxDiscount: body.maxDiscount,
       usageLimitPerUser: body.usageLimitPerUser,
+      usageLimitTotal: body.usageLimitTotal,
+      startsAt: body.startsAt,
       expiresAt: body.expiresAt,
       isActive: body.isActive,
     });

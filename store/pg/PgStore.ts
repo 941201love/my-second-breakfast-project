@@ -114,6 +114,7 @@ export class PgStore implements Store {
         category?: string;
         description?: string;
         imageUrl?: string;
+        translations?: MenuItem["translations"];
         testGroup?: string;
       };
       reason: string;

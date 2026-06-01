@@ -470,6 +470,7 @@ export class JsonFileStore implements Store {
         category?: string;
         description?: string;
         imageUrl?: string;
+        translations?: MenuItem["translations"];
         testGroup?: string;
       };
       reason: string;
@@ -487,6 +488,8 @@ export class JsonFileStore implements Store {
     menuItem.isCurrentVersion = false;
     const newVersion = menuItem.version + 1;
     const versionLevel = patch.versionLevel ?? "minor";
+    const translations = patch.changes.translations ?? menuItem.translations;
+    const zh = translations?.["zh-TW"];
     const next: MenuItem = {
       ...menuItem,
       id: `${menuItem.logicalId}-${String(newVersion).padStart(2, "0")}`,
@@ -497,10 +500,11 @@ export class JsonFileStore implements Store {
           : menuItem.majorVersion,
       minorVersion:
         versionLevel === "major" ? 0 : menuItem.minorVersion + 1,
-      name: patch.changes.name ?? menuItem.name,
+      name: patch.changes.name ?? zh?.name ?? menuItem.name,
       price: patch.changes.price ?? menuItem.price,
       category: patch.changes.category ?? menuItem.category,
-      description: patch.changes.description ?? menuItem.description,
+      description: patch.changes.description ?? zh?.description ?? menuItem.description,
+      translations,
       imageUrl: patch.changes.imageUrl ?? menuItem.imageUrl,
       testGroup: patch.changes.testGroup ?? menuItem.testGroup,
       isCurrentVersion: true,

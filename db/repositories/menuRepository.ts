@@ -34,6 +34,7 @@ export interface MenuItemChanges {
   category?: string;
   description?: string;
   imageUrl?: string;
+  translations?: MenuItem["translations"];
   testGroup?: string;
 }
 
@@ -253,6 +254,9 @@ export class MenuRepository {
           : current.majorVersion;
       const nextMinorVersion =
         versionLevel === "major" ? 0 : current.minorVersion + 1;
+      const nextTranslations =
+        changes.translations ?? (current.translations as MenuItem["translations"]);
+      const zh = nextTranslations?.["zh-TW"];
       const [inserted] = await tx
         .insert(menuItemsTable)
         .values({
@@ -262,11 +266,11 @@ export class MenuRepository {
           version: nextVersion,
           majorVersion: nextMajorVersion,
           minorVersion: nextMinorVersion,
-          name: changes.name ?? current.name,
+          name: changes.name ?? zh?.name ?? current.name,
           price: changes.price ?? current.price,
           category: changes.category ?? current.category,
-          description: changes.description ?? current.description,
-          translations: current.translations,
+          description: changes.description ?? zh?.description ?? current.description,
+          translations: nextTranslations,
           imageUrl: changes.imageUrl ?? current.imageUrl,
           isCurrentVersion: true,
           supersedes: current.id,

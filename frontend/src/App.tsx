@@ -874,6 +874,12 @@ export default function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const isAdminPage = currentPath.startsWith("/admin");
   const isAdminAddProductPage = currentPath === "/admin/add-product";
+  const isAdminEditProductPage = currentPath.startsWith("/admin/edit-product/");
+  const adminEditProductLogicalId = isAdminEditProductPage
+    ? decodeURIComponent(currentPath.replace(/^\/admin\/edit-product\//, ""))
+    : "";
+  const isAdminProductFormPage =
+    isAdminAddProductPage || isAdminEditProductPage;
   const isCartPage = currentPath === "/cart";
   const isOrderHistoryPage = currentPath === "/orders";
   const isProfilePage = currentPath === "/profile";
@@ -960,6 +966,9 @@ export default function App() {
       ko: { name: "", description: "" },
     } as NonNullable<MenuItem["translations"]>,
   });
+  const [editingAdminMenuLogicalId, setEditingAdminMenuLogicalId] = useState<
+    string | null
+  >(null);
   const [couponCode, setCouponCode] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -1010,6 +1019,7 @@ export default function App() {
   }
 
   function resetNewMenuItemForm(): void {
+    setEditingAdminMenuLogicalId(null);
     setNewMenuItem({
       price: 50,
       category: "主餐",
@@ -1021,6 +1031,24 @@ export default function App() {
         ko: { name: "", description: "" },
       },
     });
+  }
+
+  function openEditAdminMenuItem(item: MenuItem): void {
+    setEditingAdminMenuLogicalId(item.logicalId);
+    setNewMenuItem({
+      price: item.price,
+      category: item.category,
+      imageUrl: item.imageUrl,
+      translations:
+        item.translations ?? {
+          "zh-TW": { name: item.name, description: item.description },
+          en: { name: item.name, description: item.description },
+          ja: { name: item.name, description: item.description },
+          ko: { name: item.name, description: item.description },
+        },
+    });
+    setAdminMenuNotice("");
+    navigate(`/admin/edit-product/${encodeURIComponent(item.logicalId)}`);
   }
 
   const statusText = (status: Order["status"]) => {
@@ -1365,6 +1393,28 @@ export default function App() {
 
     return () => window.clearTimeout(timer);
   }, [adminMenuNotice]);
+
+  useEffect(() => {
+    if (
+      !isAdminEditProductPage ||
+      !adminEditProductLogicalId ||
+      editingAdminMenuLogicalId === adminEditProductLogicalId
+    ) {
+      return;
+    }
+
+    const item = items.find(
+      (menuItem) => menuItem.logicalId === adminEditProductLogicalId,
+    );
+    if (item) {
+      openEditAdminMenuItem(item);
+    }
+  }, [
+    adminEditProductLogicalId,
+    editingAdminMenuLogicalId,
+    isAdminEditProductPage,
+    items,
+  ]);
 
   useEffect(() => {
     const shouldLockBody =
@@ -1995,45 +2045,72 @@ export default function App() {
     setAdminError(`已刪除優惠券：${code}`);
   }
 
-  async function createAdminMenuItem(): Promise<void> {
+  async function saveAdminMenuItem(): Promise<void> {
     const missingTranslation = menuLanguageOptions.some((option) => {
       const translation = newMenuItem.translations[option.value];
       return !translation.name.trim() || !translation.description.trim();
     });
     if (missingTranslation) {
-      setAdminMenuNotice("新增商品失敗：四種語言的名稱與介紹都要填。");
+      setAdminMenuNotice("儲存商品失敗：四種語言的名稱與介紹都要填。");
       return;
     }
     if (!newMenuItem.imageUrl.trim() || newMenuItem.price < 0) {
       setAdminMenuNotice("請輸入完整的商品價格與圖片。");
       return;
     }
-    if (!window.confirm("確定要新增這個商品嗎？")) {
+    if (
+      !window.confirm(
+        editingAdminMenuLogicalId
+          ? "確定要更新這個商品嗎？"
+          : "確定要新增這個商品嗎？",
+      )
+    ) {
       return;
     }
 
-    const response = await fetch(buildApiUrl("/api/menu"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        price: newMenuItem.price,
-        category: newMenuItem.category,
-        imageUrl: newMenuItem.imageUrl,
-        translations: newMenuItem.translations,
-      }),
-    });
+    const response = await fetch(
+      buildApiUrl(
+        editingAdminMenuLogicalId
+          ? `/api/menu/${editingAdminMenuLogicalId}`
+          : "/api/menu",
+      ),
+      {
+        method: editingAdminMenuLogicalId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(
+          editingAdminMenuLogicalId
+            ? {
+                changes: {
+                  price: newMenuItem.price,
+                  category: newMenuItem.category,
+                  imageUrl: newMenuItem.imageUrl,
+                  translations: newMenuItem.translations,
+                },
+                reason: "POS 後台更新商品資料",
+                versionLevel: "minor",
+              }
+            : {
+                price: newMenuItem.price,
+                category: newMenuItem.category,
+                imageUrl: newMenuItem.imageUrl,
+                translations: newMenuItem.translations,
+              },
+        ),
+      },
+    );
 
     if (!response.ok) {
-      setAdminMenuNotice("新增商品失敗，請確認四種語言與商品資料都已填寫。");
+      setAdminMenuNotice("儲存商品失敗，請確認四種語言與商品資料都已填寫。");
       return;
     }
 
+    const notice = editingAdminMenuLogicalId ? "商品已更新。" : "商品已新增。";
     resetNewMenuItemForm();
     setIsAdminMenuFormOpen(false);
     navigate("/admin");
     await Promise.all([loadMenu(), loadAdminData()]);
-    setAdminError("商品已新增。");
+    setAdminError(notice);
   }
 
   async function updateAdminMenuPrice(item: MenuItem): Promise<void> {
@@ -2537,7 +2614,7 @@ export default function App() {
     );
   }
 
-  if (isAdminAddProductPage && adminAuthed) {
+  if (isAdminProductFormPage && adminAuthed) {
     const previewCopy = newMenuItem.translations["zh-TW"];
     const previewName = previewCopy.name.trim() || "商品名稱";
     const previewDescription =
@@ -2565,7 +2642,9 @@ export default function App() {
               >
                 返回
               </button>
-              <h1 className="text-2xl font-bold">新增商品</h1>
+              <h1 className="text-2xl font-bold">
+                {editingAdminMenuLogicalId ? "編輯商品" : "新增商品"}
+              </h1>
             </div>
             <button
               className="btn btn-sm btn-ghost"
@@ -2735,10 +2814,10 @@ export default function App() {
             <button
               className="btn btn-primary w-full"
               onClick={() => {
-                void createAdminMenuItem();
+                void saveAdminMenuItem();
               }}
             >
-              新增商品
+              {editingAdminMenuLogicalId ? "更新商品" : "新增商品"}
             </button>
           </div>
         </footer>
@@ -3135,7 +3214,7 @@ export default function App() {
                   <button
                     className="btn btn-primary w-full"
                     onClick={() => {
-                      void createAdminMenuItem();
+                      void saveAdminMenuItem();
                     }}
                   >
                     新增商品
@@ -3555,6 +3634,14 @@ export default function App() {
                             </td>
                             <td>
                               <div className="flex gap-2">
+                                <button
+                                  className="btn btn-xs btn-outline"
+                                  onClick={() => {
+                                    openEditAdminMenuItem(item);
+                                  }}
+                                >
+                                  編輯
+                                </button>
                                 <button
                                   className="btn btn-xs btn-outline"
                                   onClick={() => {

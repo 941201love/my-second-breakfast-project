@@ -48,6 +48,7 @@ export interface Store {
         category?: string;
         description?: string;
         imageUrl?: string;
+        translations?: MenuTranslations;
         testGroup?: string;
       };
       reason: string;

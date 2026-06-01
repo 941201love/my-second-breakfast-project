@@ -86,6 +86,7 @@ export const updateMenuItemBodySchema = z.object({
       category: z.string().min(1).optional(),
       description: z.string().min(1).optional(),
       imageUrl: z.string().min(1).optional(),
+      translations: menuTranslationsBodySchema.optional(),
       testGroup: z.string().min(1).optional(),
     })
     .refine((changes) => Object.keys(changes).length > 0, {

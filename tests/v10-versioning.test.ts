@@ -64,6 +64,39 @@ test("major menu updates reset the minor version and keep test group", async () 
   expect(updated!.testGroup).toBe("variant-a");
 });
 
+test("menu content edits create a translated current version", async () => {
+  const store = new JsonFileStore({
+    dataFilePath: join(tempDir, "store.json"),
+  });
+  await store.init();
+
+  const before = store.getMenu()[0]!;
+  const translations = {
+    "zh-TW": { name: "新版吐司", description: "中文介紹" },
+    en: { name: "New Toast", description: "English description" },
+    ja: { name: "新しいトースト", description: "日本語の紹介" },
+    ko: { name: "새 토스트", description: "한국어 소개" },
+  };
+
+  const updated = await store.updateMenuItem(before.id, {
+    changes: {
+      category: "吐司",
+      imageUrl: "/imgs/menu/new-toast.webp",
+      translations,
+    },
+    reason: "content refresh",
+    userId: "tester",
+  });
+
+  expect(updated).not.toBeNull();
+  expect(updated!.name).toBe("新版吐司");
+  expect(updated!.description).toBe("中文介紹");
+  expect(updated!.translations).toEqual(translations);
+  expect(updated!.category).toBe("吐司");
+  expect(updated!.imageUrl).toBe("/imgs/menu/new-toast.webp");
+  expect(before.name).not.toBe(updated!.name);
+});
+
 test("submitting an order with a stale menu version is rejected", async () => {
   const store = new JsonFileStore({
     dataFilePath: join(tempDir, "store.json"),

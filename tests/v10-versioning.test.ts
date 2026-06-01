@@ -251,3 +251,37 @@ test("cart snapshots size and egg extras into the order price", async () => {
   expect(changed.order.items[0]?.menuItemPrice).toBe(item.price + 30);
   expect(changed.order.total).toBe((item.price + 30) * 2);
 });
+
+test("shared addon prices update all eligible products without editing them", async () => {
+  const store = new JsonFileStore({
+    dataFilePath: join(tempDir, "store.json"),
+  });
+  await store.init();
+
+  const item = store.getMenu()[0]!;
+  const configured = await store.updateMenuItem(item.id, {
+    changes: { eggPrice: 10, cheesePrice: 10 },
+    reason: "allow shared addons",
+    userId: "tester",
+  });
+  expect(configured).not.toBeNull();
+
+  await store.updateAddonSettings({ eggPrice: 15, cheesePrice: 10 });
+  const refreshed = store.getMenu().find((entry) => entry.id === configured!.id);
+  expect(refreshed?.eggPrice).toBe(15);
+
+  const order = await store.createOrder({ userId: "user-1" });
+  const added = await store.updateOrderItem(order.id, {
+    userId: "user-1",
+    itemId: configured!.id,
+    qty: 1,
+    eggQty: 2,
+    cheeseQty: 1,
+  });
+
+  expect(added.ok).toBe(true);
+  if (added.ok) {
+    expect(added.order.items[0]?.menuItemPrice).toBe(item.price + 40);
+    expect(added.order.total).toBe(item.price + 40);
+  }
+});

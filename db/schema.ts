@@ -89,6 +89,17 @@ export const menuDisplayOrderTable = appSchema.table(
   }),
 );
 
+export const productAddonSettingsTable = appSchema.table(
+  "product_addon_settings",
+  {
+    key: text("key").primaryKey(),
+    price: integer("price").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+);
+
 export const promotionsTable = appSchema.table("promotions", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   name: text("name").notNull(),

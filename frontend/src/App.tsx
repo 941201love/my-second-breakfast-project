@@ -3,6 +3,7 @@ import "./App.css";
 import type {
   ApiDataResponse,
   ActivePromotion,
+  AddonSettings,
   Coupon,
   MenuItem,
   MenuItemVersionHistory,
@@ -970,6 +971,14 @@ export default function App() {
     [],
   );
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [addonSettings, setAddonSettings] = useState<AddonSettings>({
+    eggPrice: 10,
+    cheesePrice: 10,
+  });
+  const [addonSettingsDraft, setAddonSettingsDraft] = useState({
+    eggPrice: "10",
+    cheesePrice: "10",
+  });
   const [editingCouponCode, setEditingCouponCode] = useState<string | null>(null);
   const [newCoupon, setNewCoupon] = useState<CouponFormState>({
     code: "",
@@ -1229,6 +1238,19 @@ export default function App() {
     setCoupons(Array.isArray(payload?.data) ? payload.data : []);
   }
 
+  async function loadAddonSettings(): Promise<void> {
+    const response = await fetch(buildApiUrl("/api/addons"));
+    if (!response.ok) return;
+
+    const payload = (await response.json()) as ApiDataResponse<AddonSettings>;
+    if (!payload?.data) return;
+    setAddonSettings(payload.data);
+    setAddonSettingsDraft({
+      eggPrice: String(payload.data.eggPrice),
+      cheesePrice: String(payload.data.cheesePrice),
+    });
+  }
+
   async function loadCurrentOrder(): Promise<Order | null> {
     const response = await fetch(buildApiUrl("/api/orders/current"), {
       credentials: "include",
@@ -1306,7 +1328,7 @@ export default function App() {
     async function loadInitialMenu() {
       try {
         if (mounted) {
-          await Promise.all([loadMenu(), loadCoupons()]);
+          await Promise.all([loadMenu(), loadCoupons(), loadAddonSettings()]);
         }
       } catch (fetchError) {
         if (mounted) {
@@ -2121,6 +2143,42 @@ export default function App() {
     setAdminError(`已刪除優惠券：${code}`);
   }
 
+  async function saveAddonSettings(): Promise<void> {
+    if (
+      !addonSettingsDraft.eggPrice.trim() ||
+      !addonSettingsDraft.cheesePrice.trim()
+    ) {
+      setAdminError("請輸入完整的共用加料價格。");
+      return;
+    }
+    const eggPrice = parseWholeNumber(addonSettingsDraft.eggPrice);
+    const cheesePrice = parseWholeNumber(addonSettingsDraft.cheesePrice);
+    if (!window.confirm("確定要更新共用加料價格嗎？新加入購物車的品項會套用新價格。")) {
+      return;
+    }
+
+    const response = await fetch(buildApiUrl("/api/addons"), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ eggPrice, cheesePrice }),
+    });
+
+    if (!response.ok) {
+      setAdminError("更新共用加料價格失敗。");
+      return;
+    }
+
+    const payload = (await response.json()) as ApiDataResponse<AddonSettings>;
+    setAddonSettings(payload.data);
+    setAddonSettingsDraft({
+      eggPrice: String(payload.data.eggPrice),
+      cheesePrice: String(payload.data.cheesePrice),
+    });
+    await loadMenu();
+    setAdminError("共用加料價格已更新。");
+  }
+
   async function saveAdminMenuItem(): Promise<void> {
     const missingTranslation = menuLanguageOptions.some((option) => {
       const translation = newMenuItem.translations[option.value];
@@ -2132,13 +2190,6 @@ export default function App() {
     }
     if (!newMenuItem.imageUrl.trim() || newMenuItem.price < 0) {
       setAdminMenuNotice("請輸入完整的商品價格與圖片。");
-      return;
-    }
-    if (
-      (newMenuItem.allowEgg && !newMenuItem.eggPrice.trim()) ||
-      (newMenuItem.allowCheese && !newMenuItem.cheesePrice.trim())
-    ) {
-      setAdminMenuNotice("已勾選的加料選項必須填寫價格。");
       return;
     }
     if (
@@ -2162,13 +2213,9 @@ export default function App() {
                 ? null
                 : Number(newMenuItem.largePrice),
             eggPrice:
-              !newMenuItem.allowEgg || newMenuItem.eggPrice === ""
-                ? null
-                : Number(newMenuItem.eggPrice),
+              !newMenuItem.allowEgg ? null : addonSettings.eggPrice,
             cheesePrice:
-              !newMenuItem.allowCheese || newMenuItem.cheesePrice === ""
-                ? null
-                : Number(newMenuItem.cheesePrice),
+              !newMenuItem.allowCheese ? null : addonSettings.cheesePrice,
             category: newMenuItem.category,
             imageUrl: newMenuItem.imageUrl,
             translations: newMenuItem.translations,
@@ -2183,13 +2230,9 @@ export default function App() {
               ? undefined
               : Number(newMenuItem.largePrice),
           eggPrice:
-            !newMenuItem.allowEgg || newMenuItem.eggPrice === ""
-              ? undefined
-              : Number(newMenuItem.eggPrice),
+            !newMenuItem.allowEgg ? undefined : addonSettings.eggPrice,
           cheesePrice:
-            !newMenuItem.allowCheese || newMenuItem.cheesePrice === ""
-              ? undefined
-              : Number(newMenuItem.cheesePrice),
+            !newMenuItem.allowCheese ? undefined : addonSettings.cheesePrice,
           category: newMenuItem.category,
           imageUrl: newMenuItem.imageUrl,
           translations: newMenuItem.translations,
@@ -2891,19 +2934,9 @@ export default function App() {
                     <span className="font-semibold">允許加蛋</span>
                   </label>
                   {newMenuItem.allowEgg ? (
-                    <label className="form-control mt-4">
-                      <span className="label-text mb-1">加蛋單價（NT）</span>
-                      <input
-                        className="input input-bordered"
-                        inputMode="numeric"
-                        value={newMenuItem.eggPrice}
-                        onChange={(event) => {
-                          const eggPrice = event.currentTarget.value.replace(/\D/g, "");
-                          setNewMenuItem((current) => ({ ...current, eggPrice }));
-                        }}
-                        placeholder="例如 10"
-                      />
-                    </label>
+                    <p className="mt-3 text-sm opacity-70">
+                      共用價格：{formatMoney(addonSettings.eggPrice)}
+                    </p>
                   ) : null}
                 </div>
                 <div className="rounded-lg border border-base-300 p-4">
@@ -2920,19 +2953,9 @@ export default function App() {
                     <span className="font-semibold">允許加起司</span>
                   </label>
                   {newMenuItem.allowCheese ? (
-                    <label className="form-control mt-4">
-                      <span className="label-text mb-1">加起司單價（NT）</span>
-                      <input
-                        className="input input-bordered"
-                        inputMode="numeric"
-                        value={newMenuItem.cheesePrice}
-                        onChange={(event) => {
-                          const cheesePrice = event.currentTarget.value.replace(/\D/g, "");
-                          setNewMenuItem((current) => ({ ...current, cheesePrice }));
-                        }}
-                        placeholder="例如 10"
-                      />
-                    </label>
+                    <p className="mt-3 text-sm opacity-70">
+                      共用價格：{formatMoney(addonSettings.cheesePrice)}
+                    </p>
                   ) : null}
                 </div>
               </div>
@@ -3293,6 +3316,49 @@ export default function App() {
 
           {adminAuthed ? (
             <>
+          <section className="rounded-lg bg-base-100 p-5 shadow">
+            <div className="mb-4">
+              <h2 className="text-2xl font-bold">共用加料價格</h2>
+              <p className="mt-1 text-sm opacity-60">
+                修改一次後，所有允許該加料的商品會套用新價格；既有訂單保留原成交價。
+              </p>
+            </div>
+            <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-[1fr_1fr_auto]">
+              <label className="form-control">
+                <span className="label-text mb-1">加蛋單價（NT）</span>
+                <input
+                  className="input input-bordered"
+                  inputMode="numeric"
+                  value={addonSettingsDraft.eggPrice}
+                  onChange={(event) => {
+                    const eggPrice = event.currentTarget.value.replace(/\D/g, "");
+                    setAddonSettingsDraft((current) => ({ ...current, eggPrice }));
+                  }}
+                />
+              </label>
+              <label className="form-control">
+                <span className="label-text mb-1">加起司單價（NT）</span>
+                <input
+                  className="input input-bordered"
+                  inputMode="numeric"
+                  value={addonSettingsDraft.cheesePrice}
+                  onChange={(event) => {
+                    const cheesePrice = event.currentTarget.value.replace(/\D/g, "");
+                    setAddonSettingsDraft((current) => ({ ...current, cheesePrice }));
+                  }}
+                />
+              </label>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  void saveAddonSettings();
+                }}
+              >
+                更新加料價格
+              </button>
+            </div>
+          </section>
+
           <section>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-2xl font-bold">菜單商品</h2>

@@ -1,4 +1,9 @@
-import type { MenuItem, Order, StaleCartItem } from "../shared/contracts.ts";
+import type {
+  AddonSettings,
+  MenuItem,
+  Order,
+  StaleCartItem,
+} from "../shared/contracts.ts";
 import type { z } from "zod";
 import type { menuItemSchema } from "../shared/contracts.ts";
 import type { Coupon } from "../shared/contracts.ts";
@@ -63,6 +68,8 @@ export interface Store {
     },
   ): Promise<MenuItem | null>;
   deleteMenuItem(menuId: string): Promise<MenuItem | null>;
+  getAddonSettings(): AddonSettings;
+  updateAddonSettings(input: AddonSettings): Promise<AddonSettings>;
 
   getOrders(): ReadonlyArray<Order>;
   getCurrentOrderByUserId(userId: string): Order | undefined;

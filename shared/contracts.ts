@@ -96,6 +96,11 @@ export const couponSchema = z.object({
   isActive: z.boolean(),
 });
 
+export const addonSettingsSchema = z.object({
+  eggPrice: z.number().int().min(0),
+  cheesePrice: z.number().int().min(0),
+});
+
 export const priceSensitivitySchema = z.object({
   logicalId: z.string().min(1),
   name: z.string().min(1),
@@ -189,6 +194,7 @@ export type MenuItemVersionHistory = z.infer<
 >;
 export type ActivePromotion = z.infer<typeof activePromotionSchema>;
 export type Coupon = z.infer<typeof couponSchema>;
+export type AddonSettings = z.infer<typeof addonSettingsSchema>;
 export type PriceSensitivity = z.infer<typeof priceSensitivitySchema>;
 export type StaleCartItem = z.infer<typeof staleCartItemSchema>;
 export type User = z.infer<typeof userSchema>;

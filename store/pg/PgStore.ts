@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type {
+  AddonSettings,
   MenuItem,
   Order,
   OrderItem,
@@ -13,6 +14,7 @@ import {
   orderItemsTable,
   ordersTable,
   couponsTable,
+  productAddonSettingsTable,
 } from "../../db/schema.ts";
 import type { Store } from "../Store.ts";
 
@@ -78,6 +80,7 @@ export class PgStore implements Store {
   private menu: MenuItem[] = [];
   private orders: Order[] = [];
   private coupons: Coupon[] = [];
+  private addonSettings: AddonSettings = { eggPrice: 10, cheesePrice: 10 };
 
   constructor(options: PgStoreOptions = {}) {
     this.dataFilePath = options.dataFilePath ?? "./data/store.json";
@@ -86,6 +89,7 @@ export class PgStore implements Store {
   async init(): Promise<void> {
     await db.execute(sql`select 1`);
     await this.ensureProductOptionColumns();
+    await this.ensureAddonSettingsTable();
     await this.ensureCouponRuleColumns();
     await this.seedFromJsonIfEmpty();
     await this.reloadFromDatabase();
@@ -93,6 +97,26 @@ export class PgStore implements Store {
 
   getMenu(): ReadonlyArray<MenuItem> {
     return this.menu;
+  }
+
+  getAddonSettings(): AddonSettings {
+    return { ...this.addonSettings };
+  }
+
+  async updateAddonSettings(input: AddonSettings): Promise<AddonSettings> {
+    await db
+      .insert(productAddonSettingsTable)
+      .values([
+        { key: "egg", price: input.eggPrice },
+        { key: "cheese", price: input.cheesePrice },
+      ])
+      .onConflictDoUpdate({
+        target: productAddonSettingsTable.key,
+        set: { price: sql`excluded.price`, updatedAt: new Date() },
+      });
+    await this.reloadAddonSettings();
+    this.menu = this.menu.map((item) => this.withAddonSettings(item));
+    return this.getAddonSettings();
   }
 
   async createMenuItem(input: {
@@ -114,9 +138,9 @@ export class PgStore implements Store {
       logicalId,
     });
 
-    this.menu.push(created);
+    this.menu.push(this.withAddonSettings(created));
     this.menu.sort((a, b) => a.logicalId.localeCompare(b.logicalId));
-    return created;
+    return this.withAddonSettings(created);
   }
 
   async updateMenuItem(
@@ -148,8 +172,10 @@ export class PgStore implements Store {
     );
 
     if (!updated) return null;
-    this.menu = await menuRepository.getCurrentMenu();
-    return updated;
+    this.menu = (await menuRepository.getCurrentMenu()).map((item) =>
+      this.withAddonSettings(item),
+    );
+    return this.withAddonSettings(updated);
   }
 
   async deleteMenuItem(menuId: string): Promise<MenuItem | null> {
@@ -164,7 +190,9 @@ export class PgStore implements Store {
       .where(eq(menuItemsTable.id, existing.id))
       .returning();
 
-    this.menu = await menuRepository.getCurrentMenu();
+    this.menu = (await menuRepository.getCurrentMenu()).map((item) =>
+      this.withAddonSettings(item),
+    );
     return updated
       ? {
           id: updated.id,
@@ -318,8 +346,14 @@ export class PgStore implements Store {
               (input.size === "large" && menuItem.largePrice !== undefined
                 ? menuItem.largePrice
                 : menuItem.price) +
-              (menuItem.eggPrice ?? 0) * (input.eggQty ?? 0) +
-              (menuItem.cheesePrice ?? 0) * (input.cheeseQty ?? 0),
+              (menuItem.eggPrice === undefined
+                ? 0
+                : this.addonSettings.eggPrice) *
+                (input.eggQty ?? 0) +
+              (menuItem.cheesePrice === undefined
+                ? 0
+                : this.addonSettings.cheesePrice) *
+                (input.cheeseQty ?? 0),
           })
           .where(
             and(
@@ -342,8 +376,14 @@ export class PgStore implements Store {
             (input.size === "large" && menuItem.largePrice !== undefined
               ? menuItem.largePrice
               : menuItem.price) +
-            (menuItem.eggPrice ?? 0) * (input.eggQty ?? 0) +
-            (menuItem.cheesePrice ?? 0) * (input.cheeseQty ?? 0);
+            (menuItem.eggPrice === undefined
+              ? 0
+              : this.addonSettings.eggPrice) *
+              (input.eggQty ?? 0) +
+            (menuItem.cheesePrice === undefined
+              ? 0
+              : this.addonSettings.cheesePrice) *
+              (input.cheeseQty ?? 0);
         }
       }
     } else if (input.qty > 0) {
@@ -361,8 +401,12 @@ export class PgStore implements Store {
           (input.size === "large" && menuItem.largePrice !== undefined
             ? menuItem.largePrice
             : menuItem.price) +
-          (menuItem.eggPrice ?? 0) * (input.eggQty ?? 0) +
-          (menuItem.cheesePrice ?? 0) * (input.cheeseQty ?? 0),
+          (menuItem.eggPrice === undefined ? 0 : this.addonSettings.eggPrice) *
+            (input.eggQty ?? 0) +
+          (menuItem.cheesePrice === undefined
+            ? 0
+            : this.addonSettings.cheesePrice) *
+            (input.cheeseQty ?? 0),
       }).returning();
       order.items.push({
         id: insertedItem?.id,
@@ -372,8 +416,12 @@ export class PgStore implements Store {
           (input.size === "large" && menuItem.largePrice !== undefined
             ? menuItem.largePrice
             : menuItem.price) +
-          (menuItem.eggPrice ?? 0) * (input.eggQty ?? 0) +
-          (menuItem.cheesePrice ?? 0) * (input.cheeseQty ?? 0),
+          (menuItem.eggPrice === undefined ? 0 : this.addonSettings.eggPrice) *
+            (input.eggQty ?? 0) +
+          (menuItem.cheesePrice === undefined
+            ? 0
+            : this.addonSettings.cheesePrice) *
+            (input.cheeseQty ?? 0),
         qty: input.qty,
         sugarLevel: input.sugarLevel,
         iceLevel: input.iceLevel,
@@ -636,7 +684,10 @@ export class PgStore implements Store {
   }
 
   private async reloadFromDatabase(): Promise<void> {
-    this.menu = await menuRepository.getCurrentMenu();
+    await this.reloadAddonSettings();
+    this.menu = (await menuRepository.getCurrentMenu()).map((item) =>
+      this.withAddonSettings(item),
+    );
     await this.reloadCoupons();
 
     const orderRows = await db
@@ -816,6 +867,44 @@ export class PgStore implements Store {
     `);
   }
 
+  private async ensureAddonSettingsTable(): Promise<void> {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS "bf_v10"."product_addon_settings" (
+        "key" text PRIMARY KEY,
+        "price" integer NOT NULL,
+        "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+      )
+    `);
+    await db
+      .insert(productAddonSettingsTable)
+      .values([
+        { key: "egg", price: 10 },
+        { key: "cheese", price: 10 },
+      ])
+      .onConflictDoNothing();
+  }
+
+  private async reloadAddonSettings(): Promise<void> {
+    const rows = await db.select().from(productAddonSettingsTable);
+    const priceByKey = new Map(rows.map((row) => [row.key, row.price]));
+    this.addonSettings = {
+      eggPrice: priceByKey.get("egg") ?? 10,
+      cheesePrice: priceByKey.get("cheese") ?? 10,
+    };
+  }
+
+  private withAddonSettings(item: MenuItem): MenuItem {
+    return {
+      ...item,
+      eggPrice:
+        item.eggPrice === undefined ? undefined : this.addonSettings.eggPrice,
+      cheesePrice:
+        item.cheesePrice === undefined
+          ? undefined
+          : this.addonSettings.cheesePrice,
+    };
+  }
+
   private canUseCoupon(
     coupon: Coupon | undefined,
     order: Order,
@@ -834,7 +923,8 @@ export class PgStore implements Store {
         item.status !== "pending" &&
         item.couponCode === coupon.code,
     ).length;
-    if ((coupon.usageLimitTotal ?? 0) > 0 && totalUsedCount >= coupon.usageLimitTotal) {
+    const usageLimitTotal = coupon.usageLimitTotal ?? 0;
+    if (usageLimitTotal > 0 && totalUsedCount >= usageLimitTotal) {
       return false;
     }
 

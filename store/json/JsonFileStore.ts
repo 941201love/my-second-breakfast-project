@@ -1,5 +1,6 @@
 import { mkdir, rename } from "node:fs/promises";
 import type {
+  AddonSettings,
   MenuItem,
   Order,
   OrderItem,
@@ -20,6 +21,7 @@ interface DataStore {
   menu: MenuItem[];
   orders: Order[];
   coupons?: Coupon[];
+  addonSettings?: AddonSettings;
   userIdCounter: number;
   menuIdCounter: number;
   orderIdCounter: number;
@@ -340,6 +342,7 @@ export class JsonFileStore implements Store {
   private menu: MenuItem[] = [];
   private orders: Order[] = [];
   private coupons: Coupon[] = [];
+  private addonSettings: AddonSettings = { eggPrice: 10, cheesePrice: 10 };
   private userIdCounter = 0;
   private menuIdCounter = 0;
   private orderIdCounter = 0;
@@ -420,6 +423,7 @@ export class JsonFileStore implements Store {
               isActive: coupon.isActive,
             }))
           : [{ code: "BREAKFAST10", name: "早餐折 10 元", discountType: "amount", discountValue: 10, minSpend: 0, maxDiscount: 0, usageLimitPerUser: 1, isActive: true }],
+        addonSettings: parsed.addonSettings ?? { eggPrice: 10, cheesePrice: 10 },
         userIdCounter: parsed.userIdCounter ?? 0,
         menuIdCounter: parsed.menuIdCounter ?? 0,
         orderIdCounter: parsed.orderIdCounter ?? 0,
@@ -435,12 +439,23 @@ export class JsonFileStore implements Store {
   getMenu(): ReadonlyArray<MenuItem> {
     return this.menu
       .filter((item) => item.isCurrentVersion)
+      .map((item) => this.withAddonSettings(item))
       .sort(
         (a, b) =>
           (a.displayOrder ?? Number.MAX_SAFE_INTEGER) -
             (b.displayOrder ?? Number.MAX_SAFE_INTEGER) ||
           a.logicalId.localeCompare(b.logicalId),
       );
+  }
+
+  getAddonSettings(): AddonSettings {
+    return { ...this.addonSettings };
+  }
+
+  async updateAddonSettings(input: AddonSettings): Promise<AddonSettings> {
+    this.addonSettings = { ...input };
+    await this.persist();
+    return this.getAddonSettings();
   }
 
   async createMenuItem(input: {
@@ -483,7 +498,7 @@ export class JsonFileStore implements Store {
     this.menu.push(newMenuItem);
     await this.persist();
 
-    return newMenuItem;
+    return this.withAddonSettings(newMenuItem);
   }
 
   async updateMenuItem(
@@ -553,7 +568,7 @@ export class JsonFileStore implements Store {
 
     await this.persist();
 
-    return next;
+    return this.withAddonSettings(next);
   }
 
   async deleteMenuItem(menuId: string): Promise<MenuItem | null> {
@@ -704,8 +719,12 @@ export class JsonFileStore implements Store {
           (input.size === "large" && menuItem.largePrice !== undefined
             ? menuItem.largePrice
             : menuItem.price) +
-          (menuItem.eggPrice ?? 0) * (input.eggQty ?? 0) +
-          (menuItem.cheesePrice ?? 0) * (input.cheeseQty ?? 0);
+          (menuItem.eggPrice === undefined ? 0 : this.addonSettings.eggPrice) *
+            (input.eggQty ?? 0) +
+          (menuItem.cheesePrice === undefined
+            ? 0
+            : this.addonSettings.cheesePrice) *
+            (input.cheeseQty ?? 0);
       }
     } else if (input.qty > 0) {
       order.items.push({
@@ -716,8 +735,12 @@ export class JsonFileStore implements Store {
           (input.size === "large" && menuItem.largePrice !== undefined
             ? menuItem.largePrice
             : menuItem.price) +
-          (menuItem.eggPrice ?? 0) * (input.eggQty ?? 0) +
-          (menuItem.cheesePrice ?? 0) * (input.cheeseQty ?? 0),
+          (menuItem.eggPrice === undefined ? 0 : this.addonSettings.eggPrice) *
+            (input.eggQty ?? 0) +
+          (menuItem.cheesePrice === undefined
+            ? 0
+            : this.addonSettings.cheesePrice) *
+            (input.cheeseQty ?? 0),
         qty: input.qty,
         sugarLevel: input.sugarLevel,
         iceLevel: input.iceLevel,
@@ -949,7 +972,8 @@ export class JsonFileStore implements Store {
         item.status !== "pending" &&
         item.couponCode === coupon.code,
     ).length;
-    if ((coupon.usageLimitTotal ?? 0) > 0 && totalUsedCount >= coupon.usageLimitTotal) {
+    const usageLimitTotal = coupon.usageLimitTotal ?? 0;
+    if (usageLimitTotal > 0 && totalUsedCount >= usageLimitTotal) {
       return false;
     }
 
@@ -976,6 +1000,7 @@ export class JsonFileStore implements Store {
           isActive: true,
         },
       ],
+      addonSettings: { eggPrice: 10, cheesePrice: 10 },
       userIdCounter: defaultUsers.length,
       menuIdCounter: defaultMenu.length,
       orderIdCounter: 0,
@@ -987,6 +1012,7 @@ export class JsonFileStore implements Store {
     this.menu = store.menu;
     this.orders = store.orders;
     this.coupons = store.coupons ?? [];
+    this.addonSettings = store.addonSettings ?? { eggPrice: 10, cheesePrice: 10 };
 
     const maxUserId = this.users.reduce((max, user) => {
       const asNumber = Number.parseInt(user.id, 10);
@@ -1013,9 +1039,22 @@ export class JsonFileStore implements Store {
       menu: this.menu,
       orders: this.orders,
       coupons: this.coupons,
+      addonSettings: this.addonSettings,
       userIdCounter: this.userIdCounter,
       menuIdCounter: this.menuIdCounter,
       orderIdCounter: this.orderIdCounter,
+    };
+  }
+
+  private withAddonSettings(item: MenuItem): MenuItem {
+    return {
+      ...item,
+      eggPrice:
+        item.eggPrice === undefined ? undefined : this.addonSettings.eggPrice,
+      cheesePrice:
+        item.cheesePrice === undefined
+          ? undefined
+          : this.addonSettings.cheesePrice,
     };
   }
 

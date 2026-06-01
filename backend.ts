@@ -6,6 +6,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import toTaipeiDateTime from "./util.ts";
 import {
   activePromotionListResponseSchema,
+  addonSettingsResponseSchema,
   adminLoginBodySchema,
   adminLoginResponseSchema,
   apiErrorResponseSchema,
@@ -29,6 +30,7 @@ import {
   submitOrderBodySchema,
   toOrderResponse,
   updateMenuDisplayOrderBodySchema,
+  updateAddonSettingsBodySchema,
   updateMenuItemBodySchema,
   updateMenuItemParamsSchema,
   updateOrderBodySchema,
@@ -353,6 +355,26 @@ app.get("/api/menu", () => ({ data: [...store.getMenu()] }), {
     200: menuListResponseSchema,
   },
 });
+
+app.get("/api/addons", () => ({ data: store.getAddonSettings() }), {
+  response: {
+    200: addonSettingsResponseSchema,
+  },
+});
+
+app.patch(
+  "/api/addons",
+  async ({ body, request }) => {
+    requireAdmin(request);
+    return { data: await store.updateAddonSettings(body) };
+  },
+  {
+    body: updateAddonSettingsBodySchema,
+    response: {
+      200: addonSettingsResponseSchema,
+    },
+  },
+);
 
 app.post(
   "/api/menu",

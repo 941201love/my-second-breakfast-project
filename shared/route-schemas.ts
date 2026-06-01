@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Order } from "./contracts.ts";
 import {
   activePromotionSchema,
+  addonSettingsSchema,
   couponSchema,
   menuItemSchema,
   menuItemVersionHistorySchema,
@@ -183,6 +184,8 @@ export const couponParamsSchema = z.object({
   code: z.string().min(1),
 });
 
+export const updateAddonSettingsBodySchema = addonSettingsSchema;
+
 // ─── Response Schemas（API envelope 層）─────────────────────────────────
 
 export const menuListResponseSchema = z.object({
@@ -207,6 +210,10 @@ export const couponListResponseSchema = z.object({
 
 export const couponResponseSchema = z.object({
   data: couponSchema,
+});
+
+export const addonSettingsResponseSchema = z.object({
+  data: addonSettingsSchema,
 });
 
 export const priceSensitivityListResponseSchema = z.object({

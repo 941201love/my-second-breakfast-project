@@ -3583,7 +3583,7 @@ export default function App() {
                         <th>分類</th>
                         <th>上架／更新</th>
                         <th>目前價格</th>
-                        <th>最近改價紀錄</th>
+                        <th>改價紀錄</th>
                         <th>操作</th>
                       </tr>
                     </thead>
@@ -3591,6 +3591,11 @@ export default function App() {
                       {items.map((item) => {
                         const histories =
                           versionHistoryByLogicalId[item.logicalId] ?? [];
+                        const priceHistories = histories.filter(
+                          (history, index) =>
+                            index === histories.length - 1 ||
+                            history.price !== histories[index + 1]?.price,
+                        );
 
                         return (
                           <tr key={item.id}>
@@ -3623,14 +3628,33 @@ export default function App() {
                               </span>
                             </td>
                             <td>
-                              <div className="space-y-1 text-xs">
-                                {histories.slice(0, 3).map((history) => (
-                                  <div key={history.id}>
-                                    {formatTaipeiDateTime(history.createdAt)} ·{" "}
-                                    {formatMoney(history.price)}
+                              <details className="dropdown dropdown-end">
+                                <summary className="btn btn-xs btn-outline">
+                                  查看紀錄 ({priceHistories.length})
+                                </summary>
+                                <div className="dropdown-content z-50 mt-2 w-64 rounded-lg border border-base-300 bg-base-100 p-3 shadow-xl">
+                                  <div className="mb-2 text-sm font-bold">
+                                    價格異動紀錄
                                   </div>
-                                ))}
-                              </div>
+                                  <div className="max-h-56 space-y-2 overflow-y-auto text-xs">
+                                    {priceHistories.map((history) => (
+                                      <div
+                                        key={history.id}
+                                        className="flex items-center justify-between gap-3 border-b border-base-300 pb-2 last:border-0 last:pb-0"
+                                      >
+                                        <span>
+                                          {formatTaipeiDateTime(
+                                            history.createdAt,
+                                          )}
+                                        </span>
+                                        <span className="font-semibold">
+                                          {formatMoney(history.price)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </details>
                             </td>
                             <td>
                               <div className="flex gap-2">

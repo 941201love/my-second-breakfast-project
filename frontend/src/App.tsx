@@ -1367,7 +1367,8 @@ export default function App() {
   const checkoutTotal = Math.max(0, cartTotal - couponDiscountTotal);
   const collectedCoupons = collectedCouponCodes
     .map((code) => coupons.find((coupon) => coupon.code === code))
-    .filter((coupon): coupon is Coupon => Boolean(coupon));
+    .filter((coupon): coupon is Coupon => Boolean(coupon))
+    .filter((coupon) => !hasUsedCoupon(coupon));
   const availableCollectedCoupons = collectedCoupons.filter((coupon) =>
     isCouponUsable(coupon),
   );
@@ -3134,6 +3135,18 @@ export default function App() {
     );
   }
 
+  function toggleCoupon(coupon: Coupon): boolean {
+    if (appliedCoupon?.code === coupon.code) {
+      setCouponCode("");
+      setAppliedCoupon(null);
+      setCheckoutNotice("");
+      return false;
+    }
+
+    selectCoupon(coupon);
+    return true;
+  }
+
   function isCouponCollectable(coupon: Coupon): boolean {
     if (coupon.isActive === false || hasUsedCoupon(coupon)) return false;
     if (coupon.startsAt && new Date(coupon.startsAt).getTime() > Date.now()) {
@@ -3177,13 +3190,39 @@ export default function App() {
     return numbers.map((number) => `#${number}`).join("、");
   }
 
-  function currentUserPickupNumber(): number | null {
-    if (!lastSubmittedOrder) return null;
-    const number = lastSubmittedOrder.dailySequence ?? lastSubmittedOrder.id;
-    return orderProgress.readyPickupNumbers.includes(number) ||
-      orderProgress.waitingPickupNumbers.includes(number)
-      ? number
-      : null;
+  function currentUserPickupNumbers(): number[] {
+    const activeNumbers = new Set([
+      ...orderProgress.readyPickupNumbers,
+      ...orderProgress.waitingPickupNumbers,
+    ]);
+    const today = new Date().toLocaleDateString("sv-SE", {
+      timeZone: "Asia/Taipei",
+    });
+    const ownNumbers = historyOrders
+      .filter(
+        (order) =>
+          new Date(order.submittedAt ?? order.createdAt).toLocaleDateString(
+            "sv-SE",
+            { timeZone: "Asia/Taipei" },
+          ) === today,
+      )
+      .map((order) => order.dailySequence ?? order.id)
+      .filter((number) => activeNumbers.has(number));
+
+    if (lastSubmittedOrder) {
+      const lastNumber =
+        lastSubmittedOrder.dailySequence ?? lastSubmittedOrder.id;
+      const lastOrderDate = new Date(
+        lastSubmittedOrder.submittedAt ?? lastSubmittedOrder.createdAt,
+      ).toLocaleDateString("sv-SE", {
+        timeZone: "Asia/Taipei",
+      });
+      if (lastOrderDate === today && activeNumbers.has(lastNumber)) {
+        ownNumbers.push(lastNumber);
+      }
+    }
+
+    return [...new Set(ownNumbers)].sort((left, right) => left - right);
   }
 
   function isCouponUsable(coupon: Coupon): boolean {
@@ -5247,8 +5286,8 @@ export default function App() {
               onClick={() => setIsPickupStatusOpen(true)}
             >
               {text.pickupStatus}
-              {currentUserPickupNumber() !== null
-                ? ` #${currentUserPickupNumber()}`
+              {currentUserPickupNumbers().length > 0
+                ? ` ${pickupNumberList(currentUserPickupNumbers())}`
                 : ""}
             </button>
             <button
@@ -5680,9 +5719,10 @@ export default function App() {
                           <button
                             className="btn btn-sm btn-primary shrink-0"
                             onClick={() => {
-                              selectCoupon(coupon);
-                              navigate("/cart");
-                              setCartView("checkout");
+                              if (toggleCoupon(coupon)) {
+                                navigate("/cart");
+                                setCartView("checkout");
+                              }
                             }}
                           >
                             {appliedCoupon?.code === coupon.code
@@ -5776,9 +5816,10 @@ export default function App() {
                         <button
                           className="btn btn-sm btn-primary"
                           onClick={() => {
-                            selectCoupon(coupon);
-                            navigate(cartDetails.length > 0 ? "/cart" : "/");
-                            if (cartDetails.length > 0) setCartView("checkout");
+                            if (toggleCoupon(coupon)) {
+                              navigate(cartDetails.length > 0 ? "/cart" : "/");
+                              if (cartDetails.length > 0) setCartView("checkout");
+                            }
                           }}
                         >
                           {appliedCoupon?.code === coupon.code
@@ -6832,9 +6873,9 @@ export default function App() {
                 <span className="block text-sm opacity-80">
                   {text.myPickupNumber}
                 </span>
-                {currentUserPickupNumber() !== null ? (
+                {currentUserPickupNumbers().length > 0 ? (
                   <strong className="mt-1 block text-3xl">
-                    #{currentUserPickupNumber()}
+                    {pickupNumberList(currentUserPickupNumbers())}
                   </strong>
                 ) : (
                   <strong className="mt-1 block">{text.noActiveOrder}</strong>

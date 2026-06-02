@@ -1019,7 +1019,7 @@ export default function App() {
   );
   const [newPromotion, setNewPromotion] = useState({
     name: "",
-    menuItemLogicalId: "",
+    menuItemLogicalIds: [] as string[],
     discountType: "amount" as "amount" | "percent",
     discountValue: "",
     startsDate: todayTaipeiDate(),
@@ -2088,11 +2088,11 @@ export default function App() {
 
   async function createAdminPromotion(): Promise<void> {
     const name = newPromotion.name.trim();
-    const menuItemLogicalId = newPromotion.menuItemLogicalId.trim();
+    const menuItemLogicalIds = newPromotion.menuItemLogicalIds;
     const discountValue = parseWholeNumber(newPromotion.discountValue, 0);
     if (
       !name ||
-      !menuItemLogicalId ||
+      menuItemLogicalIds.length === 0 ||
       discountValue < 1 ||
       !newPromotion.startsDate ||
       !newPromotion.endsDate
@@ -2102,26 +2102,30 @@ export default function App() {
     }
     if (!window.confirm(`確定要新增促銷「${name}」嗎？`)) return;
 
-    const response = await fetch(buildApiUrl("/api/promotions"), {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name,
-        menuItemLogicalId,
-        discountType: newPromotion.discountType,
-        discountValue,
-        startsAt: `${newPromotion.startsDate}T00:00:00+08:00`,
-        endsAt: `${newPromotion.endsDate}T23:59:59+08:00`,
-      }),
-    });
-    if (!response.ok) {
+    const responses = await Promise.all(
+      menuItemLogicalIds.map((menuItemLogicalId) =>
+        fetch(buildApiUrl("/api/promotions"), {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            menuItemLogicalId,
+            discountType: newPromotion.discountType,
+            discountValue,
+            startsAt: `${newPromotion.startsDate}T00:00:00+08:00`,
+            endsAt: `${newPromotion.endsDate}T23:59:59+08:00`,
+          }),
+        }),
+      ),
+    );
+    if (responses.some((response) => !response.ok)) {
       setAdminError("新增促銷失敗，請確認商品代碼與欄位。");
       return;
     }
     setNewPromotion({
       name: "",
-      menuItemLogicalId: "",
+      menuItemLogicalIds: [],
       discountType: "amount",
       discountValue: "",
       startsDate: todayTaipeiDate(),
@@ -4476,26 +4480,47 @@ export default function App() {
                   <span className="label-text mb-1">適用商品</span>
                   <details className="dropdown w-full">
                     <summary className="btn btn-outline w-full justify-between">
-                      {items.find(
-                        (item) =>
-                          item.logicalId === newPromotion.menuItemLogicalId,
-                      )?.name ?? "請選擇商品"}
+                      {newPromotion.menuItemLogicalIds.length === 0
+                        ? "請選擇商品"
+                        : newPromotion.menuItemLogicalIds.length === 1
+                          ? items.find(
+                              (item) =>
+                                item.logicalId ===
+                                newPromotion.menuItemLogicalIds[0],
+                            )?.name
+                          : `已選擇 ${newPromotion.menuItemLogicalIds.length} 個商品`}
                       <span>⌄</span>
                     </summary>
                     <ul className="menu dropdown-content z-40 mt-2 max-h-72 w-full overflow-y-auto rounded-lg border border-base-300 bg-base-100 p-2 shadow">
                       {items.map((item) => (
                         <li key={item.logicalId}>
                           <button
-                            onClick={(event) => {
+                            onClick={() => {
                               setNewPromotion((current) => ({
                                 ...current,
-                                menuItemLogicalId: item.logicalId,
+                                menuItemLogicalIds:
+                                  current.menuItemLogicalIds.includes(
+                                    item.logicalId,
+                                  )
+                                    ? current.menuItemLogicalIds.filter(
+                                        (logicalId) =>
+                                          logicalId !== item.logicalId,
+                                      )
+                                    : [
+                                        ...current.menuItemLogicalIds,
+                                        item.logicalId,
+                                      ],
                               }));
-                              event.currentTarget
-                                .closest("details")
-                                ?.removeAttribute("open");
                             }}
                           >
+                            <input
+                              className="checkbox checkbox-sm"
+                              type="checkbox"
+                              checked={newPromotion.menuItemLogicalIds.includes(
+                                item.logicalId,
+                              )}
+                              readOnly
+                            />
                             {item.name}（{item.logicalId}）
                           </button>
                         </li>

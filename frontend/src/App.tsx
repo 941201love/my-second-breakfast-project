@@ -1087,6 +1087,9 @@ export default function App() {
   const [adminMenuNotice, setAdminMenuNotice] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [adminOrders, setAdminOrders] = useState<Order[]>([]);
+  const [adminOrderActionId, setAdminOrderActionId] = useState<number | null>(
+    null,
+  );
   const [adminHistoryDate, setAdminHistoryDate] = useState(todayTaipeiDate());
   const [adminStatsDate, setAdminStatsDate] = useState(todayTaipeiDate());
   const [adminRevenueStartDate, setAdminRevenueStartDate] = useState(
@@ -1986,9 +1989,11 @@ export default function App() {
     }
   }
 
-  async function loadAdminData(): Promise<void> {
+  async function loadAdminData(options: { clearNotice?: boolean } = {}): Promise<void> {
     setAdminLoading(true);
-    setAdminError("");
+    if (options.clearNotice !== false) {
+      setAdminError("");
+    }
 
     try {
       const [promotionsResponse, ordersResponse, couponsResponse] =
@@ -2481,37 +2486,67 @@ export default function App() {
   }
 
   async function completeAdminOrder(orderId: number): Promise<void> {
-    const response = await fetch(buildApiUrl(`/api/orders/${orderId}/complete`), {
-      method: "PATCH",
-      credentials: "include",
-    });
+    setAdminOrderActionId(orderId);
+    try {
+      const response = await fetch(buildApiUrl(`/api/orders/${orderId}/complete`), {
+        method: "PATCH",
+        credentials: "include",
+      });
 
-    if (!response.ok) {
-      setAdminError("完成訂單失敗，請稍後再試。");
-      return;
+      if (!response.ok) {
+        setAdminError("完成訂單失敗，請重新整理後再試。");
+        return;
+      }
+
+      const payload = (await response.json()) as ApiDataResponse<Order>;
+      const completedOrder = payload.data;
+      setAdminOrders((current) =>
+        current.map((order) => (order.id === orderId ? completedOrder : order)),
+      );
+      const dailySequence = completedOrder.dailySequence ?? orderId;
+      setAdminError(`今日單號 #${dailySequence} 已完成，等待顧客取貨。`);
+      void Promise.all([
+        loadAdminData({ clearNotice: false }),
+        loadOrderProgress(),
+      ]);
+    } catch (error) {
+      console.error(error);
+      setAdminError("完成訂單失敗，請檢查網路後再試。");
+    } finally {
+      setAdminOrderActionId(null);
     }
-
-    await Promise.all([loadAdminData(), loadOrderProgress()]);
-    const dailySequence =
-      adminOrders.find((order) => order.id === orderId)?.dailySequence ?? orderId;
-    setAdminError(`今日單號 #${dailySequence} 已完成。`);
   }
 
   async function pickUpAdminOrder(orderId: number): Promise<void> {
-    const response = await fetch(buildApiUrl(`/api/orders/${orderId}/pick-up`), {
-      method: "PATCH",
-      credentials: "include",
-    });
+    setAdminOrderActionId(orderId);
+    try {
+      const response = await fetch(buildApiUrl(`/api/orders/${orderId}/pick-up`), {
+        method: "PATCH",
+        credentials: "include",
+      });
 
-    if (!response.ok) {
-      setAdminError("更新取貨狀態失敗，請稍後再試。");
-      return;
+      if (!response.ok) {
+        setAdminError("更新取貨狀態失敗，請重新整理後再試。");
+        return;
+      }
+
+      const payload = (await response.json()) as ApiDataResponse<Order>;
+      const pickedUpOrder = payload.data;
+      setAdminOrders((current) =>
+        current.map((order) => (order.id === orderId ? pickedUpOrder : order)),
+      );
+      const dailySequence = pickedUpOrder.dailySequence ?? orderId;
+      setAdminError(`今日單號 #${dailySequence} 已取貨並移至歷史訂單。`);
+      void Promise.all([
+        loadAdminData({ clearNotice: false }),
+        loadOrderProgress(),
+      ]);
+    } catch (error) {
+      console.error(error);
+      setAdminError("更新取貨狀態失敗，請檢查網路後再試。");
+    } finally {
+      setAdminOrderActionId(null);
     }
-
-    await Promise.all([loadAdminData(), loadOrderProgress()]);
-    const dailySequence =
-      adminOrders.find((order) => order.id === orderId)?.dailySequence ?? orderId;
-    setAdminError(`今日單號 #${dailySequence} 已取貨並移至歷史訂單。`);
   }
 
   function requestAdminOrderConfirmation(
@@ -4079,20 +4114,26 @@ export default function App() {
                           {order.status === "submitted" ? (
                             <button
                               className="btn btn-xs btn-success min-w-12 whitespace-nowrap"
+                              disabled={adminOrderActionId === order.id}
                               onClick={() => {
                                 requestAdminOrderConfirmation(order, "complete");
                               }}
                             >
-                              完成
+                              {adminOrderActionId === order.id
+                                ? "處理中..."
+                                : "完成"}
                             </button>
                           ) : order.status === "completed" ? (
                             <button
                               className="btn btn-xs btn-primary min-w-16 whitespace-nowrap"
+                              disabled={adminOrderActionId === order.id}
                               onClick={() => {
                                 requestAdminOrderConfirmation(order, "pick-up");
                               }}
                             >
-                              已取貨
+                              {adminOrderActionId === order.id
+                                ? "處理中..."
+                                : "已取貨"}
                             </button>
                           ) : (
                             <span className="text-xs opacity-50">已歸檔</span>

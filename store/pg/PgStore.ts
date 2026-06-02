@@ -611,30 +611,48 @@ export class PgStore implements Store {
   }
 
   async completeOrder(orderId: number): Promise<Order | null> {
-    const order = this.orders.find((o) => o.id === orderId);
-    if (!order || order.status !== "submitted") return null;
-
     const completedAt = new Date().toISOString();
-    await db
+    const [updated] = await db
       .update(ordersTable)
       .set({ status: "completed", completedAt: new Date(completedAt) })
-      .where(eq(ordersTable.id, orderId));
+      .where(
+        and(
+          eq(ordersTable.id, orderId),
+          eq(ordersTable.status, "submitted"),
+        ),
+      )
+      .returning();
+    if (!updated) return null;
 
+    const order = this.orders.find((o) => o.id === orderId);
+    if (!order) {
+      await this.reloadFromDatabase();
+      return this.orders.find((o) => o.id === orderId) ?? null;
+    }
     order.status = "completed";
     order.completedAt = completedAt;
     return order;
   }
 
   async pickUpOrder(orderId: number): Promise<Order | null> {
-    const order = this.orders.find((o) => o.id === orderId);
-    if (!order || order.status !== "completed") return null;
-
     const pickedUpAt = new Date().toISOString();
-    await db
+    const [updated] = await db
       .update(ordersTable)
       .set({ status: "picked_up", pickedUpAt: new Date(pickedUpAt) })
-      .where(eq(ordersTable.id, orderId));
+      .where(
+        and(
+          eq(ordersTable.id, orderId),
+          eq(ordersTable.status, "completed"),
+        ),
+      )
+      .returning();
+    if (!updated) return null;
 
+    const order = this.orders.find((o) => o.id === orderId);
+    if (!order) {
+      await this.reloadFromDatabase();
+      return this.orders.find((o) => o.id === orderId) ?? null;
+    }
     order.status = "picked_up";
     order.pickedUpAt = pickedUpAt;
     return order;

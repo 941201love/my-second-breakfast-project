@@ -6,6 +6,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import toTaipeiDateTime from "./util.ts";
 import {
   activePromotionListResponseSchema,
+  activePromotionResponseSchema,
   addonSettingsResponseSchema,
   adminLoginBodySchema,
   adminLoginResponseSchema,
@@ -15,6 +16,7 @@ import {
   couponResponseSchema,
   createCouponBodySchema,
   createMenuItemBodySchema,
+  createPromotionBodySchema,
   deleteMenuItemParamsSchema,
   getOrderByIdParamsSchema,
   healthResponseSchema,
@@ -26,6 +28,7 @@ import {
   orderProgressResponseSchema,
   orderResponseEnvelopeSchema,
   priceSensitivityListResponseSchema,
+  promotionParamsSchema,
   submitOrderParamsSchema,
   submitOrderBodySchema,
   toOrderResponse,
@@ -475,6 +478,57 @@ app.get(
     },
     response: {
       200: activePromotionListResponseSchema,
+    },
+  },
+);
+
+app.get(
+  "/api/promotions",
+  async ({ request }) => {
+    requireAdmin(request);
+    return { data: await menuRepository.getPromotions() };
+  },
+  {
+    response: {
+      200: activePromotionListResponseSchema,
+    },
+  },
+);
+
+app.post(
+  "/api/promotions",
+  async ({ body, request, set }) => {
+    requireAdmin(request);
+    const promotion = await menuRepository.createPromotion(body);
+    set.status = 201;
+    return { data: promotion };
+  },
+  {
+    body: createPromotionBodySchema,
+    response: {
+      201: activePromotionResponseSchema,
+    },
+  },
+);
+
+app.delete(
+  "/api/promotions/:id",
+  async ({ params, request, set }) => {
+    requireAdmin(request);
+    const promotion = await menuRepository.deletePromotion(
+      Number.parseInt(params.id, 10),
+    );
+    if (!promotion) {
+      set.status = 404;
+      return { error: "Promotion not found" };
+    }
+    return { data: promotion };
+  },
+  {
+    params: promotionParamsSchema,
+    response: {
+      200: activePromotionResponseSchema,
+      404: apiErrorResponseSchema,
     },
   },
 );

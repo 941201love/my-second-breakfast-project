@@ -997,6 +997,14 @@ export default function App() {
   const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>(
     [],
   );
+  const [newPromotion, setNewPromotion] = useState({
+    name: "",
+    menuItemLogicalId: "",
+    discountType: "amount" as "amount" | "percent",
+    discountValue: "",
+    startsDate: todayTaipeiDate(),
+    endsDate: todayTaipeiDate(),
+  });
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [addonSettings, setAddonSettings] = useState<AddonSettings>({
     eggPrice: 10,
@@ -1933,7 +1941,7 @@ export default function App() {
     try {
       const [promotionsResponse, ordersResponse, couponsResponse] =
         await Promise.all([
-          fetch(buildApiUrl("/api/promotions/active"), {
+          fetch(buildApiUrl("/api/promotions"), {
             credentials: "include",
           }),
           fetch(buildApiUrl("/api/orders"), {
@@ -2030,6 +2038,65 @@ export default function App() {
     setActivePromotions([]);
     setVersionHistoryByLogicalId({});
     navigate("/admin");
+  }
+
+  async function createAdminPromotion(): Promise<void> {
+    const name = newPromotion.name.trim();
+    const menuItemLogicalId = newPromotion.menuItemLogicalId.trim();
+    const discountValue = parseWholeNumber(newPromotion.discountValue, 0);
+    if (
+      !name ||
+      !menuItemLogicalId ||
+      discountValue < 1 ||
+      !newPromotion.startsDate ||
+      !newPromotion.endsDate
+    ) {
+      setAdminError("請填寫完整的促銷活動資料。");
+      return;
+    }
+    if (!window.confirm(`確定要新增促銷「${name}」嗎？`)) return;
+
+    const response = await fetch(buildApiUrl("/api/promotions"), {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        menuItemLogicalId,
+        discountType: newPromotion.discountType,
+        discountValue,
+        startsAt: `${newPromotion.startsDate}T00:00:00+08:00`,
+        endsAt: `${newPromotion.endsDate}T23:59:59+08:00`,
+      }),
+    });
+    if (!response.ok) {
+      setAdminError("新增促銷失敗，請確認商品代碼與欄位。");
+      return;
+    }
+    setNewPromotion({
+      name: "",
+      menuItemLogicalId: "",
+      discountType: "amount",
+      discountValue: "",
+      startsDate: todayTaipeiDate(),
+      endsDate: todayTaipeiDate(),
+    });
+    await Promise.all([loadMenu(), loadAdminData()]);
+    setAdminError("促銷活動已新增。");
+  }
+
+  async function deleteAdminPromotion(id: number): Promise<void> {
+    if (!window.confirm("確定要刪除這個促銷活動嗎？")) return;
+    const response = await fetch(buildApiUrl(`/api/promotions/${id}`), {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      setAdminError("刪除促銷失敗。");
+      return;
+    }
+    await Promise.all([loadMenu(), loadAdminData()]);
+    setAdminError("促銷活動已刪除。");
   }
 
   async function createAdminCoupon(): Promise<void> {
@@ -4157,6 +4224,110 @@ export default function App() {
 
           <section className={isAdminCouponsPage ? "" : "hidden"}>
             <h2 className="text-2xl font-bold mb-3">目前促銷</h2>
+            <div className="mb-4 rounded-lg bg-base-100 p-4 shadow">
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                <label className="form-control">
+                  <span className="label-text mb-1">活動名稱</span>
+                  <input
+                    className="input input-bordered"
+                    value={newPromotion.name}
+                    onChange={(event) =>
+                      setNewPromotion((current) => ({
+                        ...current,
+                        name: event.currentTarget.value,
+                      }))
+                    }
+                    placeholder="例如 飯糰新品折 10 元"
+                  />
+                </label>
+                <label className="form-control">
+                  <span className="label-text mb-1">適用商品</span>
+                  <select
+                    className="select select-bordered"
+                    value={newPromotion.menuItemLogicalId}
+                    onChange={(event) =>
+                      setNewPromotion((current) => ({
+                        ...current,
+                        menuItemLogicalId: event.currentTarget.value,
+                      }))
+                    }
+                  >
+                    <option value="">請選擇商品</option>
+                    {items.map((item) => (
+                      <option key={item.logicalId} value={item.logicalId}>
+                        {item.name}（{item.logicalId}）
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_180px_1fr_1fr]">
+                <div className="join">
+                  <button
+                    className={`btn join-item flex-1 ${newPromotion.discountType === "amount" ? "btn-primary" : "btn-outline"}`}
+                    onClick={() =>
+                      setNewPromotion((current) => ({
+                        ...current,
+                        discountType: "amount",
+                      }))
+                    }
+                  >
+                    金額 NT
+                  </button>
+                  <button
+                    className={`btn join-item flex-1 ${newPromotion.discountType === "percent" ? "btn-primary" : "btn-outline"}`}
+                    onClick={() =>
+                      setNewPromotion((current) => ({
+                        ...current,
+                        discountType: "percent",
+                      }))
+                    }
+                  >
+                    百分比 %
+                  </button>
+                </div>
+                <input
+                  className="input input-bordered"
+                  inputMode="numeric"
+                  value={newPromotion.discountValue}
+                  onChange={(event) =>
+                    setNewPromotion((current) => ({
+                      ...current,
+                      discountValue: onlyDigits(event.currentTarget.value),
+                    }))
+                  }
+                  placeholder={newPromotion.discountType === "amount" ? "折抵金額" : "實付比例"}
+                />
+                <input
+                  className="input input-bordered"
+                  type="date"
+                  value={newPromotion.startsDate}
+                  onChange={(event) =>
+                    setNewPromotion((current) => ({
+                      ...current,
+                      startsDate: event.currentTarget.value,
+                    }))
+                  }
+                />
+                <input
+                  className="input input-bordered"
+                  type="date"
+                  value={newPromotion.endsDate}
+                  onChange={(event) =>
+                    setNewPromotion((current) => ({
+                      ...current,
+                      endsDate: event.currentTarget.value,
+                    }))
+                  }
+                />
+              </div>
+              <button
+                className="btn btn-primary mt-3 w-full"
+                onClick={() => void createAdminPromotion()}
+              >
+                新增促銷
+              </button>
+            </div>
             <div className="space-y-3">
               {activePromotions.length === 0 ? (
                 <div className="alert bg-base-100">
@@ -4180,6 +4351,16 @@ export default function App() {
                       <p className="text-sm opacity-70">
                         適用品項：{promotion.menuItemLogicalId}
                       </p>
+                      <p className="text-xs opacity-60">
+                        {formatTaipeiDateTime(promotion.startsAt)} -{" "}
+                        {formatTaipeiDateTime(promotion.endsAt)}
+                      </p>
+                      <button
+                        className="btn btn-xs btn-error btn-outline mt-2"
+                        onClick={() => void deleteAdminPromotion(promotion.id)}
+                      >
+                        刪除
+                      </button>
                     </div>
                   </article>
                 ))

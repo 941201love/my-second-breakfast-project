@@ -337,6 +337,37 @@ export class MenuRepository {
     return rows.map(toPromotion);
   }
 
+  async getPromotions(): Promise<ActivePromotion[]> {
+    const rows = await db
+      .select()
+      .from(promotionsTable)
+      .orderBy(desc(promotionsTable.id));
+    return rows.map(toPromotion);
+  }
+
+  async createPromotion(
+    input: Omit<ActivePromotion, "id">,
+  ): Promise<ActivePromotion> {
+    const [row] = await db
+      .insert(promotionsTable)
+      .values({
+        ...input,
+        startsAt: new Date(input.startsAt),
+        endsAt: new Date(input.endsAt),
+        isActive: true,
+      })
+      .returning();
+    return toPromotion(row!);
+  }
+
+  async deletePromotion(id: number): Promise<ActivePromotion | null> {
+    const [row] = await db
+      .delete(promotionsTable)
+      .where(eq(promotionsTable.id, id))
+      .returning();
+    return row ? toPromotion(row) : null;
+  }
+
   async getPriceSensitivity(): Promise<PriceSensitivity[]> {
     const rows = await db
       .select({

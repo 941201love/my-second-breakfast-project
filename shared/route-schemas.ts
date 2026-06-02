@@ -184,6 +184,14 @@ export const couponParamsSchema = z.object({
   code: z.string().min(1),
 });
 
+export const createPromotionBodySchema = activePromotionSchema.omit({
+  id: true,
+});
+
+export const promotionParamsSchema = z.object({
+  id: z.string().regex(/^[0-9]+$/),
+});
+
 export const updateAddonSettingsBodySchema = addonSettingsSchema;
 
 // ─── Response Schemas（API envelope 層）─────────────────────────────────
@@ -202,6 +210,10 @@ export const menuItemVersionHistoryListResponseSchema = z.object({
 
 export const activePromotionListResponseSchema = z.object({
   data: z.array(activePromotionSchema),
+});
+
+export const activePromotionResponseSchema = z.object({
+  data: activePromotionSchema,
 });
 
 export const couponListResponseSchema = z.object({

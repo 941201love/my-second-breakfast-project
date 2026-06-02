@@ -1090,6 +1090,10 @@ export default function App() {
   const [adminOrderActionId, setAdminOrderActionId] = useState<number | null>(
     null,
   );
+  const [pendingAdminOrderAction, setPendingAdminOrderAction] = useState<{
+    orderId: number;
+    action: "complete" | "pick-up";
+  } | null>(null);
   const [adminHistoryDate, setAdminHistoryDate] = useState(todayTaipeiDate());
   const [adminStatsDate, setAdminStatsDate] = useState(todayTaipeiDate());
   const [adminRevenueStartDate, setAdminRevenueStartDate] = useState(
@@ -1989,7 +1993,9 @@ export default function App() {
     }
   }
 
-  async function loadAdminData(options: { clearNotice?: boolean } = {}): Promise<void> {
+  async function loadAdminData(
+    options: { clearNotice?: boolean } = {},
+  ): Promise<void> {
     setAdminLoading(true);
     if (options.clearNotice !== false) {
       setAdminError("");
@@ -2487,6 +2493,8 @@ export default function App() {
 
   async function completeAdminOrder(orderId: number): Promise<void> {
     setAdminOrderActionId(orderId);
+    setPendingAdminOrderAction(null);
+    setAdminError("正在更新訂單狀態...");
     try {
       const response = await fetch(buildApiUrl(`/api/orders/${orderId}/complete`), {
         method: "PATCH",
@@ -2508,7 +2516,7 @@ export default function App() {
       void Promise.all([
         loadAdminData({ clearNotice: false }),
         loadOrderProgress(),
-      ]);
+      ]).catch((error) => console.error(error));
     } catch (error) {
       console.error(error);
       setAdminError("完成訂單失敗，請檢查網路後再試。");
@@ -2519,6 +2527,8 @@ export default function App() {
 
   async function pickUpAdminOrder(orderId: number): Promise<void> {
     setAdminOrderActionId(orderId);
+    setPendingAdminOrderAction(null);
+    setAdminError("正在更新取貨狀態...");
     try {
       const response = await fetch(buildApiUrl(`/api/orders/${orderId}/pick-up`), {
         method: "PATCH",
@@ -2540,7 +2550,7 @@ export default function App() {
       void Promise.all([
         loadAdminData({ clearNotice: false }),
         loadOrderProgress(),
-      ]);
+      ]).catch((error) => console.error(error));
     } catch (error) {
       console.error(error);
       setAdminError("更新取貨狀態失敗，請檢查網路後再試。");
@@ -2553,19 +2563,9 @@ export default function App() {
     order: Order,
     action: "complete" | "pick-up",
   ): void {
-    const dailySequence = order.dailySequence ?? order.id;
-    setConfirmDialog({
-      message:
-        action === "complete"
-          ? `確定要完成今日單號 #${dailySequence} 嗎？`
-          : `確定今日單號 #${dailySequence} 已取貨嗎？`,
-      onConfirm: () => {
-        if (action === "complete") {
-          void completeAdminOrder(order.id);
-          return;
-        }
-        void pickUpAdminOrder(order.id);
-      },
+    setPendingAdminOrderAction({
+      orderId: order.id,
+      action,
     });
   }
 
@@ -4112,29 +4112,73 @@ export default function App() {
                         </td>
                         <td>
                           {order.status === "submitted" ? (
-                            <button
-                              className="btn btn-xs btn-success min-w-12 whitespace-nowrap"
-                              disabled={adminOrderActionId === order.id}
-                              onClick={() => {
-                                requestAdminOrderConfirmation(order, "complete");
-                              }}
-                            >
-                              {adminOrderActionId === order.id
-                                ? "處理中..."
-                                : "完成"}
-                            </button>
+                            pendingAdminOrderAction?.orderId === order.id &&
+                            pendingAdminOrderAction.action === "complete" ? (
+                              <div className="flex flex-wrap gap-1">
+                                <button
+                                  className="btn btn-xs btn-success whitespace-nowrap"
+                                  disabled={adminOrderActionId !== null}
+                                  onClick={() => {
+                                    void completeAdminOrder(order.id);
+                                  }}
+                                >
+                                  確定完成
+                                </button>
+                                <button
+                                  className="btn btn-xs btn-ghost whitespace-nowrap"
+                                  disabled={adminOrderActionId !== null}
+                                  onClick={() => setPendingAdminOrderAction(null)}
+                                >
+                                  取消
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                className="btn btn-xs btn-success min-w-12 whitespace-nowrap"
+                                disabled={adminOrderActionId !== null}
+                                onClick={() => {
+                                  requestAdminOrderConfirmation(order, "complete");
+                                }}
+                              >
+                                {adminOrderActionId === order.id
+                                  ? "處理中..."
+                                  : "完成"}
+                              </button>
+                            )
                           ) : order.status === "completed" ? (
-                            <button
-                              className="btn btn-xs btn-primary min-w-16 whitespace-nowrap"
-                              disabled={adminOrderActionId === order.id}
-                              onClick={() => {
-                                requestAdminOrderConfirmation(order, "pick-up");
-                              }}
-                            >
-                              {adminOrderActionId === order.id
-                                ? "處理中..."
-                                : "已取貨"}
-                            </button>
+                            pendingAdminOrderAction?.orderId === order.id &&
+                            pendingAdminOrderAction.action === "pick-up" ? (
+                              <div className="flex flex-wrap gap-1">
+                                <button
+                                  className="btn btn-xs btn-primary whitespace-nowrap"
+                                  disabled={adminOrderActionId !== null}
+                                  onClick={() => {
+                                    void pickUpAdminOrder(order.id);
+                                  }}
+                                >
+                                  確定取貨
+                                </button>
+                                <button
+                                  className="btn btn-xs btn-ghost whitespace-nowrap"
+                                  disabled={adminOrderActionId !== null}
+                                  onClick={() => setPendingAdminOrderAction(null)}
+                                >
+                                  取消
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                className="btn btn-xs btn-primary min-w-16 whitespace-nowrap"
+                                disabled={adminOrderActionId !== null}
+                                onClick={() => {
+                                  requestAdminOrderConfirmation(order, "pick-up");
+                                }}
+                              >
+                                {adminOrderActionId === order.id
+                                  ? "處理中..."
+                                  : "已取貨"}
+                              </button>
+                            )
                           ) : (
                             <span className="text-xs opacity-50">已歸檔</span>
                           )}

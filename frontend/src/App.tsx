@@ -3719,12 +3719,13 @@ export default function App() {
                   <input
                     className="input input-bordered"
                     value={newAddonDraft.name}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const name = event.currentTarget.value;
                       setNewAddonDraft((current) => ({
                         ...current,
-                        name: event.currentTarget.value,
-                      }))
-                    }
+                        name,
+                      }));
+                    }}
                     placeholder="例如 培根"
                   />
                 </label>
@@ -3734,12 +3735,13 @@ export default function App() {
                     className="input input-bordered"
                     inputMode="numeric"
                     value={newAddonDraft.price}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const price = event.currentTarget.value.replace(/\D/g, "");
                       setNewAddonDraft((current) => ({
                         ...current,
-                        price: event.currentTarget.value.replace(/\D/g, ""),
-                      }))
-                    }
+                        price,
+                      }));
+                    }}
                     placeholder="例如 15"
                   />
                 </label>
@@ -4460,12 +4462,13 @@ export default function App() {
                   <input
                     className="input input-bordered"
                     value={newPromotion.name}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const name = event.currentTarget.value;
                       setNewPromotion((current) => ({
                         ...current,
-                        name: event.currentTarget.value,
-                      }))
-                    }
+                        name,
+                      }));
+                    }}
                     placeholder="例如 飯糰新品折 10 元"
                   />
                 </label>
@@ -4530,35 +4533,38 @@ export default function App() {
                   className="input input-bordered"
                   inputMode="numeric"
                   value={newPromotion.discountValue}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const discountValue = onlyDigits(event.currentTarget.value);
                     setNewPromotion((current) => ({
                       ...current,
-                      discountValue: onlyDigits(event.currentTarget.value),
-                    }))
-                  }
+                      discountValue,
+                    }));
+                  }}
                   placeholder={newPromotion.discountType === "amount" ? "折抵金額" : "實付比例"}
                 />
                 <input
                   className="input input-bordered"
                   type="date"
                   value={newPromotion.startsDate}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const startsDate = event.currentTarget.value;
                     setNewPromotion((current) => ({
                       ...current,
-                      startsDate: event.currentTarget.value,
-                    }))
-                  }
+                      startsDate,
+                    }));
+                  }}
                 />
                 <input
                   className="input input-bordered"
                   type="date"
                   value={newPromotion.endsDate}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const endsDate = event.currentTarget.value;
                     setNewPromotion((current) => ({
                       ...current,
-                      endsDate: event.currentTarget.value,
-                    }))
-                  }
+                      endsDate,
+                    }));
+                  }}
                 />
               </div>
               <button

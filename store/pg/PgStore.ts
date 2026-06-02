@@ -109,7 +109,7 @@ export class PgStore implements Store {
   getAddonSettings(): AddonSettings {
     return {
       ...this.addonSettings,
-      items: this.addonSettings.items.map((item) => ({ ...item })),
+      items: (this.addonSettings.items ?? []).map((item) => ({ ...item })),
     };
   }
 
@@ -127,7 +127,7 @@ export class PgStore implements Store {
       .values([
         { key: "egg", name: "加蛋", price: input.eggPrice, isActive: true },
         { key: "cheese", name: "加起司", price: input.cheesePrice, isActive: true },
-        ...input.items
+        ...(input.items ?? [])
           .filter((item) => item.key !== "egg" && item.key !== "cheese")
           .map((item) => ({ ...item })),
       ])
@@ -327,7 +327,7 @@ export class PgStore implements Store {
     const menuItem = this.menu.find((item) => item.id === input.itemId);
     if (!menuItem) return { ok: false, code: "MENU_ITEM_NOT_FOUND" };
     const addonByKey = new Map(
-      this.addonSettings.items.map((item) => [item.key, item]),
+      (this.addonSettings.items ?? []).map((item) => [item.key, item]),
     );
     const addons = (input.addons ?? [])
       .filter(

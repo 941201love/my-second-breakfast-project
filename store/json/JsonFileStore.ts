@@ -714,7 +714,7 @@ export class JsonFileStore implements Store {
       return { ok: false, code: "MENU_ITEM_NOT_FOUND" };
     }
     const addonByKey = new Map(
-      this.addonSettings.items.map((item) => [item.key, item]),
+      (this.addonSettings.items ?? []).map((item) => [item.key, item]),
     );
     const addons = (input.addons ?? [])
       .filter(

@@ -82,6 +82,14 @@ function parseWholeNumber(value: string, fallback = 0) {
   return Number(digits);
 }
 
+function normalizeAddonSettings(value?: Partial<AddonSettings> | null): AddonSettings {
+  return {
+    eggPrice: value?.eggPrice ?? 10,
+    cheesePrice: value?.cheesePrice ?? 10,
+    items: Array.isArray(value?.items) ? value.items : [],
+  };
+}
+
 function todayTaipeiDate() {
   return new Date().toLocaleDateString("sv-SE", {
     timeZone: "Asia/Taipei",
@@ -1314,11 +1322,12 @@ export default function App() {
 
     const payload = (await response.json()) as ApiDataResponse<AddonSettings>;
     if (!payload?.data) return;
-    setAddonSettings(payload.data);
+    const settings = normalizeAddonSettings(payload.data);
+    setAddonSettings(settings);
     setAddonSettingsDraft({
-      eggPrice: String(payload.data.eggPrice),
-      cheesePrice: String(payload.data.cheesePrice),
-      items: payload.data.items,
+      eggPrice: String(settings.eggPrice),
+      cheesePrice: String(settings.cheesePrice),
+      items: settings.items,
     });
   }
 
@@ -2296,7 +2305,7 @@ export default function App() {
       body: JSON.stringify({
         eggPrice,
         cheesePrice,
-        items: addonSettingsDraft.items,
+        items: addonSettingsDraft.items ?? [],
       }),
     });
 
@@ -2306,11 +2315,12 @@ export default function App() {
     }
 
     const payload = (await response.json()) as ApiDataResponse<AddonSettings>;
-    setAddonSettings(payload.data);
+    const settings = normalizeAddonSettings(payload.data);
+    setAddonSettings(settings);
     setAddonSettingsDraft({
-      eggPrice: String(payload.data.eggPrice),
-      cheesePrice: String(payload.data.cheesePrice),
-      items: payload.data.items,
+      eggPrice: String(settings.eggPrice),
+      cheesePrice: String(settings.cheesePrice),
+      items: settings.items,
     });
     await loadMenu();
     setAdminError("共用加料價格已更新。");
@@ -2327,7 +2337,7 @@ export default function App() {
     setAddonSettingsDraft((current) => ({
       ...current,
       items: [
-        ...current.items,
+        ...(current.items ?? []),
         { key, name, price: parseWholeNumber(priceText), isActive: true },
       ],
     }));
@@ -2481,10 +2491,6 @@ export default function App() {
   }
 
   async function completeAdminOrder(orderId: number): Promise<void> {
-    if (!window.confirm(`確定要完成訂單 #${orderId} 嗎？`)) {
-      return;
-    }
-
     const response = await fetch(buildApiUrl(`/api/orders/${orderId}/complete`), {
       method: "PATCH",
       credentials: "include",
@@ -2496,14 +2502,12 @@ export default function App() {
     }
 
     await Promise.all([loadAdminData(), loadOrderProgress()]);
-    setAdminError(`訂單 #${orderId} 已完成。`);
+    const dailySequence =
+      adminOrders.find((order) => order.id === orderId)?.dailySequence ?? orderId;
+    setAdminError(`今日單號 #${dailySequence} 已完成。`);
   }
 
   async function pickUpAdminOrder(orderId: number): Promise<void> {
-    if (!window.confirm(`確定訂單 #${orderId} 已取貨嗎？`)) {
-      return;
-    }
-
     const response = await fetch(buildApiUrl(`/api/orders/${orderId}/pick-up`), {
       method: "PATCH",
       credentials: "include",
@@ -2515,7 +2519,29 @@ export default function App() {
     }
 
     await Promise.all([loadAdminData(), loadOrderProgress()]);
-    setAdminError(`訂單 #${orderId} 已取貨並移至歷史訂單。`);
+    const dailySequence =
+      adminOrders.find((order) => order.id === orderId)?.dailySequence ?? orderId;
+    setAdminError(`今日單號 #${dailySequence} 已取貨並移至歷史訂單。`);
+  }
+
+  function requestAdminOrderConfirmation(
+    order: Order,
+    action: "complete" | "pick-up",
+  ): void {
+    const dailySequence = order.dailySequence ?? order.id;
+    setConfirmDialog({
+      message:
+        action === "complete"
+          ? `確定要完成今日單號 #${dailySequence} 嗎？`
+          : `確定今日單號 #${dailySequence} 已取貨嗎？`,
+      onConfirm: () => {
+        if (action === "complete") {
+          void completeAdminOrder(order.id);
+          return;
+        }
+        void pickUpAdminOrder(order.id);
+      },
+    });
   }
 
   function openAddToCart(item: MenuItem) {
@@ -3101,7 +3127,7 @@ export default function App() {
                 <span className="label-text mb-1 block">可選加料</span>
                 <details className="dropdown w-full">
                   <summary className="btn btn-outline w-full justify-between">
-                    {[newMenuItem.allowEgg ? "加蛋" : "", newMenuItem.allowCheese ? "加起司" : "", ...addonSettings.items
+                    {[newMenuItem.allowEgg ? "加蛋" : "", newMenuItem.allowCheese ? "加起司" : "", ...(addonSettings.items ?? [])
                       .filter((addon) => newMenuItem.addonKeys.includes(addon.key))
                       .map((addon) => addon.name)]
                       .filter(Boolean)
@@ -3143,7 +3169,7 @@ export default function App() {
                       {formatMoney(addonSettings.cheesePrice)}
                     </span>
                   </label>
-                  {addonSettings.items
+                  {(addonSettings.items ?? [])
                     .filter((addon) => addon.key !== "egg" && addon.key !== "cheese" && addon.isActive)
                     .map((addon) => (
                       <label
@@ -3632,7 +3658,7 @@ export default function App() {
                 可以新增早餐店需要的其他加料，儲存後會保留獨立價格。
               </p>
               <div className="mt-3 space-y-2">
-                {addonSettingsDraft.items
+                {(addonSettingsDraft.items ?? [])
                   .filter((item) => item.key !== "egg" && item.key !== "cheese")
                   .map((item) => (
                     <div
@@ -3646,7 +3672,7 @@ export default function App() {
                           const name = event.currentTarget.value;
                           setAddonSettingsDraft((current) => ({
                             ...current,
-                            items: current.items.map((candidate) =>
+                            items: (current.items ?? []).map((candidate) =>
                               candidate.key === item.key
                                 ? { ...candidate, name }
                                 : candidate,
@@ -3662,7 +3688,7 @@ export default function App() {
                           const price = parseWholeNumber(event.currentTarget.value);
                           setAddonSettingsDraft((current) => ({
                             ...current,
-                            items: current.items.map((candidate) =>
+                            items: (current.items ?? []).map((candidate) =>
                               candidate.key === item.key
                                 ? { ...candidate, price }
                                 : candidate,
@@ -3675,7 +3701,7 @@ export default function App() {
                         onClick={() => {
                           setAddonSettingsDraft((current) => ({
                             ...current,
-                            items: current.items.filter(
+                            items: (current.items ?? []).filter(
                               (candidate) => candidate.key !== item.key,
                             ),
                           }));
@@ -3964,9 +3990,6 @@ export default function App() {
                       >
                         <td className="font-bold">
                           #{order.dailySequence ?? order.id}
-                          <div className="text-xs opacity-50">
-                            系統 #{order.id}
-                          </div>
                         </td>
                         <td className="w-28">
                           <span
@@ -4065,7 +4088,7 @@ export default function App() {
                             <button
                               className="btn btn-xs btn-success min-w-12 whitespace-nowrap"
                               onClick={() => {
-                                void completeAdminOrder(order.id);
+                                requestAdminOrderConfirmation(order, "complete");
                               }}
                             >
                               完成
@@ -4074,7 +4097,7 @@ export default function App() {
                             <button
                               className="btn btn-xs btn-primary min-w-16 whitespace-nowrap"
                               onClick={() => {
-                                void pickUpAdminOrder(order.id);
+                                requestAdminOrderConfirmation(order, "pick-up");
                               }}
                             >
                               已取貨
@@ -4134,9 +4157,6 @@ export default function App() {
                       <tr key={`history-${order.id}`}>
                         <td className="font-bold">
                           #{order.dailySequence ?? order.id}
-                          <div className="text-xs opacity-50">
-                            系統 #{order.id}
-                          </div>
                         </td>
                         <td>
                           <span
@@ -4316,23 +4336,23 @@ export default function App() {
               </summary>
               <div className="collapse-content">
                 <div className="overflow-x-auto rounded-lg border border-base-300">
-                  <table className="table table-zebra min-w-[960px]">
+                  <table className="table min-w-[1080px]">
                     <thead>
-                      <tr>
-                        <th>品項</th>
-                        <th>分類</th>
-                        <th>上架／更新</th>
-                        <th>目前價格</th>
+                      <tr className="bg-base-200/80">
+                        <th className="px-5">品項</th>
+                        <th className="px-5">分類</th>
+                        <th className="px-5">上架／更新</th>
+                        <th className="px-5">目前價格</th>
                         <th className="text-center">改價紀錄</th>
-                        <th>操作</th>
+                        <th className="px-5 text-right">操作</th>
                       </tr>
                     </thead>
                     {Array.from(
                       new Set(items.map((item) => item.category)),
                     ).map((category) => (
                     <tbody key={category}>
-                      <tr className="bg-base-300/60">
-                        <td colSpan={6} className="font-bold">
+                      <tr className="bg-base-300">
+                        <td colSpan={6} className="px-5 py-3 text-base font-bold">
                           {category}
                         </td>
                       </tr>
@@ -4346,19 +4366,22 @@ export default function App() {
                         );
 
                         return (
-                          <tr key={item.id}>
-                            <td>
+                          <tr
+                            key={item.id}
+                            className="border-b border-base-300/70 bg-base-100/40 hover:bg-base-200/60"
+                          >
+                            <td className="px-5 py-4">
                               <div className="font-semibold">{item.name}</div>
                               <div className="text-xs opacity-60">
                                 商品代碼：{item.logicalId}
                               </div>
                             </td>
-                            <td>
+                            <td className="px-5 py-4">
                               <span className="badge badge-outline">
                                 {item.category}
                               </span>
                             </td>
-                            <td className="text-sm">
+                            <td className="px-5 py-4 text-sm">
                               <div>
                                 {histories[0]?.createdAt
                                   ? formatTaipeiDateTime(histories[0].createdAt)
@@ -4370,12 +4393,12 @@ export default function App() {
                                 </span>
                               ) : null}
                             </td>
-                            <td>
+                            <td className="px-5 py-4">
                               <span className="font-semibold">
                                 {formatMoney(item.price)}
                               </span>
                             </td>
-                            <td className="text-center">
+                            <td className="px-5 py-4 text-center">
                               <button
                                 className="btn btn-xs btn-outline"
                                 onClick={() => {
@@ -4388,8 +4411,8 @@ export default function App() {
                                 查看紀錄
                               </button>
                             </td>
-                            <td>
-                              <div className="flex gap-2">
+                            <td className="px-5 py-4">
+                              <div className="flex justify-end gap-2">
                                 <button
                                   className="btn btn-xs btn-outline"
                                   onClick={() => {
@@ -5481,7 +5504,7 @@ export default function App() {
               ) : null}
 
               {(activeCustomizingItem.addonKeys ?? []).map((addonKey) => {
-                const addon = addonSettings.items.find(
+                const addon = (addonSettings.items ?? []).find(
                   (candidate) => candidate.key === addonKey && candidate.isActive,
                 );
                 if (!addon) return null;
@@ -5932,7 +5955,7 @@ export default function App() {
                                     </div>
                                   ) : null}
                                   {(detail.item.addonKeys ?? []).map((addonKey) => {
-                                    const addon = addonSettings.items.find(
+                                    const addon = (addonSettings.items ?? []).find(
                                       (candidate) =>
                                         candidate.key === addonKey && candidate.isActive,
                                     );

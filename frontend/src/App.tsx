@@ -655,8 +655,11 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponMinSpend: "最低消費",
     originalAmount: "金額",
     confirmClearCart: "確定要清空購物車嗎？",
+    confirm: "確定",
+    cancel: "取消",
     discount: "優惠折抵",
     couponLimitOnce: "每個帳號限一次",
+    couponLimitedQuantity: "數量有限",
     clearing: "清空中...",
     clearCart: "清空購物車",
     submitting: "結帳中...",
@@ -735,8 +738,11 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponMinSpend: "Minimum spend",
     originalAmount: "Amount",
     confirmClearCart: "Clear the cart?",
+    confirm: "Confirm",
+    cancel: "Cancel",
     discount: "Discount",
     couponLimitOnce: "Once per account",
+    couponLimitedQuantity: "Limited quantity",
     clearing: "Clearing...",
     clearCart: "Clear cart",
     submitting: "Checking out...",
@@ -815,8 +821,11 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponMinSpend: "最低利用額",
     originalAmount: "金額",
     confirmClearCart: "カートを空にしますか？",
+    confirm: "確認",
+    cancel: "キャンセル",
     discount: "割引",
     couponLimitOnce: "1アカウント1回まで",
+    couponLimitedQuantity: "数量限定",
     clearing: "削除中...",
     clearCart: "カートを空にする",
     submitting: "会計中...",
@@ -895,8 +904,11 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponMinSpend: "최소 주문 금액",
     originalAmount: "금액",
     confirmClearCart: "장바구니를 비우시겠습니까?",
+    confirm: "확인",
+    cancel: "취소",
     discount: "할인",
     couponLimitOnce: "계정당 1회",
+    couponLimitedQuantity: "수량 한정",
     clearing: "비우는 중...",
     clearCart: "장바구니 비우기",
     submitting: "결제 중...",
@@ -1070,6 +1082,10 @@ export default function App() {
   const [cartView, setCartView] = useState<"items" | "checkout">("items");
   const [isClearingCart, setIsClearingCart] = useState(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
   const [nowText, setNowText] = useState(
     new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei" }),
   );
@@ -1550,6 +1566,7 @@ export default function App() {
     const shouldLockBody =
       isAdminMenuFormOpen ||
       Boolean(adminPriceHistoryModal) ||
+      Boolean(confirmDialog) ||
       isCartOpen ||
       isCartPage ||
       isHistoryOpen ||
@@ -1573,6 +1590,7 @@ export default function App() {
     customizingItem,
     isAdminMenuFormOpen,
     adminPriceHistoryModal,
+    confirmDialog,
     isCartOpen,
     isCartPage,
     isHistoryOpen,
@@ -2724,11 +2742,8 @@ export default function App() {
     if (payload?.data) syncCartFromOrder(payload.data);
   }
 
-  async function clearCart(): Promise<void> {
+  async function clearCartConfirmed(): Promise<void> {
     if (!user || orderId === null || cartDetails.length === 0) {
-      return;
-    }
-    if (!window.confirm(text.confirmClearCart)) {
       return;
     }
 
@@ -2758,6 +2773,16 @@ export default function App() {
     } finally {
       setIsClearingCart(false);
     }
+  }
+
+  function clearCart(): void {
+    if (!user || orderId === null || cartDetails.length === 0) return;
+    setConfirmDialog({
+      message: text.confirmClearCart,
+      onConfirm: () => {
+        void clearCartConfirmed();
+      },
+    });
   }
 
   function applyCouponCode(): void {
@@ -2946,20 +2971,9 @@ export default function App() {
 
         <header className="sticky top-0 z-30 border-b border-base-300 bg-base-100">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-4">
-            <div>
-              <button
-                className="btn btn-sm btn-ghost -ml-2 mb-2"
-                onClick={() => {
-                  setAdminMenuNotice("");
-                  navigate("/admin/menu");
-                }}
-              >
-                返回
-              </button>
-              <h1 className="text-2xl font-bold">
-                {editingAdminMenuLogicalId ? "編輯商品" : "新增商品"}
-              </h1>
-            </div>
+            <h1 className="text-2xl font-bold">
+              {editingAdminMenuLogicalId ? "編輯商品" : "新增商品"}
+            </h1>
             <button
               className="btn btn-sm btn-ghost"
               onClick={() => {
@@ -3032,9 +3046,18 @@ export default function App() {
                   />
                 </label>
               </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="rounded-lg border border-base-300 p-4">
-                  <label className="flex cursor-pointer items-center gap-3">
+              <div>
+                <span className="label-text mb-1 block">可選加料</span>
+                <details className="dropdown w-full">
+                  <summary className="btn btn-outline w-full justify-between">
+                    {[newMenuItem.allowEgg ? "加蛋" : "", newMenuItem.allowCheese ? "加起司" : ""]
+                      .filter(Boolean)
+                      .join("、") || "請選擇加料"}
+                    <span>⌄</span>
+                  </summary>
+                  <div className="dropdown-content z-40 mt-2 w-full space-y-3 rounded-lg border border-base-300 bg-base-100 p-4 shadow">
+                  <label className="flex cursor-pointer items-center justify-between gap-3">
+                    <span className="flex items-center gap-3">
                     <input
                       className="checkbox checkbox-primary"
                       type="checkbox"
@@ -3045,15 +3068,13 @@ export default function App() {
                       }}
                     />
                     <span className="font-semibold">允許加蛋</span>
+                    </span>
+                    <span className="text-sm opacity-70">
+                      {formatMoney(addonSettings.eggPrice)}
+                    </span>
                   </label>
-                  {newMenuItem.allowEgg ? (
-                    <p className="mt-3 text-sm opacity-70">
-                      共用價格：{formatMoney(addonSettings.eggPrice)}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="rounded-lg border border-base-300 p-4">
-                  <label className="flex cursor-pointer items-center gap-3">
+                  <label className="flex cursor-pointer items-center justify-between gap-3">
+                    <span className="flex items-center gap-3">
                     <input
                       className="checkbox checkbox-primary"
                       type="checkbox"
@@ -3064,13 +3085,13 @@ export default function App() {
                       }}
                     />
                     <span className="font-semibold">允許加起司</span>
+                    </span>
+                    <span className="text-sm opacity-70">
+                      {formatMoney(addonSettings.cheesePrice)}
+                    </span>
                   </label>
-                  {newMenuItem.allowCheese ? (
-                    <p className="mt-3 text-sm opacity-70">
-                      共用價格：{formatMoney(addonSettings.cheesePrice)}
-                    </p>
-                  ) : null}
-                </div>
+                  </div>
+                </details>
               </div>
               <div>
                 <span className="label-text mb-1 block">分類</span>
@@ -3331,23 +3352,21 @@ export default function App() {
             <>
           {!isAdminDashboardPage ? (
             <section className="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 pb-4">
-              <div>
-                <button
-                  className="btn btn-sm btn-ghost mb-2"
-                  onClick={() => navigate("/admin")}
-                >
-                  返回後台首頁
-                </button>
-                <h1 className="text-3xl font-bold">
-                  {isAdminOrdersPage
-                    ? "訂單與營收"
-                    : isAdminMenuPage
-                      ? "菜單與加料"
-                      : isAdminCouponsPage
-                        ? "促銷與優惠券"
-                        : "銷售統計"}
-                </h1>
-              </div>
+              <h1 className="text-3xl font-bold">
+                {isAdminOrdersPage
+                  ? "訂單與營收"
+                  : isAdminMenuPage
+                    ? "菜單與加料"
+                    : isAdminCouponsPage
+                      ? "促銷與優惠券"
+                      : "銷售統計"}
+              </h1>
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={() => navigate("/admin")}
+              >
+                返回後台
+              </button>
             </section>
           ) : null}
           <section className={`${isAdminDashboardPage ? "" : "hidden "}grid grid-cols-1 md:grid-cols-4 gap-3`}>
@@ -4131,8 +4150,16 @@ export default function App() {
                         <th>操作</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {items.map((item) => {
+                    {Array.from(
+                      new Set(items.map((item) => item.category)),
+                    ).map((category) => (
+                    <tbody key={category}>
+                      <tr className="bg-base-300/60">
+                        <td colSpan={6} className="font-bold">
+                          {category}
+                        </td>
+                      </tr>
+                      {items.filter((item) => item.category === category).map((item) => {
                         const histories =
                           versionHistoryByLogicalId[item.logicalId] ?? [];
                         const priceHistories = histories.filter(
@@ -4216,6 +4243,7 @@ export default function App() {
                         );
                       })}
                     </tbody>
+                    ))}
                   </table>
                 </div>
               </div>
@@ -4242,23 +4270,34 @@ export default function App() {
                 </label>
                 <label className="form-control">
                   <span className="label-text mb-1">適用商品</span>
-                  <select
-                    className="select select-bordered"
-                    value={newPromotion.menuItemLogicalId}
-                    onChange={(event) =>
-                      setNewPromotion((current) => ({
-                        ...current,
-                        menuItemLogicalId: event.currentTarget.value,
-                      }))
-                    }
-                  >
-                    <option value="">請選擇商品</option>
-                    {items.map((item) => (
-                      <option key={item.logicalId} value={item.logicalId}>
-                        {item.name}（{item.logicalId}）
-                      </option>
-                    ))}
-                  </select>
+                  <details className="dropdown w-full">
+                    <summary className="btn btn-outline w-full justify-between">
+                      {items.find(
+                        (item) =>
+                          item.logicalId === newPromotion.menuItemLogicalId,
+                      )?.name ?? "請選擇商品"}
+                      <span>⌄</span>
+                    </summary>
+                    <ul className="menu dropdown-content z-40 mt-2 max-h-72 w-full overflow-y-auto rounded-lg border border-base-300 bg-base-100 p-2 shadow">
+                      {items.map((item) => (
+                        <li key={item.logicalId}>
+                          <button
+                            onClick={(event) => {
+                              setNewPromotion((current) => ({
+                                ...current,
+                                menuItemLogicalId: item.logicalId,
+                              }));
+                              event.currentTarget
+                                .closest("details")
+                                ?.removeAttribute("open");
+                            }}
+                          >
+                            {item.name}（{item.logicalId}）
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
                 </label>
               </div>
               <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_180px_1fr_1fr]">
@@ -5764,7 +5803,7 @@ export default function App() {
                           {text.couponMinSpend} {formatMoney(appliedCoupon.minSpend ?? 0)}，
                           {text.couponLimitOnce}
                           {appliedCoupon.usageLimitTotal
-                            ? "，數量有限"
+                            ? `，${text.couponLimitedQuantity}`
                             : ""}
                         </p>
                       </div>
@@ -5785,8 +5824,11 @@ export default function App() {
                   {formatMoney(cartTotal)}
                 </span>
               </div>
-              {cartView === "checkout" && appliedCoupon ? (
-                <div className={`flex items-center justify-between text-sm ${couponCanApply ? "text-success" : "text-error"}`}>
+              {cartView === "checkout" &&
+              appliedCoupon &&
+              couponCanApply &&
+              couponDiscountTotal > 0 ? (
+                <div className="flex items-center justify-between text-sm text-success">
                   <span>{text.discount}：{appliedCoupon.code}</span>
                   <span>-{formatMoney(couponDiscountTotal)}</span>
                 </div>
@@ -5851,6 +5893,32 @@ export default function App() {
           <div className="alert alert-warning shadow-lg justify-center">
             <span>{profileNotice}</span>
           </div>
+        </div>
+      ) : null}
+
+      {confirmDialog ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4">
+          <section className="w-full max-w-sm rounded-lg bg-base-100 p-5 shadow-2xl">
+            <p className="text-lg">{confirmDialog.message}</p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                className="btn btn-ghost"
+                onClick={() => setConfirmDialog(null)}
+              >
+                {text.cancel}
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  const onConfirm = confirmDialog.onConfirm;
+                  setConfirmDialog(null);
+                  onConfirm();
+                }}
+              >
+                {text.confirm}
+              </button>
+            </div>
+          </section>
         </div>
       ) : null}
     </div>

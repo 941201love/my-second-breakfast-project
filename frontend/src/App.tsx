@@ -42,12 +42,14 @@ function formatTaipeiDateTime(value?: string) {
 }
 
 function orderStatusLabel(status: Order["status"]) {
+  if (status === "picked_up") return "已取貨";
   if (status === "completed") return "已完成";
   if (status === "submitted") return "製作中";
   return "購物車";
 }
 
 function orderStatusBadgeClass(status: Order["status"]) {
+  if (status === "picked_up") return "badge-ghost";
   if (status === "completed") return "badge-success";
   if (status === "submitted") return "badge-warning";
   return "badge-ghost";
@@ -604,6 +606,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     pendingCart: "購物車",
     making: "製作中",
     completed: "已完成",
+    pickedUp: "已取貨",
     defaultSugar: "預設糖",
     defaultIce: "預設冰",
     close: "關閉",
@@ -648,6 +651,10 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponApplied: "已使用優惠券",
     couponInvalid: "找不到可使用的優惠券。",
     couponAlreadyUsed: "你已用過此優惠券。",
+    couponUnavailable: "優惠券尚未符合使用條件",
+    couponMinSpend: "最低消費",
+    originalAmount: "金額",
+    confirmClearCart: "確定要清空購物車嗎？",
     discount: "優惠折抵",
     couponLimitOnce: "每個帳號限一次",
     clearing: "清空中...",
@@ -679,6 +686,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     pendingCart: "Cart",
     making: "In progress",
     completed: "Completed",
+    pickedUp: "Picked up",
     defaultSugar: "Default sugar",
     defaultIce: "Default ice",
     close: "Close",
@@ -723,6 +731,10 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponApplied: "Coupon applied",
     couponInvalid: "No available coupon found.",
     couponAlreadyUsed: "You have already used this coupon.",
+    couponUnavailable: "Coupon requirements not met",
+    couponMinSpend: "Minimum spend",
+    originalAmount: "Amount",
+    confirmClearCart: "Clear the cart?",
     discount: "Discount",
     couponLimitOnce: "Once per account",
     clearing: "Clearing...",
@@ -754,6 +766,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     pendingCart: "カート",
     making: "調理中",
     completed: "完了",
+    pickedUp: "受取済み",
     defaultSugar: "標準の甘さ",
     defaultIce: "標準の氷",
     close: "閉じる",
@@ -798,6 +811,10 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponApplied: "クーポン適用済み",
     couponInvalid: "利用できるクーポンが見つかりません。",
     couponAlreadyUsed: "このクーポンはすでに使用済みです。",
+    couponUnavailable: "クーポンの利用条件を満たしていません",
+    couponMinSpend: "最低利用額",
+    originalAmount: "金額",
+    confirmClearCart: "カートを空にしますか？",
     discount: "割引",
     couponLimitOnce: "1アカウント1回まで",
     clearing: "削除中...",
@@ -829,6 +846,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     pendingCart: "장바구니",
     making: "준비 중",
     completed: "완료",
+    pickedUp: "수령 완료",
     defaultSugar: "기본 당도",
     defaultIce: "기본 얼음",
     close: "닫기",
@@ -873,6 +891,10 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponApplied: "쿠폰 적용됨",
     couponInvalid: "사용 가능한 쿠폰을 찾을 수 없습니다.",
     couponAlreadyUsed: "이미 사용한 쿠폰입니다.",
+    couponUnavailable: "쿠폰 사용 조건을 충족하지 않았습니다",
+    couponMinSpend: "최소 주문 금액",
+    originalAmount: "금액",
+    confirmClearCart: "장바구니를 비우시겠습니까?",
     discount: "할인",
     couponLimitOnce: "계정당 1회",
     clearing: "비우는 중...",
@@ -898,6 +920,11 @@ type CouponFormState = {
 export default function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const isAdminPage = currentPath.startsWith("/admin");
+  const isAdminDashboardPage = currentPath === "/admin";
+  const isAdminOrdersPage = currentPath === "/admin/orders";
+  const isAdminMenuPage = currentPath === "/admin/menu";
+  const isAdminCouponsPage = currentPath === "/admin/coupons";
+  const isAdminReportsPage = currentPath === "/admin/reports";
   const isAdminAddProductPage = currentPath === "/admin/add-product";
   const isAdminEditProductPage = currentPath.startsWith("/admin/edit-product/");
   const adminEditProductLogicalId = isAdminEditProductPage
@@ -1108,6 +1135,7 @@ export default function App() {
   }
 
   const statusText = (status: Order["status"]) => {
+    if (status === "picked_up") return text.pickedUp;
     if (status === "completed") return text.completed;
     if (status === "submitted") return text.making;
     return text.pendingCart;
@@ -1167,9 +1195,10 @@ export default function App() {
     }
     return parts.join(" / ");
   };
+  const couponCanApply = appliedCoupon ? isCouponUsable(appliedCoupon) : false;
   const couponDiscountTotal = useMemo(
-    () => calculateCouponDiscount(appliedCoupon, cartTotal),
-    [appliedCoupon, cartTotal],
+    () => calculateCouponDiscount(couponCanApply ? appliedCoupon : null, cartTotal),
+    [appliedCoupon, cartTotal, couponCanApply],
   );
   const checkoutTotal = Math.max(0, cartTotal - couponDiscountTotal);
   const customizingUnitPrice = activeCustomizingItem
@@ -1714,7 +1743,7 @@ export default function App() {
       pendingCount: adminOrders.filter((order) => order.status === "submitted")
         .length,
       completedCount: todayStats.submittedOrders.filter(
-        (order) => order.status === "completed",
+        (order) => order.status === "completed" || order.status === "picked_up",
       ).length,
       itemRanking: todayStats.itemRanking,
       hourlyRanking: todayStats.hourlyRanking,
@@ -1741,7 +1770,7 @@ export default function App() {
       adminOrders
         .filter(
           (order) =>
-            order.status !== "pending" &&
+            order.status === "picked_up" &&
             submittedOrderDate(order) === adminHistoryDate,
         )
         .sort(
@@ -2240,7 +2269,7 @@ export default function App() {
 
     resetNewMenuItemForm();
     setIsAdminMenuFormOpen(false);
-    navigate("/admin");
+    navigate("/admin/menu");
     setAdminError(isEditing ? "商品更新中..." : "商品新增中...");
 
     let response: Response;
@@ -2339,6 +2368,25 @@ export default function App() {
 
     await Promise.all([loadAdminData(), loadOrderProgress()]);
     setAdminError(`訂單 #${orderId} 已完成。`);
+  }
+
+  async function pickUpAdminOrder(orderId: number): Promise<void> {
+    if (!window.confirm(`確定訂單 #${orderId} 已取貨嗎？`)) {
+      return;
+    }
+
+    const response = await fetch(buildApiUrl(`/api/orders/${orderId}/pick-up`), {
+      method: "PATCH",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      setAdminError("更新取貨狀態失敗，請稍後再試。");
+      return;
+    }
+
+    await Promise.all([loadAdminData(), loadOrderProgress()]);
+    setAdminError(`訂單 #${orderId} 已取貨並移至歷史訂單。`);
   }
 
   function openAddToCart(item: MenuItem) {
@@ -2613,7 +2661,7 @@ export default function App() {
     if (!user || orderId === null || cartDetails.length === 0) {
       return;
     }
-    if (!window.confirm("確定要清空購物車嗎？")) {
+    if (!window.confirm(text.confirmClearCart)) {
       return;
     }
 
@@ -2669,15 +2717,13 @@ export default function App() {
       return;
     }
 
-    if (!isCouponUsable(coupon)) {
-      setAppliedCoupon(null);
-      setCheckoutNotice(text.couponInvalid);
-      return;
-    }
-
     setCouponCode(coupon.code);
     setAppliedCoupon(coupon);
-    setCheckoutNotice(`${text.couponApplied}：${coupon.code}`);
+    setCheckoutNotice(
+      isCouponUsable(coupon)
+        ? `${text.couponApplied}：${coupon.code}`
+        : `${text.couponUnavailable}：${text.couponMinSpend} ${formatMoney(coupon.minSpend ?? 0)}`,
+    );
   }
 
   function updateCouponCode(nextCode: string): void {
@@ -2747,7 +2793,7 @@ export default function App() {
           body: JSON.stringify({
             paymentMethod,
             note: orderNote.trim() || undefined,
-            couponCode: appliedCoupon?.code,
+            couponCode: couponCanApply ? appliedCoupon?.code : undefined,
             customerName: customerName.trim() || user.name,
             customerPhone: normalizedPhone,
             pickupTime: pickupTime.trim() || undefined,
@@ -2838,7 +2884,7 @@ export default function App() {
                 className="btn btn-sm btn-ghost -ml-2 mb-2"
                 onClick={() => {
                   setAdminMenuNotice("");
-                  navigate("/admin");
+                  navigate("/admin/menu");
                 }}
               >
                 返回
@@ -2851,7 +2897,7 @@ export default function App() {
               className="btn btn-sm btn-ghost"
               onClick={() => {
                 setAdminMenuNotice("");
-                navigate("/admin");
+                navigate("/admin/menu");
               }}
             >
               關閉
@@ -3216,7 +3262,28 @@ export default function App() {
 
           {adminAuthed ? (
             <>
-          <section className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          {!isAdminDashboardPage ? (
+            <section className="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 pb-4">
+              <div>
+                <button
+                  className="btn btn-sm btn-ghost mb-2"
+                  onClick={() => navigate("/admin")}
+                >
+                  返回後台首頁
+                </button>
+                <h1 className="text-3xl font-bold">
+                  {isAdminOrdersPage
+                    ? "訂單與營收"
+                    : isAdminMenuPage
+                      ? "菜單與加料"
+                      : isAdminCouponsPage
+                        ? "促銷與優惠券"
+                        : "銷售統計"}
+                </h1>
+              </div>
+            </section>
+          ) : null}
+          <section className={`${isAdminDashboardPage ? "" : "hidden "}grid grid-cols-1 md:grid-cols-4 gap-3`}>
             <div className="stats shadow bg-base-100">
               <div className="stat">
                 <div className="stat-title">今日單量</div>
@@ -3251,7 +3318,41 @@ export default function App() {
             </div>
           </section>
 
-          <section className="rounded-lg bg-base-100 p-5 shadow">
+          <section className={`${isAdminDashboardPage ? "" : "hidden "}grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4`}>
+            {[
+              {
+                path: "/admin/orders",
+                title: "訂單與營收",
+                description: "歷史訂單、日期區間營收",
+              },
+              {
+                path: "/admin/menu",
+                title: "菜單與加料",
+                description: "商品、圖片、售價與共用加料",
+              },
+              {
+                path: "/admin/coupons",
+                title: "促銷與優惠券",
+                description: "優惠條件、數量與期限",
+              },
+              {
+                path: "/admin/reports",
+                title: "銷售統計",
+                description: "熱門品項與下單時段",
+              },
+            ].map((module) => (
+              <button
+                key={module.path}
+                className="rounded-lg border border-base-300 bg-base-100 p-4 text-left shadow transition hover:border-primary"
+                onClick={() => navigate(module.path)}
+              >
+                <div className="font-bold">{module.title}</div>
+                <div className="mt-1 text-sm opacity-60">{module.description}</div>
+              </button>
+            ))}
+          </section>
+
+          <section className={`${isAdminOrdersPage ? "" : "hidden "}rounded-lg bg-base-100 p-5 shadow`}>
             <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h2 className="text-2xl font-bold">營收查詢</h2>
@@ -3316,7 +3417,7 @@ export default function App() {
 
           {adminAuthed ? (
             <>
-          <section className="rounded-lg bg-base-100 p-5 shadow">
+          <section className={`${isAdminMenuPage ? "" : "hidden "}rounded-lg bg-base-100 p-5 shadow`}>
             <div className="mb-4">
               <h2 className="text-2xl font-bold">共用加料價格</h2>
               <p className="mt-1 text-sm opacity-60">
@@ -3359,7 +3460,7 @@ export default function App() {
             </div>
           </section>
 
-          <section>
+          <section className={isAdminMenuPage ? "" : "hidden"}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-2xl font-bold">菜單商品</h2>
               <button
@@ -3390,7 +3491,7 @@ export default function App() {
                     onClick={() => {
                       setAdminMenuNotice("");
                       setIsAdminMenuFormOpen(false);
-                      navigate("/admin");
+                      navigate("/admin/menu");
                     }}
                   >
                     關閉
@@ -3568,7 +3669,7 @@ export default function App() {
             </>
           ) : null}
 
-          <section>
+          <section className={isAdminDashboardPage ? "" : "hidden"}>
             <h2 className="text-2xl font-bold mb-3">POS 訂單看板</h2>
             <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
               <table className="table table-zebra min-w-[1120px]">
@@ -3585,7 +3686,11 @@ export default function App() {
                 </thead>
                 <tbody>
                   {adminOrders
-                    .filter((order) => order.status === "submitted")
+                    .filter(
+                      (order) =>
+                        order.status === "submitted" ||
+                        order.status === "completed",
+                    )
                     .slice(0, 20)
                     .map((order) => {
                       const waitMinutes = orderWaitMinutes(order);
@@ -3607,7 +3712,9 @@ export default function App() {
                             {orderStatusLabel(order.status)}
                           </span>
                           <div className="mt-1 text-xs opacity-70">
-                            等待 {waitMinutes} 分鐘
+                            {order.status === "completed"
+                              ? "待顧客取貨"
+                              : `等待 ${waitMinutes} 分鐘`}
                           </div>
                         </td>
                         <td className="whitespace-nowrap">
@@ -3700,8 +3807,17 @@ export default function App() {
                             >
                               完成
                             </button>
+                          ) : order.status === "completed" ? (
+                            <button
+                              className="btn btn-xs btn-primary min-w-16 whitespace-nowrap"
+                              onClick={() => {
+                                void pickUpAdminOrder(order.id);
+                              }}
+                            >
+                              已取貨
+                            </button>
                           ) : (
-                            <span className="text-xs opacity-50">完成時間已記錄</span>
+                            <span className="text-xs opacity-50">已歸檔</span>
                           )}
                         </td>
                       </tr>
@@ -3712,7 +3828,7 @@ export default function App() {
             </div>
           </section>
 
-          <section>
+          <section className={isAdminOrdersPage ? "" : "hidden"}>
             <details className="collapse collapse-arrow bg-base-100 shadow h-fit">
               <summary className="collapse-title text-2xl font-bold">
                 單日歷史訂單
@@ -3814,6 +3930,11 @@ export default function App() {
                               完成：{formatTaipeiDateTime(order.completedAt)}
                             </div>
                           ) : null}
+                          {order.pickedUpAt ? (
+                            <div className="opacity-70">
+                              取貨：{formatTaipeiDateTime(order.pickedUpAt)}
+                            </div>
+                          ) : null}
                         </td>
                         <td className="font-semibold">{formatMoney(order.total)}</td>
                       </tr>
@@ -3826,7 +3947,7 @@ export default function App() {
             </details>
           </section>
 
-          <section>
+          <section className={isAdminReportsPage ? "" : "hidden"}>
             <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
               <h2 className="text-2xl font-bold">每日品項銷售排行</h2>
               <label className="form-control w-full max-w-xs">
@@ -3882,7 +4003,7 @@ export default function App() {
             </div>
           </section>
 
-          <section>
+          <section className={isAdminReportsPage ? "" : "hidden"}>
             <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
               <h2 className="text-2xl font-bold">下單時段統計</h2>
               <label className="form-control w-full max-w-xs">
@@ -3925,7 +4046,7 @@ export default function App() {
             </div>
           </section>
 
-          <section>
+          <section className={isAdminMenuPage ? "" : "hidden"}>
             <details className="collapse collapse-arrow bg-base-100 shadow h-fit">
               <summary className="collapse-title text-2xl font-bold">
                 菜單商品管理
@@ -4034,7 +4155,7 @@ export default function App() {
             </details>
           </section>
 
-          <section>
+          <section className={isAdminCouponsPage ? "" : "hidden"}>
             <h2 className="text-2xl font-bold mb-3">目前促銷</h2>
             <div className="space-y-3">
               {activePromotions.length === 0 ? (
@@ -4066,7 +4187,7 @@ export default function App() {
             </div>
           </section>
 
-          <section>
+          <section className={isAdminCouponsPage ? "" : "hidden"}>
             <h2 className="text-2xl font-bold mb-3">優惠券管理</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="card bg-base-100 shadow">
@@ -5373,24 +5494,6 @@ export default function App() {
                 )
               ) : (
                 <div className="space-y-4">
-                  <div className="rounded-lg bg-base-200 p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span>{text.totalItems}</span>
-                      <span className="font-semibold">{cartItemCount}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-lg font-bold">
-                      <span>{text.totalAmount}</span>
-                      <span>{formatMoney(checkoutTotal)}</span>
-                    </div>
-                    {appliedCoupon ? (
-                      <div className="flex items-center justify-between text-sm text-success">
-                        <span>
-                          {text.discount}：{appliedCoupon.code}
-                        </span>
-                        <span>-{formatMoney(couponDiscountTotal)}</span>
-                      </div>
-                    ) : null}
-                  </div>
                   <input
                     className="input input-bordered w-full"
                     placeholder={text.checkoutNamePlaceholder}
@@ -5447,7 +5550,7 @@ export default function App() {
                     <div className="join w-full">
                       <input
                         className="input input-bordered join-item flex-1 focus:outline-none"
-                        placeholder="輸入優惠碼"
+                        placeholder={text.couponPlaceholder}
                         value={couponCode}
                         onChange={(event) => {
                           updateCouponCode(event.currentTarget.value);
@@ -5461,13 +5564,24 @@ export default function App() {
                       </button>
                     </div>
                     {appliedCoupon ? (
-                      <div className="rounded-lg bg-success/10 border border-success/30 px-3 py-2 text-sm">
-                        <p className="font-semibold text-success">
-                          {text.couponApplied}：{appliedCoupon.code}
+                      <div
+                        className={`rounded-lg px-3 py-2 text-sm border ${
+                          couponCanApply
+                            ? "bg-success/10 border-success/30"
+                            : "bg-error/10 border-error/40"
+                        }`}
+                      >
+                        <p
+                          className={`font-semibold ${
+                            couponCanApply ? "text-success" : "text-error"
+                          }`}
+                        >
+                          {couponCanApply ? text.couponApplied : text.couponUnavailable}：
+                          {appliedCoupon.code}
                         </p>
                         <p className="opacity-70">
-                          {text.couponLimitOnce}，{text.discount}{" "}
-                          {formatMoney(couponDiscountTotal)}
+                          {text.couponMinSpend} {formatMoney(appliedCoupon.minSpend ?? 0)}，
+                          {text.couponLimitOnce}
                           {appliedCoupon.usageLimitTotal
                             ? "，數量有限"
                             : ""}
@@ -5484,16 +5598,22 @@ export default function App() {
                 <span>{text.totalItems}</span>
                 <span>{cartItemCount}</span>
               </div>
-              <div className="flex items-center justify-between text-lg font-bold">
-                <span>{text.totalAmount}</span>
+              <div className="flex items-center justify-between">
+                <span>{cartView === "checkout" ? text.originalAmount : text.totalAmount}</span>
                 <span>
-                  {formatMoney(cartView === "checkout" ? checkoutTotal : cartTotal)}
+                  {formatMoney(cartTotal)}
                 </span>
               </div>
               {cartView === "checkout" && appliedCoupon ? (
-                <div className="flex items-center justify-between text-sm text-success">
-                  <span>{text.discount}</span>
+                <div className={`flex items-center justify-between text-sm ${couponCanApply ? "text-success" : "text-error"}`}>
+                  <span>{text.discount}：{appliedCoupon.code}</span>
                   <span>-{formatMoney(couponDiscountTotal)}</span>
+                </div>
+              ) : null}
+              {cartView === "checkout" ? (
+                <div className="flex items-center justify-between text-lg font-bold">
+                  <span>{text.totalAmount}</span>
+                  <span>{formatMoney(checkoutTotal)}</span>
                 </div>
               ) : null}
               {cartView === "items" ? (

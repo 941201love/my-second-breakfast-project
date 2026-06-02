@@ -690,7 +690,11 @@ app.get(
       .filter((order) => order.status !== "pending" && isTodayOrder(order));
     const completedOrders = store
       .getOrders()
-      .filter((order) => order.status === "completed" && isTodayOrder(order));
+      .filter(
+        (order) =>
+          (order.status === "completed" || order.status === "picked_up") &&
+          isTodayOrder(order),
+      );
     const waitingOrders = store
       .getOrders()
       .filter((order) => order.status === "submitted" && isTodayOrder(order));
@@ -749,6 +753,34 @@ app.patch(
       tags: ["orders"],
       summary: "Complete order",
       description: "Mark a submitted order as completed from POS admin.",
+    },
+    response: {
+      200: orderResponseEnvelopeSchema,
+      404: apiErrorResponseSchema,
+    },
+  },
+);
+
+app.patch(
+  "/api/orders/:id/pick-up",
+  async ({ params, request, set }) => {
+    requireAdmin(request);
+    const orderId = parseInt(params.id, 10);
+    const order = await store.pickUpOrder(orderId);
+
+    if (!order) {
+      set.status = 404;
+      return { error: "Order not found or cannot be picked up" };
+    }
+
+    return { data: toOrderResponse(order) };
+  },
+  {
+    params: updateOrderParamsSchema,
+    detail: {
+      tags: ["orders"],
+      summary: "Pick up order",
+      description: "Archive a completed order after the customer picks it up.",
     },
     response: {
       200: orderResponseEnvelopeSchema,

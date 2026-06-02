@@ -89,6 +89,7 @@ export class PgStore implements Store {
   async init(): Promise<void> {
     await db.execute(sql`select 1`);
     await this.ensureProductOptionColumns();
+    await this.ensureOrderPickupColumn();
     await this.ensureAddonSettingsTable();
     await this.ensureCouponRuleColumns();
     await this.seedFromJsonIfEmpty();
@@ -581,7 +582,7 @@ export class PgStore implements Store {
 
   async completeOrder(orderId: number): Promise<Order | null> {
     const order = this.orders.find((o) => o.id === orderId);
-    if (!order || order.status === "pending") return null;
+    if (!order || order.status !== "submitted") return null;
 
     const completedAt = new Date().toISOString();
     await db
@@ -591,6 +592,21 @@ export class PgStore implements Store {
 
     order.status = "completed";
     order.completedAt = completedAt;
+    return order;
+  }
+
+  async pickUpOrder(orderId: number): Promise<Order | null> {
+    const order = this.orders.find((o) => o.id === orderId);
+    if (!order || order.status !== "completed") return null;
+
+    const pickedUpAt = new Date().toISOString();
+    await db
+      .update(ordersTable)
+      .set({ status: "picked_up", pickedUpAt: new Date(pickedUpAt) })
+      .where(eq(ordersTable.id, orderId));
+
+    order.status = "picked_up";
+    order.pickedUpAt = pickedUpAt;
     return order;
   }
 
@@ -743,7 +759,9 @@ export class PgStore implements Store {
       items: itemsByOrderId.get(row.id) ?? [],
       total: row.total,
       status:
-        row.status === "completed"
+        row.status === "picked_up"
+          ? "picked_up"
+          : row.status === "completed"
           ? "completed"
           : row.status === "submitted"
             ? "submitted"
@@ -762,6 +780,7 @@ export class PgStore implements Store {
       createdAt: toIsoString(row.createdAt),
       submittedAt: row.submittedAt ? toIsoString(row.submittedAt) : undefined,
       completedAt: row.completedAt ? toIsoString(row.completedAt) : undefined,
+      pickedUpAt: row.pickedUpAt ? toIsoString(row.pickedUpAt) : undefined,
     }));
   }
 
@@ -882,6 +901,13 @@ export class PgStore implements Store {
         { key: "cheese", price: 10 },
       ])
       .onConflictDoNothing();
+  }
+
+  private async ensureOrderPickupColumn(): Promise<void> {
+    await db.execute(sql`
+      ALTER TABLE "bf_v10"."orders"
+      ADD COLUMN IF NOT EXISTS "picked_up_at" timestamp with time zone
+    `);
   }
 
   private async reloadAddonSettings(): Promise<void> {

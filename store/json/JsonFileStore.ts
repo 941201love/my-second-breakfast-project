@@ -386,7 +386,9 @@ export class JsonFileStore implements Store {
             normalizeOrderItem(orderItem as LegacyOrderItem),
           ),
           status:
-            order.status === "completed"
+            order.status === "picked_up"
+              ? "picked_up"
+              : order.status === "completed"
               ? "completed"
               : order.status === "submitted"
                 ? "submitted"
@@ -403,11 +405,17 @@ export class JsonFileStore implements Store {
           pickupTime: order.pickupTime,
           discountTotal: order.discountTotal ?? 0,
           submittedAt:
-            order.status === "submitted" || order.status === "completed"
+            order.status === "submitted" ||
+            order.status === "completed" ||
+            order.status === "picked_up"
               ? order.submittedAt
               : undefined,
           completedAt:
-            order.status === "completed" ? order.completedAt : undefined,
+            order.status === "completed" || order.status === "picked_up"
+              ? order.completedAt
+              : undefined,
+          pickedUpAt:
+            order.status === "picked_up" ? order.pickedUpAt : undefined,
         })),
         coupons: Array.isArray(parsed.coupons)
           ? parsed.coupons.map((coupon) => ({
@@ -419,6 +427,8 @@ export class JsonFileStore implements Store {
               minSpend: coupon.minSpend ?? 0,
               maxDiscount: coupon.maxDiscount ?? 0,
               usageLimitPerUser: coupon.usageLimitPerUser ?? 1,
+              usageLimitTotal: coupon.usageLimitTotal ?? 0,
+              startsAt: coupon.startsAt,
               expiresAt: coupon.expiresAt,
               isActive: coupon.isActive,
             }))
@@ -910,12 +920,24 @@ export class JsonFileStore implements Store {
 
   async completeOrder(orderId: number): Promise<Order | null> {
     const order = this.orders.find((targetOrder) => targetOrder.id === orderId);
-    if (!order || order.status === "pending") {
+    if (!order || order.status !== "submitted") {
       return null;
     }
 
     order.status = "completed";
     order.completedAt = new Date().toISOString();
+    await this.persist();
+    return order;
+  }
+
+  async pickUpOrder(orderId: number): Promise<Order | null> {
+    const order = this.orders.find((targetOrder) => targetOrder.id === orderId);
+    if (!order || order.status !== "completed") {
+      return null;
+    }
+
+    order.status = "picked_up";
+    order.pickedUpAt = new Date().toISOString();
     await this.persist();
     return order;
   }

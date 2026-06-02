@@ -167,7 +167,7 @@ export const orderSchema = z.object({
   userId: z.string().min(1),
   items: z.array(orderItemSchema),
   total: z.number().min(0),
-  status: z.enum(["pending", "submitted", "completed"]),
+  status: z.enum(["pending", "submitted", "completed", "picked_up"]),
   dailySequence: z.number().int().min(1).optional(),
   paymentMethod: z.enum(["cash", "card"]).optional(),
   note: z.string().optional(),
@@ -179,6 +179,7 @@ export const orderSchema = z.object({
   createdAt: z.string().min(1),
   submittedAt: z.string().min(1).optional(),
   completedAt: z.string().min(1).optional(),
+  pickedUpAt: z.string().min(1).optional(),
 });
 
 export const orderProgressSchema = z.object({

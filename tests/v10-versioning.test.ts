@@ -285,3 +285,31 @@ test("shared addon prices update all eligible products without editing them", as
     expect(added.order.total).toBe(item.price + 40);
   }
 });
+
+test("completed orders remain ready for pickup until the customer takes them", async () => {
+  const store = new JsonFileStore({
+    dataFilePath: join(tempDir, "store.json"),
+  });
+  await store.init();
+
+  const item = store.getMenu()[0]!;
+  const order = await store.createOrder({ userId: "user-1" });
+  await store.updateOrderItem(order.id, {
+    userId: "user-1",
+    itemId: item.id,
+    qty: 1,
+  });
+
+  const submitted = await store.submitOrder(order.id, { userId: "user-1" });
+  expect(submitted.ok).toBe(true);
+  expect(await store.pickUpOrder(order.id)).toBeNull();
+
+  const completed = await store.completeOrder(order.id);
+  expect(completed?.status).toBe("completed");
+  expect(completed?.completedAt).toBeDefined();
+
+  const pickedUp = await store.pickUpOrder(order.id);
+  expect(pickedUp?.status).toBe("picked_up");
+  expect(pickedUp?.pickedUpAt).toBeDefined();
+  expect(await store.pickUpOrder(order.id)).toBeNull();
+});

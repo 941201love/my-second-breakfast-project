@@ -113,6 +113,7 @@ export interface Store {
     },
   ): Promise<{ ok: true; order: Order } | SubmitOrderError>;
   completeOrder(orderId: number): Promise<Order | null>;
+  pickUpOrder(orderId: number): Promise<Order | null>;
   getCoupons(): ReadonlyArray<Coupon>;
   createCoupon(input: Coupon): Promise<Coupon>;
   deleteCoupon(code: string): Promise<Coupon | null>;

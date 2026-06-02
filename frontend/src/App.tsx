@@ -1753,7 +1753,9 @@ export default function App() {
       Boolean(confirmDialog) ||
       (isAdminPage
         ? isAdminMenuPage && isAdminMenuFormOpen
-        : isCartOpen ||
+        : isCartPage ||
+          isOrderHistoryPage ||
+          isCartOpen ||
           isHistoryOpen ||
           isProfileOpen ||
           Boolean(customizingItem));
@@ -1779,6 +1781,8 @@ export default function App() {
     isAdminMenuFormOpen,
     adminPriceHistoryModal,
     confirmDialog,
+    isCartPage,
+    isOrderHistoryPage,
     isCartOpen,
     isHistoryOpen,
     isProfileOpen,
@@ -5515,7 +5519,7 @@ export default function App() {
 
       {user && (isHistoryOpen || isOrderHistoryPage) ? (
         <>
-          <section className="fixed inset-0 z-50 bg-base-100 shadow-2xl flex flex-col">
+          <section className="fixed inset-0 z-50 bg-base-100 shadow-2xl flex flex-col overscroll-none">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
               <h2 className="text-xl font-bold">{text.orderHistory}</h2>
               <button
@@ -5528,7 +5532,7 @@ export default function App() {
                 {text.close}
               </button>
             </div>
-            <div className="p-4 flex-1 overflow-auto">
+            <div className="p-4 flex-1 overflow-auto overscroll-contain">
               {historyLoading ? (
                 <div className="alert">
                   <span>{text.loading}</span>
@@ -6224,7 +6228,7 @@ export default function App() {
 
       {user && (isCartOpen || isCartPage) ? (
         <>
-          <aside className="fixed inset-0 bg-base-100 shadow-2xl z-50 flex flex-col">
+          <aside className="fixed inset-0 bg-base-100 shadow-2xl z-50 flex flex-col overscroll-none">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {cartView === "checkout" ? (
@@ -6252,7 +6256,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="p-4 flex-1 overflow-auto">
+            <div className="p-4 flex-1 overflow-auto overscroll-contain">
               {staleCartItems.length > 0 ? (
                 <div className="alert alert-warning mb-4 items-start">
                   <div>

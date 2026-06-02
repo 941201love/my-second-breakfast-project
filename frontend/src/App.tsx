@@ -3083,6 +3083,36 @@ export default function App() {
     setCouponWalletNotice(`${text.couponCollected}：${coupon.name}`);
   }
 
+  function collectCouponCode(): void {
+    const code = couponCode.trim();
+    if (!code) {
+      setCouponWalletNotice(text.couponInvalid);
+      return;
+    }
+
+    const coupon =
+      coupons.find(
+        (item) => item.code === code && item.isActive !== false,
+      ) ?? null;
+
+    if (!coupon || !isCouponCollectable(coupon)) {
+      setCouponWalletNotice(
+        coupon && hasUsedCoupon(coupon)
+          ? text.couponAlreadyUsed
+          : text.couponInvalid,
+      );
+      return;
+    }
+
+    if (collectedCouponCodes.includes(coupon.code)) {
+      setCouponWalletNotice(`${text.couponCollected}：${coupon.name}`);
+      return;
+    }
+
+    collectCoupon(coupon);
+    setCouponCode("");
+  }
+
   function selectCoupon(coupon: Coupon): void {
     setCouponCode(coupon.code);
     setAppliedCoupon(coupon);
@@ -5732,6 +5762,28 @@ export default function App() {
             </button>
           </div>
           <div className="flex-1 overflow-auto p-4">
+            <section className="mb-8">
+              <label className="mb-3 block text-lg font-bold">
+                {text.enterCouponCode}
+              </label>
+              <div className="join w-full">
+                <input
+                  className="input input-bordered join-item flex-1 focus:outline-none"
+                  placeholder={text.couponPlaceholder}
+                  value={couponCode}
+                  onChange={(event) => {
+                    updateCouponCode(event.currentTarget.value);
+                  }}
+                />
+                <button
+                  className="btn btn-primary join-item"
+                  onClick={collectCouponCode}
+                >
+                  {text.collectCoupon}
+                </button>
+              </div>
+            </section>
+
             <section className="mb-8">
               <h3 className="mb-3 text-lg font-bold">{text.collectedCoupons}</h3>
               {collectedCoupons.length === 0 ? (

@@ -1606,18 +1606,19 @@ export default function App() {
 
   useEffect(() => {
     const shouldLockBody =
-      isAdminMenuFormOpen ||
       Boolean(adminPriceHistoryModal) ||
       Boolean(confirmDialog) ||
-      isCartOpen ||
-      isCartPage ||
-      isHistoryOpen ||
-      isOrderHistoryPage ||
-      isProfileOpen ||
-      isProfilePage ||
-      isItemPage ||
-      Boolean(customizingItem);
-    if (!shouldLockBody) return;
+      (isAdminPage
+        ? isAdminMenuPage && isAdminMenuFormOpen
+        : isCartOpen ||
+          isHistoryOpen ||
+          isProfileOpen ||
+          Boolean(customizingItem));
+    if (!shouldLockBody) {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      return;
+    }
 
     const previousOverflow = document.body.style.overflow;
     const previousPosition = document.body.style.position;
@@ -1630,15 +1631,13 @@ export default function App() {
     };
   }, [
     customizingItem,
+    isAdminMenuPage,
+    isAdminPage,
     isAdminMenuFormOpen,
     adminPriceHistoryModal,
     confirmDialog,
     isCartOpen,
-    isCartPage,
     isHistoryOpen,
-    isOrderHistoryPage,
-    isItemPage,
-    isProfilePage,
     isProfileOpen,
   ]);
 

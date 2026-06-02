@@ -675,7 +675,6 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     discount: "優惠折抵",
     couponLimitOnce: "每個帳號限一次",
     couponLimitedQuantity: "數量有限",
-    couponLimitedQuantityCount: "限量 {count} 張",
     couponAmountBenefit: "現折 {amount}",
     couponPercentBenefit: "結帳享 {ratio} 折",
     couponWallet: "優惠券",
@@ -782,7 +781,6 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     discount: "Discount",
     couponLimitOnce: "Once per account",
     couponLimitedQuantity: "Limited quantity",
-    couponLimitedQuantityCount: "Limited to {count}",
     couponAmountBenefit: "Save {amount}",
     couponPercentBenefit: "Pay {percent}%",
     couponWallet: "Coupons",
@@ -889,7 +887,6 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     discount: "割引",
     couponLimitOnce: "1アカウント1回まで",
     couponLimitedQuantity: "数量限定",
-    couponLimitedQuantityCount: "{count}枚限定",
     couponAmountBenefit: "{amount}割引",
     couponPercentBenefit: "お会計は{percent}%",
     couponWallet: "クーポン",
@@ -996,7 +993,6 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     discount: "할인",
     couponLimitOnce: "계정당 1회",
     couponLimitedQuantity: "수량 한정",
-    couponLimitedQuantityCount: "{count}장 한정",
     couponAmountBenefit: "{amount} 할인",
     couponPercentBenefit: "결제 금액 {percent}%",
     couponWallet: "쿠폰",
@@ -3109,12 +3105,7 @@ export default function App() {
       couponBenefitText(coupon),
       `${text.couponMinSpend} ${formatMoney(coupon.minSpend ?? 0)}`,
       text.couponLimitOnce,
-      coupon.usageLimitTotal
-        ? text.couponLimitedQuantityCount.replace(
-            "{count}",
-            String(coupon.usageLimitTotal),
-          )
-        : "",
+      coupon.usageLimitTotal ? text.couponLimitedQuantity : "",
     ]
       .filter(Boolean)
       .join(" · ");

@@ -601,6 +601,9 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     waitingCount: "等候人數",
     readyForPickup: "可取餐",
     waitingPickup: "待取餐",
+    pickupStatus: "取餐進度",
+    myPickupNumber: "我的取餐編號",
+    noActiveOrder: "目前沒有進行中的訂單",
     cartDetails: "購物車明細",
     orderHistory: "歷史訂單",
     profile: "個人",
@@ -707,6 +710,9 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     waitingCount: "Waiting",
     readyForPickup: "Ready for pickup",
     waitingPickup: "In progress",
+    pickupStatus: "Pickup status",
+    myPickupNumber: "My pickup number",
+    noActiveOrder: "No active order",
     cartDetails: "Cart",
     orderHistory: "Order history",
     profile: "Profile",
@@ -813,6 +819,9 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     waitingCount: "待ち人数",
     readyForPickup: "受取可能",
     waitingPickup: "調理中",
+    pickupStatus: "受取状況",
+    myPickupNumber: "自分の受取番号",
+    noActiveOrder: "進行中の注文はありません",
     cartDetails: "カート",
     orderHistory: "注文履歴",
     profile: "プロフィール",
@@ -919,6 +928,9 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     waitingCount: "대기 인원",
     readyForPickup: "픽업 가능",
     waitingPickup: "준비 중",
+    pickupStatus: "픽업 현황",
+    myPickupNumber: "내 픽업 번호",
+    noActiveOrder: "진행 중인 주문이 없습니다",
     cartDetails: "장바구니",
     orderHistory: "주문 내역",
     profile: "프로필",
@@ -1089,6 +1101,7 @@ export default function App() {
   const [completedNoticeOrder, setCompletedNoticeOrder] = useState<Order | null>(
     null,
   );
+  const [isPickupStatusOpen, setIsPickupStatusOpen] = useState(false);
   const [orderProgress, setOrderProgress] = useState<OrderProgress>({
     latestSubmittedOrderId: null,
     latestCompletedOrderId: null,
@@ -1758,6 +1771,7 @@ export default function App() {
           isCartOpen ||
           isHistoryOpen ||
           isProfileOpen ||
+          isPickupStatusOpen ||
           Boolean(customizingItem));
     if (!shouldLockBody) {
       document.body.style.overflow = "";
@@ -1786,6 +1800,7 @@ export default function App() {
     isCartOpen,
     isHistoryOpen,
     isProfileOpen,
+    isPickupStatusOpen,
   ]);
 
   useEffect(() => {
@@ -3163,6 +3178,15 @@ export default function App() {
   function pickupNumberList(numbers: number[] | undefined): string {
     if (!numbers || numbers.length === 0) return "-";
     return numbers.map((number) => `#${number}`).join("、");
+  }
+
+  function currentUserPickupNumber(): number | null {
+    if (!lastSubmittedOrder) return null;
+    const number = lastSubmittedOrder.dailySequence ?? lastSubmittedOrder.id;
+    return orderProgress.readyPickupNumbers.includes(number) ||
+      orderProgress.waitingPickupNumbers.includes(number)
+      ? number
+      : null;
   }
 
   function isCouponUsable(coupon: Coupon): boolean {
@@ -5243,20 +5267,15 @@ export default function App() {
         </div>
         <div className="flex-none w-full md:w-auto">
           <div className="flex flex-wrap gap-2 items-center md:justify-end">
-            <div className="grid min-w-[18rem] grid-cols-2 overflow-hidden rounded-lg border border-base-300 bg-base-200 text-sm">
-              <div className="border-r border-base-300 px-4 py-2">
-                <span className="block text-xs opacity-70">
-                  {text.readyForPickup}
-                </span>
-                <strong>{pickupNumberList(orderProgress.readyPickupNumbers)}</strong>
-              </div>
-              <div className="px-4 py-2">
-                <span className="block text-xs opacity-70">
-                  {text.waitingPickup}
-                </span>
-                <strong>{pickupNumberList(orderProgress.waitingPickupNumbers)}</strong>
-              </div>
-            </div>
+            <button
+              className="btn btn-sm btn-outline"
+              onClick={() => setIsPickupStatusOpen(true)}
+            >
+              {text.pickupStatus}
+              {currentUserPickupNumber() !== null
+                ? ` #${currentUserPickupNumber()}`
+                : ""}
+            </button>
             <button
               className="btn btn-sm btn-outline"
               onClick={() => {
@@ -6819,6 +6838,54 @@ export default function App() {
             </div>
           </aside>
         </>
+      ) : null}
+
+      {isPickupStatusOpen ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 px-4">
+          <section className="w-full max-w-lg rounded-lg bg-base-100 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-base-300 p-4">
+              <h2 className="text-xl font-bold">{text.pickupStatus}</h2>
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => setIsPickupStatusOpen(false)}
+              >
+                {text.close}
+              </button>
+            </div>
+            <div className="space-y-4 p-4">
+              <div className="rounded-lg bg-primary px-4 py-3 text-primary-content">
+                <span className="block text-sm opacity-80">
+                  {text.myPickupNumber}
+                </span>
+                {currentUserPickupNumber() !== null ? (
+                  <strong className="mt-1 block text-3xl">
+                    #{currentUserPickupNumber()}
+                  </strong>
+                ) : (
+                  <strong className="mt-1 block">{text.noActiveOrder}</strong>
+                )}
+              </div>
+              <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-base-300 bg-base-200">
+                <div className="border-r border-base-300 p-4">
+                  <span className="block text-sm opacity-70">
+                    {text.readyForPickup}
+                  </span>
+                  <strong className="mt-1 block text-xl">
+                    {pickupNumberList(orderProgress.readyPickupNumbers)}
+                  </strong>
+                </div>
+                <div className="p-4">
+                  <span className="block text-sm opacity-70">
+                    {text.waitingPickup}
+                  </span>
+                  <strong className="mt-1 block text-xl">
+                    {pickupNumberList(orderProgress.waitingPickupNumbers)}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
       ) : null}
 
       {checkoutNotice ? (

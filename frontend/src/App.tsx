@@ -673,6 +673,19 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     discount: "優惠折抵",
     couponLimitOnce: "每個帳號限一次",
     couponLimitedQuantity: "數量有限",
+    couponWallet: "優惠券",
+    couponWalletTitle: "我的優惠券",
+    recommendedCoupons: "推薦優惠券",
+    collectedCoupons: "已新增優惠券",
+    collectCoupon: "新增",
+    couponCollected: "已新增",
+    useCoupon: "使用",
+    couponSelected: "已選用",
+    selectCoupon: "選擇已新增優惠券",
+    noRecommendedCoupons: "目前沒有推薦優惠券。",
+    noCollectedCoupons: "目前尚未新增優惠券。",
+    promotionNoticeTitle: "限時優惠",
+    promotionNoticeDescription: "活動期間點選商品即可享有優惠價。",
     clearing: "清空中...",
     clearCart: "清空購物車",
     submitting: "結帳中...",
@@ -756,6 +769,19 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     discount: "Discount",
     couponLimitOnce: "Once per account",
     couponLimitedQuantity: "Limited quantity",
+    couponWallet: "Coupons",
+    couponWalletTitle: "My coupons",
+    recommendedCoupons: "Recommended coupons",
+    collectedCoupons: "Added coupons",
+    collectCoupon: "Add",
+    couponCollected: "Added",
+    useCoupon: "Use",
+    couponSelected: "Selected",
+    selectCoupon: "Choose an added coupon",
+    noRecommendedCoupons: "No recommended coupons available.",
+    noCollectedCoupons: "You have not added any coupons yet.",
+    promotionNoticeTitle: "Limited-time offers",
+    promotionNoticeDescription: "Select an item to enjoy its promotional price.",
     clearing: "Clearing...",
     clearCart: "Clear cart",
     submitting: "Checking out...",
@@ -839,6 +865,19 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     discount: "割引",
     couponLimitOnce: "1アカウント1回まで",
     couponLimitedQuantity: "数量限定",
+    couponWallet: "クーポン",
+    couponWalletTitle: "マイクーポン",
+    recommendedCoupons: "おすすめクーポン",
+    collectedCoupons: "追加済みクーポン",
+    collectCoupon: "追加",
+    couponCollected: "追加済み",
+    useCoupon: "使用",
+    couponSelected: "選択済み",
+    selectCoupon: "追加済みクーポンを選択",
+    noRecommendedCoupons: "おすすめクーポンはありません。",
+    noCollectedCoupons: "追加済みクーポンはありません。",
+    promotionNoticeTitle: "期間限定キャンペーン",
+    promotionNoticeDescription: "対象商品を選ぶとキャンペーン価格が適用されます。",
     clearing: "削除中...",
     clearCart: "カートを空にする",
     submitting: "会計中...",
@@ -922,6 +961,19 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     discount: "할인",
     couponLimitOnce: "계정당 1회",
     couponLimitedQuantity: "수량 한정",
+    couponWallet: "쿠폰",
+    couponWalletTitle: "내 쿠폰",
+    recommendedCoupons: "추천 쿠폰",
+    collectedCoupons: "추가한 쿠폰",
+    collectCoupon: "추가",
+    couponCollected: "추가됨",
+    useCoupon: "사용",
+    couponSelected: "선택됨",
+    selectCoupon: "추가한 쿠폰 선택",
+    noRecommendedCoupons: "추천 쿠폰이 없습니다.",
+    noCollectedCoupons: "아직 추가한 쿠폰이 없습니다.",
+    promotionNoticeTitle: "기간 한정 할인",
+    promotionNoticeDescription: "상품을 선택하면 할인 가격이 적용됩니다.",
     clearing: "비우는 중...",
     clearCart: "장바구니 비우기",
     submitting: "결제 중...",
@@ -960,6 +1012,7 @@ export default function App() {
   const isCartPage = currentPath === "/cart";
   const isOrderHistoryPage = currentPath === "/orders";
   const isProfilePage = currentPath === "/profile";
+  const isCouponWalletPage = currentPath === "/coupons";
   const isItemPage = currentPath.startsWith("/item/");
   const itemPageId = isItemPage
     ? decodeURIComponent(currentPath.replace(/^\/item\//, ""))
@@ -1084,6 +1137,8 @@ export default function App() {
   const [pickupTime, setPickupTime] = useState("");
   const [checkoutNotice, setCheckoutNotice] = useState("");
   const [profileNotice, setProfileNotice] = useState("");
+  const [couponWalletNotice, setCouponWalletNotice] = useState("");
+  const [collectedCouponCodes, setCollectedCouponCodes] = useState<string[]>([]);
   const [adminMenuNotice, setAdminMenuNotice] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [adminOrders, setAdminOrders] = useState<Order[]>([]);
@@ -1258,6 +1313,14 @@ export default function App() {
     [appliedCoupon, cartTotal, couponCanApply],
   );
   const checkoutTotal = Math.max(0, cartTotal - couponDiscountTotal);
+  const collectedCoupons = collectedCouponCodes
+    .map((code) => coupons.find((coupon) => coupon.code === code))
+    .filter((coupon): coupon is Coupon => Boolean(coupon));
+  const recommendedCoupons = coupons.filter(
+    (coupon) =>
+      isCouponCollectable(coupon) &&
+      !collectedCouponCodes.includes(coupon.code),
+  );
   const customizingUnitPrice = activeCustomizingItem
     ? promotionalMenuItemPrice(
         activeCustomizingItem,
@@ -1461,7 +1524,8 @@ export default function App() {
       setIsHistoryOpen(false);
       setIsProfileOpen(false);
       setIsCartOpen(false);
-      if (["/cart", "/orders", "/profile"].includes(currentPath)) {
+      setCollectedCouponCodes([]);
+      if (["/cart", "/orders", "/profile", "/coupons"].includes(currentPath)) {
         navigate("/");
       }
       resetCartState();
@@ -1488,6 +1552,26 @@ export default function App() {
     setProfile(nextProfile);
     setCustomerName(nextProfile.nickname || user.name);
     setCustomerPhone(nextProfile.phone);
+    const savedCouponCodes = window.localStorage.getItem(
+      `breakfast-coupons:${user.id}`,
+    );
+    if (!savedCouponCodes) {
+      setCollectedCouponCodes([]);
+    } else {
+      try {
+        const parsedCouponCodes = JSON.parse(savedCouponCodes) as unknown;
+        setCollectedCouponCodes(
+          Array.isArray(parsedCouponCodes)
+            ? parsedCouponCodes.filter(
+                (code): code is string => typeof code === "string",
+              )
+            : [],
+        );
+      } catch {
+        window.localStorage.removeItem(`breakfast-coupons:${user.id}`);
+        setCollectedCouponCodes([]);
+      }
+    }
 
     void refreshUserOrders().catch((refreshError) => {
       setActionError("載入使用者訂單資料失敗，請稍後再試。");
@@ -1561,6 +1645,16 @@ export default function App() {
 
     return () => window.clearTimeout(timer);
   }, [profileNotice]);
+
+  useEffect(() => {
+    if (!couponWalletNotice) return;
+
+    const timer = window.setTimeout(() => {
+      setCouponWalletNotice("");
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [couponWalletNotice]);
 
   useEffect(() => {
     if (!adminError) return;
@@ -1723,6 +1817,7 @@ export default function App() {
 
     return { groupedItems, categories, recentItems };
   }, [items]);
+  const promotionalItems = items.filter((item) => item.activePromotion);
 
   useEffect(() => {
     if (!isAdminPage || loading || items.length === 0) return;
@@ -2910,6 +3005,31 @@ export default function App() {
       return;
     }
 
+    selectCoupon(coupon);
+  }
+
+  function updateCouponCode(nextCode: string): void {
+    setCouponCode(nextCode);
+    setAppliedCoupon(null);
+  }
+
+  function saveCollectedCouponCodes(nextCodes: string[]): void {
+    if (!user) return;
+    const normalizedCodes = [...new Set(nextCodes)];
+    setCollectedCouponCodes(normalizedCodes);
+    window.localStorage.setItem(
+      `breakfast-coupons:${user.id}`,
+      JSON.stringify(normalizedCodes),
+    );
+  }
+
+  function collectCoupon(coupon: Coupon): void {
+    if (!user || collectedCouponCodes.includes(coupon.code)) return;
+    saveCollectedCouponCodes([...collectedCouponCodes, coupon.code]);
+    setCouponWalletNotice(`${text.couponCollected}：${coupon.name}`);
+  }
+
+  function selectCoupon(coupon: Coupon): void {
     setCouponCode(coupon.code);
     setAppliedCoupon(coupon);
     setCheckoutNotice(
@@ -2919,9 +3039,25 @@ export default function App() {
     );
   }
 
-  function updateCouponCode(nextCode: string): void {
-    setCouponCode(nextCode);
-    setAppliedCoupon(null);
+  function isCouponCollectable(coupon: Coupon): boolean {
+    if (coupon.isActive === false || hasUsedCoupon(coupon)) return false;
+    if (coupon.startsAt && new Date(coupon.startsAt).getTime() > Date.now()) {
+      return false;
+    }
+    if (coupon.expiresAt && new Date(coupon.expiresAt).getTime() < Date.now()) {
+      return false;
+    }
+    return true;
+  }
+
+  function couponRuleText(coupon: Coupon): string {
+    return [
+      `${text.couponMinSpend} ${formatMoney(coupon.minSpend ?? 0)}`,
+      text.couponLimitOnce,
+      coupon.usageLimitTotal ? text.couponLimitedQuantity : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
   }
 
   function isCouponUsable(coupon: Coupon): boolean {
@@ -5123,6 +5259,38 @@ export default function App() {
           </div>
         ) : null}
 
+        {promotionalItems.length > 0 ? (
+          <section className="mb-8 border-l-4 border-warning bg-warning/10 px-4 py-3">
+            <h2 className="font-bold text-lg">{text.promotionNoticeTitle}</h2>
+            <p className="text-sm opacity-70">
+              {text.promotionNoticeDescription}
+            </p>
+            <div className="mt-3 divide-y divide-base-300">
+              {promotionalItems.map((item) => {
+                const copy = menuCopy(item);
+                return (
+                  <div
+                    key={`promotion-${item.id}`}
+                    className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+                  >
+                    <span className="font-semibold">
+                      {item.activePromotion?.name} · {copy.name}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span className="line-through opacity-50">
+                        {formatMoney(item.price)}
+                      </span>
+                      <strong className="text-success">
+                        {formatMoney(promotionalMenuItemPrice(item))}
+                      </strong>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
         {items.length === 0 ? (
           <div className="alert alert-info">
             <span>目前沒有菜單資料</span>
@@ -5365,6 +5533,95 @@ export default function App() {
         </>
       ) : null}
 
+      {user && isCouponWalletPage ? (
+        <section className="fixed inset-0 z-50 flex flex-col bg-base-100">
+          <div className="flex items-center justify-between border-b border-base-300 p-4">
+            <h2 className="text-xl font-bold">{text.couponWalletTitle}</h2>
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={() => navigate("/profile")}
+            >
+              {text.close}
+            </button>
+          </div>
+          <div className="flex-1 overflow-auto p-4">
+            <section className="mb-8">
+              <h3 className="mb-3 text-lg font-bold">{text.collectedCoupons}</h3>
+              {collectedCoupons.length === 0 ? (
+                <p className="rounded-lg bg-base-200 p-4 text-sm opacity-70">
+                  {text.noCollectedCoupons}
+                </p>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {collectedCoupons.map((coupon) => (
+                    <article
+                      key={`collected-${coupon.code}`}
+                      className="rounded-lg border border-base-300 bg-base-200 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-bold">{coupon.name}</h4>
+                          <p className="text-xs opacity-70">{coupon.code}</p>
+                        </div>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={() => {
+                            selectCoupon(coupon);
+                            navigate(cartDetails.length > 0 ? "/cart" : "/");
+                            if (cartDetails.length > 0) setCartView("checkout");
+                          }}
+                        >
+                          {appliedCoupon?.code === coupon.code
+                            ? text.couponSelected
+                            : text.useCoupon}
+                        </button>
+                      </div>
+                      <p className="mt-3 text-sm opacity-70">
+                        {couponRuleText(coupon)}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <h3 className="mb-3 text-lg font-bold">{text.recommendedCoupons}</h3>
+              {recommendedCoupons.length === 0 ? (
+                <p className="rounded-lg bg-base-200 p-4 text-sm opacity-70">
+                  {text.noRecommendedCoupons}
+                </p>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {recommendedCoupons.map((coupon) => (
+                    <article
+                      key={`recommended-${coupon.code}`}
+                      className="rounded-lg border border-base-300 bg-base-200 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-bold">{coupon.name}</h4>
+                          <p className="text-xs opacity-70">{coupon.code}</p>
+                        </div>
+                        <button
+                          className="btn btn-sm btn-outline"
+                          onClick={() => collectCoupon(coupon)}
+                        >
+                          {text.collectCoupon}
+                        </button>
+                      </div>
+                      <p className="mt-3 text-sm opacity-70">
+                        {couponRuleText(coupon)}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        </section>
+      ) : null}
+
       {user && (isProfileOpen || isProfilePage) ? (
         <>
           <div
@@ -5413,6 +5670,15 @@ export default function App() {
                   }));
                 }}
               />
+              <button
+                className="btn btn-outline w-full justify-between"
+                onClick={() => navigate("/coupons")}
+              >
+                <span>{text.couponWallet}</span>
+                <span className="badge badge-primary">
+                  {collectedCoupons.length}
+                </span>
+              </button>
               <div className="grid grid-cols-2 gap-2">
                 {languageOptions.map((option) => (
                   <button
@@ -6239,6 +6505,33 @@ export default function App() {
                     onChange={(event) => setOrderNote(event.currentTarget.value)}
                   />
                   <div className="space-y-2">
+                    {collectedCoupons.length > 0 ? (
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold">
+                          {text.selectCoupon}
+                        </p>
+                        <div className="grid gap-2 md:grid-cols-2">
+                          {collectedCoupons.map((coupon) => (
+                            <button
+                              key={`checkout-${coupon.code}`}
+                              className={`rounded-lg border p-3 text-left text-sm ${
+                                appliedCoupon?.code === coupon.code
+                                  ? "border-primary bg-primary/10"
+                                  : "border-base-300 bg-base-200"
+                              }`}
+                              onClick={() => selectCoupon(coupon)}
+                            >
+                              <span className="block font-semibold">
+                                {coupon.name}
+                              </span>
+                              <span className="block text-xs opacity-70">
+                                {couponRuleText(coupon)}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                     <div className="join w-full">
                       <input
                         className="input input-bordered join-item flex-1 focus:outline-none"
@@ -6364,6 +6657,14 @@ export default function App() {
         <div className="fixed left-1/2 top-20 z-[80] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 pointer-events-none">
           <div className="alert alert-warning shadow-lg justify-center">
             <span>{profileNotice}</span>
+          </div>
+        </div>
+      ) : null}
+
+      {couponWalletNotice ? (
+        <div className="fixed left-1/2 top-20 z-[80] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 pointer-events-none">
+          <div className="alert alert-info shadow-lg justify-center">
+            <span>{couponWalletNotice}</span>
           </div>
         </div>
       ) : null}

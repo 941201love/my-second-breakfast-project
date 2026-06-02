@@ -1253,7 +1253,7 @@ export default function App() {
         : activeCustomizingItem.price) +
       (activeCustomizingItem.eggPrice ?? 0) * cartDraft.eggQty
       + (activeCustomizingItem.cheesePrice ?? 0) * cartDraft.cheeseQty
-      + cartDraft.addons.reduce(
+      + (cartDraft.addons ?? []).reduce(
         (sum, addon) => sum + addon.price * addon.qty,
         0,
       )
@@ -1652,6 +1652,7 @@ export default function App() {
       size: "small",
       eggQty: 0,
       cheeseQty: 0,
+      addons: [],
       sugarLevel: "",
       iceLevel: "",
       note: "",
@@ -5508,7 +5509,7 @@ export default function App() {
                   (candidate) => candidate.key === addonKey && candidate.isActive,
                 );
                 if (!addon) return null;
-                const selected = cartDraft.addons.find(
+                const selected = (cartDraft.addons ?? []).find(
                   (candidate) => candidate.key === addon.key,
                 );
                 return (
@@ -5525,7 +5526,7 @@ export default function App() {
                         onClick={() =>
                           setCartDraft((current) => ({
                             ...current,
-                            addons: current.addons
+                            addons: (current.addons ?? [])
                               .map((candidate) =>
                                 candidate.key === addon.key
                                   ? { ...candidate, qty: Math.max(0, candidate.qty - 1) }
@@ -5544,18 +5545,19 @@ export default function App() {
                         className="btn join-item"
                         onClick={() =>
                           setCartDraft((current) => {
-                            const existing = current.addons.find(
+                            const addons = current.addons ?? [];
+                            const existing = addons.find(
                               (candidate) => candidate.key === addon.key,
                             );
                             return {
                               ...current,
                               addons: existing
-                                ? current.addons.map((candidate) =>
+                                ? addons.map((candidate) =>
                                     candidate.key === addon.key
                                       ? { ...candidate, qty: candidate.qty + 1 }
                                       : candidate,
                                   )
-                                : [...current.addons, { ...addon, qty: 1 }],
+                                : [...addons, { ...addon, qty: 1 }],
                             };
                           })
                         }

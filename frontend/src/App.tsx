@@ -1201,10 +1201,6 @@ export default function App() {
   const [adminOrderActionId, setAdminOrderActionId] = useState<number | null>(
     null,
   );
-  const [pendingAdminOrderAction, setPendingAdminOrderAction] = useState<{
-    orderId: number;
-    action: "pick-up";
-  } | null>(null);
   const [adminHistoryDate, setAdminHistoryDate] = useState(todayTaipeiDate());
   const [adminStatsDate, setAdminStatsDate] = useState(todayTaipeiDate());
   const [adminRevenueStartDate, setAdminRevenueStartDate] = useState(
@@ -2600,7 +2596,7 @@ export default function App() {
     }
 
     const notice = isEditing ? "商品已更新。" : "商品已新增。";
-    await Promise.all([loadMenu(), loadAdminData()]);
+    await Promise.all([loadMenu(), loadAdminData({ clearNotice: false })]);
     setAdminError(notice);
   }
 
@@ -2655,7 +2651,6 @@ export default function App() {
 
   async function completeAdminOrder(orderId: number): Promise<void> {
     setAdminOrderActionId(orderId);
-    setPendingAdminOrderAction(null);
     setAdminError("正在更新訂單狀態...");
     try {
       const response = await fetch(buildApiUrl(`/api/orders/${orderId}/complete`), {
@@ -2689,7 +2684,6 @@ export default function App() {
 
   async function pickUpAdminOrder(orderId: number): Promise<void> {
     setAdminOrderActionId(orderId);
-    setPendingAdminOrderAction(null);
     setAdminError("正在更新取貨狀態...");
     try {
       const response = await fetch(buildApiUrl(`/api/orders/${orderId}/pick-up`), {
@@ -2724,9 +2718,12 @@ export default function App() {
   function requestAdminOrderConfirmation(
     order: Order,
   ): void {
-    setPendingAdminOrderAction({
-      orderId: order.id,
-      action: "pick-up",
+    const dailySequence = order.dailySequence ?? order.id;
+    setConfirmDialog({
+      message: `確定今日單號 #${dailySequence} 已經取貨嗎？`,
+      onConfirm: () => {
+        void pickUpAdminOrder(order.id);
+      },
     });
   }
 
@@ -4388,39 +4385,17 @@ export default function App() {
                                 : "完成"}
                             </button>
                           ) : order.status === "completed" ? (
-                            pendingAdminOrderAction?.orderId === order.id &&
-                            pendingAdminOrderAction.action === "pick-up" ? (
-                              <div className="flex flex-wrap gap-1">
-                                <button
-                                  className="btn btn-xs btn-primary whitespace-nowrap"
-                                  disabled={adminOrderActionId !== null}
-                                  onClick={() => {
-                                    void pickUpAdminOrder(order.id);
-                                  }}
-                                >
-                                  確定取貨
-                                </button>
-                                <button
-                                  className="btn btn-xs btn-ghost whitespace-nowrap"
-                                  disabled={adminOrderActionId !== null}
-                                  onClick={() => setPendingAdminOrderAction(null)}
-                                >
-                                  取消
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                className="btn btn-xs btn-primary min-w-16 whitespace-nowrap"
-                                disabled={adminOrderActionId !== null}
-                                onClick={() => {
-                                  requestAdminOrderConfirmation(order);
-                                }}
-                              >
-                                {adminOrderActionId === order.id
-                                  ? "處理中..."
-                                  : "已取貨"}
-                              </button>
-                            )
+                            <button
+                              className="btn btn-xs btn-primary min-w-16 whitespace-nowrap"
+                              disabled={adminOrderActionId !== null}
+                              onClick={() => {
+                                requestAdminOrderConfirmation(order);
+                              }}
+                            >
+                              {adminOrderActionId === order.id
+                                ? "處理中..."
+                                : "已取貨"}
+                            </button>
                           ) : (
                             <span className="text-xs opacity-50">已歸檔</span>
                           )}

@@ -4307,8 +4307,8 @@ export default function App() {
           </section>
 
           <section className={isAdminReportsPage ? "" : "hidden"}>
-            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-              <h2 className="text-2xl font-bold">每日品項銷售排行</h2>
+            <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+              <h2 className="text-2xl font-bold">銷售統計</h2>
               <label className="form-control w-full max-w-xs">
                 <span className="label-text mb-1">查詢日期</span>
                 <input
@@ -4321,6 +4321,7 @@ export default function App() {
                 />
               </label>
             </div>
+            <h3 className="mb-3 text-2xl font-bold">每日品項銷售排行</h3>
             <div className="bg-base-100 rounded-lg shadow p-4">
               {selectedAdminStats.itemRanking.length === 0 ? (
                 <p className="opacity-60">這天目前沒有銷售資料。</p>
@@ -4363,20 +4364,7 @@ export default function App() {
           </section>
 
           <section className={isAdminReportsPage ? "" : "hidden"}>
-            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-              <h2 className="text-2xl font-bold">下單時段統計</h2>
-              <label className="form-control w-full max-w-xs">
-                <span className="label-text mb-1">查詢日期</span>
-                <input
-                  className="input input-bordered"
-                  type="date"
-                  value={adminStatsDate}
-                  onChange={(event) => {
-                    setAdminStatsDate(event.currentTarget.value);
-                  }}
-                />
-              </label>
-            </div>
+            <h2 className="mb-3 text-2xl font-bold">下單時段統計</h2>
             <div className="bg-base-100 rounded-lg shadow p-4">
                 {selectedAdminStats.hourlyRanking.length === 0 ? (
                   <p className="opacity-60">這天目前沒有時段資料。</p>

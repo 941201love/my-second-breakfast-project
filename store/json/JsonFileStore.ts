@@ -8,6 +8,7 @@ import type {
   Coupon,
 } from "../../shared/contracts.ts";
 import type { Store } from "../Store.ts";
+import { applyPromotionToPrice } from "../../shared/pricing.ts";
 
 interface StoredUser {
   id: string;
@@ -739,6 +740,19 @@ export class JsonFileStore implements Store {
       cheeseQty: menuItem.cheesePrice === undefined ? 0 : input.cheeseQty ?? 0,
       addons,
     };
+    const baseMenuItemPrice =
+      input.size === "large" && menuItem.largePrice !== undefined
+        ? menuItem.largePrice
+        : menuItem.price;
+    const unitPrice =
+      applyPromotionToPrice(baseMenuItemPrice, menuItem.activePromotion) +
+      (menuItem.eggPrice === undefined ? 0 : this.addonSettings.eggPrice) *
+        (input.eggQty ?? 0) +
+      (menuItem.cheesePrice === undefined
+        ? 0
+        : this.addonSettings.cheesePrice) *
+        (input.cheeseQty ?? 0) +
+      addonTotal;
 
     const existingItemIndex =
       input.orderItemId !== undefined
@@ -768,34 +782,14 @@ export class JsonFileStore implements Store {
         existingOrderItem.eggQty = input.eggQty;
         existingOrderItem.cheeseQty = input.cheeseQty;
         existingOrderItem.addons = addons;
-        existingOrderItem.menuItemPrice =
-          (input.size === "large" && menuItem.largePrice !== undefined
-            ? menuItem.largePrice
-            : menuItem.price) +
-          (menuItem.eggPrice === undefined ? 0 : this.addonSettings.eggPrice) *
-            (input.eggQty ?? 0) +
-          (menuItem.cheesePrice === undefined
-            ? 0
-            : this.addonSettings.cheesePrice) *
-            (input.cheeseQty ?? 0) +
-          addonTotal;
+        existingOrderItem.menuItemPrice = unitPrice;
       }
     } else if (input.qty > 0) {
       order.items.push({
         id: Date.now() + order.items.length,
         menuItemId: menuItem.id,
         menuItemName: menuItem.name,
-        menuItemPrice:
-          (input.size === "large" && menuItem.largePrice !== undefined
-            ? menuItem.largePrice
-            : menuItem.price) +
-          (menuItem.eggPrice === undefined ? 0 : this.addonSettings.eggPrice) *
-            (input.eggQty ?? 0) +
-          (menuItem.cheesePrice === undefined
-            ? 0
-            : this.addonSettings.cheesePrice) *
-            (input.cheeseQty ?? 0) +
-          addonTotal,
+        menuItemPrice: unitPrice,
         qty: input.qty,
         sugarLevel: input.sugarLevel,
         iceLevel: input.iceLevel,

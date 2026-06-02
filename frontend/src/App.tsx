@@ -13,6 +13,7 @@ import type {
   SessionUser,
   StaleCartItem,
 } from "../../shared/contracts.ts";
+import { applyPromotionToPrice } from "../../shared/pricing.ts";
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 const fallbackMenuImage = "/imgs/menu/鮪魚蛋吐司.webp";
@@ -126,6 +127,10 @@ function calculateCouponDiscount(coupon: Coupon | null, amount: number) {
   }
 
   return Math.min(amount, coupon.discountValue);
+}
+
+function promotionalMenuItemPrice(item: MenuItem, price = item.price) {
+  return applyPromotionToPrice(price, item.activePromotion);
 }
 
 function submittedOrderDate(order: Order) {
@@ -1247,10 +1252,13 @@ export default function App() {
   );
   const checkoutTotal = Math.max(0, cartTotal - couponDiscountTotal);
   const customizingUnitPrice = activeCustomizingItem
-    ? (cartDraft.size === "large" &&
-      activeCustomizingItem.largePrice !== undefined
-        ? activeCustomizingItem.largePrice
-        : activeCustomizingItem.price) +
+    ? promotionalMenuItemPrice(
+        activeCustomizingItem,
+        cartDraft.size === "large" &&
+          activeCustomizingItem.largePrice !== undefined
+          ? activeCustomizingItem.largePrice
+          : activeCustomizingItem.price,
+      ) +
       (activeCustomizingItem.eggPrice ?? 0) * cartDraft.eggQty
       + (activeCustomizingItem.cheesePrice ?? 0) * cartDraft.cheeseQty
       + (cartDraft.addons ?? []).reduce(
@@ -1943,16 +1951,11 @@ export default function App() {
     resetCartState();
   }
 
-  async function loadVersionHistory(logicalId: string): Promise<void> {
-    if (versionHistoryByLogicalId[logicalId]) {
-      setVersionHistoryByLogicalId((current) => {
-        const next = { ...current };
-        delete next[logicalId];
-        return next;
-      });
-      return;
-    }
-
+  async function loadVersionHistory(
+    logicalId: string,
+  ): Promise<MenuItemVersionHistory[]> {
+    const cached = versionHistoryByLogicalId[logicalId];
+    if (cached) return cached;
     setLoadingHistoryId(logicalId);
     setActionError("");
 
@@ -1968,13 +1971,16 @@ export default function App() {
 
       const payload =
         (await response.json()) as ApiDataResponse<MenuItemVersionHistory[]>;
+      const histories = Array.isArray(payload?.data) ? payload.data : [];
       setVersionHistoryByLogicalId((current) => ({
         ...current,
-        [logicalId]: Array.isArray(payload?.data) ? payload.data : [],
+        [logicalId]: histories,
       }));
+      return histories;
     } catch (historyError) {
       setActionError("讀取版本歷史失敗，請稍後再試。");
       console.error(historyError);
+      return [];
     } finally {
       setLoadingHistoryId(null);
     }
@@ -2025,27 +2031,6 @@ export default function App() {
         Array.isArray(ordersPayload?.data) ? ordersPayload.data : [],
       );
       setCoupons(Array.isArray(couponsPayload?.data) ? couponsPayload.data : []);
-
-      const histories = await Promise.all(
-        items.map(async (item) => {
-          const response = await fetch(
-            buildApiUrl(`/api/menu/${item.logicalId}/history`),
-            { credentials: "include" },
-          );
-          if (!response.ok) return [item.logicalId, []] as const;
-
-          const payload =
-            (await response.json()) as ApiDataResponse<
-              MenuItemVersionHistory[]
-            >;
-          return [
-            item.logicalId,
-            Array.isArray(payload?.data) ? payload.data : [],
-          ] as const;
-        }),
-      );
-
-      setVersionHistoryByLogicalId(Object.fromEntries(histories));
     } catch (adminDataError) {
       setAdminError("管理資料讀取失敗，請稍後再試。");
       console.error(adminDataError);
@@ -4366,12 +4351,6 @@ export default function App() {
                       {items.filter((item) => item.category === category).map((item) => {
                         const histories =
                           versionHistoryByLogicalId[item.logicalId] ?? [];
-                        const priceHistories = histories.filter(
-                          (history, index) =>
-                            index === histories.length - 1 ||
-                            history.price !== histories[index + 1]?.price,
-                        );
-
                         return (
                           <tr
                             key={item.id}
@@ -4392,7 +4371,7 @@ export default function App() {
                               <div>
                                 {histories[0]?.createdAt
                                   ? formatTaipeiDateTime(histories[0].createdAt)
-                                  : "尚無紀錄"}
+                                  : "按查看紀錄載入"}
                               </div>
                               {item.isRecentlyUpdated ? (
                                 <span className="badge badge-accent badge-sm">
@@ -4408,14 +4387,28 @@ export default function App() {
                             <td className="px-5 py-4 text-center">
                               <button
                                 className="btn btn-xs btn-outline"
+                                disabled={loadingHistoryId === item.logicalId}
                                 onClick={() => {
+                                  void loadVersionHistory(item.logicalId).then(
+                                    (loadedHistories) => {
+                                      const priceHistories =
+                                        loadedHistories.filter(
+                                          (history, index) =>
+                                            index === loadedHistories.length - 1 ||
+                                            history.price !==
+                                              loadedHistories[index + 1]?.price,
+                                        );
                                   setAdminPriceHistoryModal({
                                     itemName: item.name,
                                     histories: priceHistories,
                                   });
+                                    },
+                                  );
                                 }}
                               >
-                                查看紀錄
+                                {loadingHistoryId === item.logicalId
+                                  ? "載入中..."
+                                  : "查看紀錄"}
                               </button>
                             </td>
                             <td className="px-5 py-4">
@@ -5101,9 +5094,16 @@ export default function App() {
                             {copy.description}
                           </p>
                           <div className="card-actions justify-between items-center">
-                            <span className="text-xl font-bold text-success">
-                              {formatMoney(item.price)}
-                            </span>
+                            <div className="flex items-baseline gap-2">
+                              {item.activePromotion ? (
+                                <span className="text-sm line-through opacity-60">
+                                  {formatMoney(item.price)}
+                                </span>
+                              ) : null}
+                              <span className="text-xl font-bold text-success">
+                                {formatMoney(promotionalMenuItemPrice(item))}
+                              </span>
+                            </div>
                             <button
                               className="btn btn-sm btn-primary"
                               onClick={() => {
@@ -5163,9 +5163,16 @@ export default function App() {
                           {copy.description}
                         </p>
                         <div className="card-actions justify-between items-center">
-                          <span className="text-xl font-bold text-success">
-                            {formatMoney(item.price)}
-                          </span>
+                          <div className="flex items-baseline gap-2">
+                            {item.activePromotion ? (
+                              <span className="text-sm line-through opacity-60">
+                                {formatMoney(item.price)}
+                              </span>
+                            ) : null}
+                            <span className="text-xl font-bold text-success">
+                              {formatMoney(promotionalMenuItemPrice(item))}
+                            </span>
+                          </div>
                           <button
                             className="btn btn-sm btn-primary"
                             onClick={() => {
@@ -5403,9 +5410,16 @@ export default function App() {
                 <p className="text-base leading-relaxed opacity-75">
                   {menuCopy(activeCustomizingItem).description}
                 </p>
-                <p className="text-2xl font-black text-success">
-                  {formatMoney(activeCustomizingItem.price)}
-                </p>
+                <div className="flex items-baseline gap-3">
+                  {activeCustomizingItem.activePromotion ? (
+                    <span className="text-base line-through opacity-60">
+                      {formatMoney(activeCustomizingItem.price)}
+                    </span>
+                  ) : null}
+                  <p className="text-2xl font-black text-success">
+                    {formatMoney(promotionalMenuItemPrice(activeCustomizingItem))}
+                  </p>
+                </div>
               </section>
 
               <section className="border-b border-base-300 px-5 py-6">
@@ -5451,7 +5465,10 @@ export default function App() {
                         setCartDraft((current) => ({ ...current, size: "small" }))
                       }
                     >
-                      {text.small} {formatMoney(activeCustomizingItem.price)}
+                      {text.small}{" "}
+                      {formatMoney(
+                        promotionalMenuItemPrice(activeCustomizingItem),
+                      )}
                     </button>
                     <button
                       className={`btn ${cartDraft.size === "large" ? "btn-primary" : "btn-outline"}`}
@@ -5459,7 +5476,13 @@ export default function App() {
                         setCartDraft((current) => ({ ...current, size: "large" }))
                       }
                     >
-                      {text.large} {formatMoney(activeCustomizingItem.largePrice)}
+                      {text.large}{" "}
+                      {formatMoney(
+                        promotionalMenuItemPrice(
+                          activeCustomizingItem,
+                          activeCustomizingItem.largePrice,
+                        ),
+                      )}
                     </button>
                   </div>
                 </section>

@@ -352,6 +352,23 @@ export class PgStore implements Store {
       cheeseQty: menuItem.cheesePrice === undefined ? 0 : input.cheeseQty ?? 0,
       addons,
     };
+    const baseMenuItemPrice =
+      input.size === "large" && menuItem.largePrice !== undefined
+        ? menuItem.largePrice
+        : menuItem.price;
+    const promotionalMenuItemPrice = await menuRepository.getPromotionalPrice(
+      menuItem.logicalId,
+      baseMenuItemPrice,
+    );
+    const unitPrice =
+      promotionalMenuItemPrice +
+      (menuItem.eggPrice === undefined ? 0 : this.addonSettings.eggPrice) *
+        (input.eggQty ?? 0) +
+      (menuItem.cheesePrice === undefined
+        ? 0
+        : this.addonSettings.cheesePrice) *
+        (input.cheeseQty ?? 0) +
+      addonTotal;
 
     const existingIdx =
       input.orderItemId !== undefined
@@ -393,19 +410,7 @@ export class PgStore implements Store {
             eggQty: input.eggQty ?? 0,
             cheeseQty: input.cheeseQty ?? 0,
             addons,
-            unitPrice:
-              (input.size === "large" && menuItem.largePrice !== undefined
-                ? menuItem.largePrice
-                : menuItem.price) +
-              (menuItem.eggPrice === undefined
-                ? 0
-                : this.addonSettings.eggPrice) *
-                (input.eggQty ?? 0) +
-              (menuItem.cheesePrice === undefined
-                ? 0
-                : this.addonSettings.cheesePrice) *
-                (input.cheeseQty ?? 0) +
-              addonTotal,
+            unitPrice,
           })
           .where(
             and(
@@ -425,19 +430,7 @@ export class PgStore implements Store {
           target.eggQty = input.eggQty;
           target.cheeseQty = input.cheeseQty;
           target.addons = addons;
-          target.menuItemPrice =
-            (input.size === "large" && menuItem.largePrice !== undefined
-              ? menuItem.largePrice
-              : menuItem.price) +
-            (menuItem.eggPrice === undefined
-              ? 0
-              : this.addonSettings.eggPrice) *
-              (input.eggQty ?? 0) +
-            (menuItem.cheesePrice === undefined
-              ? 0
-              : this.addonSettings.cheesePrice) *
-              (input.cheeseQty ?? 0) +
-            addonTotal;
+          target.menuItemPrice = unitPrice;
         }
       }
     } else if (input.qty > 0) {
@@ -452,33 +445,13 @@ export class PgStore implements Store {
         eggQty: input.eggQty ?? 0,
         cheeseQty: input.cheeseQty ?? 0,
         addons,
-        unitPrice:
-          (input.size === "large" && menuItem.largePrice !== undefined
-            ? menuItem.largePrice
-            : menuItem.price) +
-          (menuItem.eggPrice === undefined ? 0 : this.addonSettings.eggPrice) *
-            (input.eggQty ?? 0) +
-          (menuItem.cheesePrice === undefined
-            ? 0
-            : this.addonSettings.cheesePrice) *
-            (input.cheeseQty ?? 0) +
-          addonTotal,
+        unitPrice,
       }).returning();
       order.items.push({
         id: insertedItem?.id,
         menuItemId: menuItem.id,
         menuItemName: menuItem.name,
-        menuItemPrice:
-          (input.size === "large" && menuItem.largePrice !== undefined
-            ? menuItem.largePrice
-            : menuItem.price) +
-          (menuItem.eggPrice === undefined ? 0 : this.addonSettings.eggPrice) *
-            (input.eggQty ?? 0) +
-          (menuItem.cheesePrice === undefined
-            ? 0
-            : this.addonSettings.cheesePrice) *
-            (input.cheeseQty ?? 0) +
-          addonTotal,
+        menuItemPrice: unitPrice,
         qty: input.qty,
         sugarLevel: input.sugarLevel,
         iceLevel: input.iceLevel,

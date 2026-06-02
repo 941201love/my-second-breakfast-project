@@ -13,6 +13,7 @@ import type {
   PriceSensitivity,
   StaleCartItem,
 } from "../../shared/contracts.ts";
+import { applyPromotionToPrice } from "../../shared/pricing.ts";
 
 type MenuRow = typeof menuItemsTable.$inferSelect;
 
@@ -102,9 +103,15 @@ export class MenuRepository {
     );
 
     const promotionRows = await this.getActivePromotionRows();
-    const promotionByLogicalId = new Map(
-      promotionRows.map((row) => [row.menuItemLogicalId, row]),
-    );
+    const promotionByLogicalId = new Map<
+      string,
+      (typeof promotionsTable.$inferSelect)
+    >();
+    for (const promotion of promotionRows) {
+      if (!promotionByLogicalId.has(promotion.menuItemLogicalId)) {
+        promotionByLogicalId.set(promotion.menuItemLogicalId, promotion);
+      }
+    }
 
     const previousIds = rows
       .map((row) => row.supersedes)
@@ -427,6 +434,25 @@ export class MenuRepository {
         ),
       )
       .orderBy(asc(promotionsTable.endsAt), asc(promotionsTable.id));
+  }
+
+  async getPromotionalPrice(logicalId: string, price: number): Promise<number> {
+    const now = new Date();
+    const [promotion] = await db
+      .select()
+      .from(promotionsTable)
+      .where(
+        and(
+          eq(promotionsTable.menuItemLogicalId, logicalId),
+          eq(promotionsTable.isActive, true),
+          lte(promotionsTable.startsAt, now),
+          gte(promotionsTable.endsAt, now),
+        ),
+      )
+      .orderBy(asc(promotionsTable.endsAt), asc(promotionsTable.id))
+      .limit(1);
+
+    return applyPromotionToPrice(price, promotion);
   }
 
   async validateMenuItemsAreCurrent(menuItemIds: string[]): Promise<{

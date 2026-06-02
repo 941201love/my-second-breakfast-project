@@ -45,6 +45,7 @@ export const menuItemsTable = appSchema.table(
     largePrice: integer("large_price"),
     eggPrice: integer("egg_price"),
     cheesePrice: integer("cheese_price"),
+    addonKeys: jsonb("addon_keys").notNull().default([]),
     category: text("category").notNull(),
     description: text("description").notNull(),
     translations: jsonb("translations"),
@@ -93,7 +94,9 @@ export const productAddonSettingsTable = appSchema.table(
   "product_addon_settings",
   {
     key: text("key").primaryKey(),
+    name: text("name").notNull().default(""),
     price: integer("price").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -161,6 +164,7 @@ export const orderItemsTable = appSchema.table(
     size: text("size"),
     eggQty: integer("egg_qty").notNull().default(0),
     cheeseQty: integer("cheese_qty").notNull().default(0),
+    addons: jsonb("addons").notNull().default([]),
     sugarLevel: text("sugar_level"),
     iceLevel: text("ice_level"),
     note: text("note"),

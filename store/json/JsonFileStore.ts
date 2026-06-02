@@ -230,6 +230,7 @@ function normalizeMenuItem(item: LegacyMenuItem): MenuItem {
     largePrice: item.largePrice,
     eggPrice: item.eggPrice,
     cheesePrice: item.cheesePrice,
+    addonKeys: item.addonKeys ?? [],
     category: item.category ?? "",
     description: item.description ?? "",
     translations:
@@ -251,6 +252,7 @@ function normalizeOrderItem(orderItem: LegacyOrderItem): OrderItem {
       size: orderItem.size,
       eggQty: orderItem.eggQty,
       cheeseQty: orderItem.cheeseQty,
+      addons: orderItem.addons ?? [],
     };
   }
 
@@ -263,6 +265,7 @@ function normalizeOrderItem(orderItem: LegacyOrderItem): OrderItem {
     size: orderItem.size,
     eggQty: orderItem.eggQty,
     cheeseQty: orderItem.cheeseQty,
+    addons: orderItem.addons ?? [],
   };
 }
 
@@ -300,6 +303,7 @@ function sameOrderItemOptions(
     size?: "small" | "large";
     eggQty?: number;
     cheeseQty?: number;
+    addons?: OrderItem["addons"];
   },
 ) {
   const sugar = (input.sugarLevel || "正常糖").trim();
@@ -312,7 +316,8 @@ function sameOrderItemOptions(
     (item.note || "").trim() === note &&
     (item.size || "small") === (input.size || "small") &&
     (item.eggQty || 0) === (input.eggQty || 0) &&
-    (item.cheeseQty || 0) === (input.cheeseQty || 0)
+    (item.cheeseQty || 0) === (input.cheeseQty || 0) &&
+    JSON.stringify(item.addons ?? []) === JSON.stringify(input.addons ?? [])
   );
 }
 
@@ -342,7 +347,11 @@ export class JsonFileStore implements Store {
   private menu: MenuItem[] = [];
   private orders: Order[] = [];
   private coupons: Coupon[] = [];
-  private addonSettings: AddonSettings = { eggPrice: 10, cheesePrice: 10 };
+  private addonSettings: AddonSettings = {
+    eggPrice: 10,
+    cheesePrice: 10,
+    items: [],
+  };
   private userIdCounter = 0;
   private menuIdCounter = 0;
   private orderIdCounter = 0;
@@ -433,7 +442,11 @@ export class JsonFileStore implements Store {
               isActive: coupon.isActive,
             }))
           : [{ code: "BREAKFAST10", name: "早餐折 10 元", discountType: "amount", discountValue: 10, minSpend: 0, maxDiscount: 0, usageLimitPerUser: 1, isActive: true }],
-        addonSettings: parsed.addonSettings ?? { eggPrice: 10, cheesePrice: 10 },
+        addonSettings: {
+          eggPrice: parsed.addonSettings?.eggPrice ?? 10,
+          cheesePrice: parsed.addonSettings?.cheesePrice ?? 10,
+          items: parsed.addonSettings?.items ?? [],
+        },
         userIdCounter: parsed.userIdCounter ?? 0,
         menuIdCounter: parsed.menuIdCounter ?? 0,
         orderIdCounter: parsed.orderIdCounter ?? 0,
@@ -459,11 +472,14 @@ export class JsonFileStore implements Store {
   }
 
   getAddonSettings(): AddonSettings {
-    return { ...this.addonSettings };
+    return {
+      ...this.addonSettings,
+      items: (this.addonSettings.items ?? []).map((item) => ({ ...item })),
+    };
   }
 
   async updateAddonSettings(input: AddonSettings): Promise<AddonSettings> {
-    this.addonSettings = { ...input };
+    this.addonSettings = { ...input, items: input.items ?? [] };
     await this.persist();
     return this.getAddonSettings();
   }
@@ -475,6 +491,7 @@ export class JsonFileStore implements Store {
     largePrice?: number;
     eggPrice?: number;
     cheesePrice?: number;
+    addonKeys?: string[];
     category: string;
     description?: string;
     imageUrl: string;
@@ -496,6 +513,7 @@ export class JsonFileStore implements Store {
       largePrice: input.largePrice,
       eggPrice: input.eggPrice,
       cheesePrice: input.cheesePrice,
+      addonKeys: input.addonKeys ?? [],
       category: input.category,
       description: input.description ?? zh?.description ?? "",
       translations: input.translations,
@@ -520,6 +538,7 @@ export class JsonFileStore implements Store {
         largePrice?: number | null;
         eggPrice?: number | null;
         cheesePrice?: number | null;
+        addonKeys?: string[];
         category?: string;
         description?: string;
         imageUrl?: string;
@@ -567,6 +586,7 @@ export class JsonFileStore implements Store {
         patch.changes.cheesePrice === undefined
           ? menuItem.cheesePrice
           : patch.changes.cheesePrice ?? undefined,
+      addonKeys: patch.changes.addonKeys ?? menuItem.addonKeys ?? [],
       category: patch.changes.category ?? menuItem.category,
       description: patch.changes.description ?? zh?.description ?? menuItem.description,
       translations,
@@ -657,6 +677,7 @@ export class JsonFileStore implements Store {
       size?: "small" | "large";
       eggQty?: number;
       cheeseQty?: number;
+      addons?: OrderItem["addons"];
       sugarLevel?: string;
       iceLevel?: string;
       note?: string;
@@ -692,10 +713,31 @@ export class JsonFileStore implements Store {
     if (!menuItem) {
       return { ok: false, code: "MENU_ITEM_NOT_FOUND" };
     }
+    const addonByKey = new Map(
+      this.addonSettings.items.map((item) => [item.key, item]),
+    );
+    const addons = (input.addons ?? [])
+      .filter(
+        (item) =>
+          (menuItem.addonKeys ?? []).includes(item.key) &&
+          (addonByKey.get(item.key)?.isActive ?? false) &&
+          item.qty > 0,
+      )
+      .map((item) => ({
+        key: item.key,
+        name: addonByKey.get(item.key)?.name ?? item.name,
+        price: addonByKey.get(item.key)?.price ?? item.price,
+        qty: item.qty,
+      }));
+    const addonTotal = addons.reduce(
+      (sum, item) => sum + item.price * item.qty,
+      0,
+    );
     input = {
       ...input,
       eggQty: menuItem.eggPrice === undefined ? 0 : input.eggQty ?? 0,
       cheeseQty: menuItem.cheesePrice === undefined ? 0 : input.cheeseQty ?? 0,
+      addons,
     };
 
     const existingItemIndex =
@@ -725,6 +767,7 @@ export class JsonFileStore implements Store {
         existingOrderItem.size = input.size;
         existingOrderItem.eggQty = input.eggQty;
         existingOrderItem.cheeseQty = input.cheeseQty;
+        existingOrderItem.addons = addons;
         existingOrderItem.menuItemPrice =
           (input.size === "large" && menuItem.largePrice !== undefined
             ? menuItem.largePrice
@@ -734,7 +777,8 @@ export class JsonFileStore implements Store {
           (menuItem.cheesePrice === undefined
             ? 0
             : this.addonSettings.cheesePrice) *
-            (input.cheeseQty ?? 0);
+            (input.cheeseQty ?? 0) +
+          addonTotal;
       }
     } else if (input.qty > 0) {
       order.items.push({
@@ -750,7 +794,8 @@ export class JsonFileStore implements Store {
           (menuItem.cheesePrice === undefined
             ? 0
             : this.addonSettings.cheesePrice) *
-            (input.cheeseQty ?? 0),
+            (input.cheeseQty ?? 0) +
+          addonTotal,
         qty: input.qty,
         sugarLevel: input.sugarLevel,
         iceLevel: input.iceLevel,
@@ -758,6 +803,7 @@ export class JsonFileStore implements Store {
         size: input.size,
         eggQty: input.eggQty,
         cheeseQty: input.cheeseQty,
+        addons,
       });
     }
 
@@ -1022,7 +1068,7 @@ export class JsonFileStore implements Store {
           isActive: true,
         },
       ],
-      addonSettings: { eggPrice: 10, cheesePrice: 10 },
+      addonSettings: { eggPrice: 10, cheesePrice: 10, items: [] },
       userIdCounter: defaultUsers.length,
       menuIdCounter: defaultMenu.length,
       orderIdCounter: 0,
@@ -1034,7 +1080,11 @@ export class JsonFileStore implements Store {
     this.menu = store.menu;
     this.orders = store.orders;
     this.coupons = store.coupons ?? [];
-    this.addonSettings = store.addonSettings ?? { eggPrice: 10, cheesePrice: 10 };
+    this.addonSettings = store.addonSettings ?? {
+      eggPrice: 10,
+      cheesePrice: 10,
+      items: [],
+    };
 
     const maxUserId = this.users.reduce((max, user) => {
       const asNumber = Number.parseInt(user.id, 10);

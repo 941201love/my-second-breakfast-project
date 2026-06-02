@@ -286,6 +286,45 @@ test("shared addon prices update all eligible products without editing them", as
   }
 });
 
+test("custom addon snapshots keep the charged price after later price changes", async () => {
+  const store = new JsonFileStore({
+    dataFilePath: join(tempDir, "store.json"),
+  });
+  await store.init();
+
+  const item = store.getMenu()[0]!;
+  await store.updateAddonSettings({
+    eggPrice: 10,
+    cheesePrice: 10,
+    items: [{ key: "bacon", name: "培根", price: 15, isActive: true }],
+  });
+  const configured = await store.updateMenuItem(item.id, {
+    changes: { addonKeys: ["bacon"] },
+    reason: "allow bacon",
+    userId: "tester",
+  });
+  expect(configured).not.toBeNull();
+
+  const order = await store.createOrder({ userId: "user-1" });
+  const added = await store.updateOrderItem(order.id, {
+    userId: "user-1",
+    itemId: configured!.id,
+    qty: 1,
+    addons: [{ key: "bacon", name: "培根", price: 15, qty: 2 }],
+  });
+  expect(added.ok).toBe(true);
+  if (!added.ok) return;
+  expect(added.order.total).toBe(item.price + 30);
+
+  await store.updateAddonSettings({
+    eggPrice: 10,
+    cheesePrice: 10,
+    items: [{ key: "bacon", name: "培根", price: 20, isActive: true }],
+  });
+  expect(added.order.items[0]?.addons?.[0]?.price).toBe(15);
+  expect(added.order.total).toBe(item.price + 30);
+});
+
 test("completed orders remain ready for pickup until the customer takes them", async () => {
   const store = new JsonFileStore({
     dataFilePath: join(tempDir, "store.json"),

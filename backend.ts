@@ -894,6 +894,7 @@ app.patch(
       size: body.size,
       eggQty: body.eggQty,
       cheeseQty: body.cheeseQty,
+      addons: body.addons,
       sugarLevel: body.sugarLevel,
       iceLevel: body.iceLevel,
       note: body.note,

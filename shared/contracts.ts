@@ -16,6 +16,7 @@ export const menuItemSchema = z.object({
   largePrice: z.number().min(0).optional(),
   eggPrice: z.number().min(0).optional(),
   cheesePrice: z.number().min(0).optional(),
+  addonKeys: z.array(z.string().min(1)).optional(),
   category: z.string().min(1),
   description: z.string(),
   translations: z
@@ -96,9 +97,17 @@ export const couponSchema = z.object({
   isActive: z.boolean(),
 });
 
+export const addonDefinitionSchema = z.object({
+  key: z.string().min(1),
+  name: z.string().min(1),
+  price: z.number().int().min(0),
+  isActive: z.boolean().default(true),
+});
+
 export const addonSettingsSchema = z.object({
   eggPrice: z.number().int().min(0),
   cheesePrice: z.number().int().min(0),
+  items: z.array(addonDefinitionSchema).default([]),
 });
 
 export const priceSensitivitySchema = z.object({
@@ -157,6 +166,16 @@ export const orderItemSchema = z.object({
   size: z.enum(["small", "large"]).optional(),
   eggQty: z.number().int().min(0).optional(),
   cheeseQty: z.number().int().min(0).optional(),
+  addons: z
+    .array(
+      z.object({
+        key: z.string().min(1),
+        name: z.string().min(1),
+        price: z.number().int().min(0),
+        qty: z.number().int().min(0),
+      }),
+    )
+    .optional(),
   sugarLevel: z.string().optional(),
   iceLevel: z.string().optional(),
   note: z.string().optional(),

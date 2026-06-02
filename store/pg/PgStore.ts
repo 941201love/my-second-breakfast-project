@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import type {
   AddonSettings,
   MenuItem,
@@ -59,6 +59,7 @@ function sameOrderItemOptions(
     size?: "small" | "large";
     eggQty?: number;
     cheeseQty?: number;
+    addons?: OrderItem["addons"];
   },
 ) {
   const sugar = (input.sugarLevel || "正常糖").trim();
@@ -71,7 +72,8 @@ function sameOrderItemOptions(
     (item.note || "").trim() === note &&
     (item.size || "small") === (input.size || "small") &&
     (item.eggQty || 0) === (input.eggQty || 0) &&
-    (item.cheeseQty || 0) === (input.cheeseQty || 0)
+    (item.cheeseQty || 0) === (input.cheeseQty || 0) &&
+    JSON.stringify(item.addons ?? []) === JSON.stringify(input.addons ?? [])
   );
 }
 
@@ -80,7 +82,11 @@ export class PgStore implements Store {
   private menu: MenuItem[] = [];
   private orders: Order[] = [];
   private coupons: Coupon[] = [];
-  private addonSettings: AddonSettings = { eggPrice: 10, cheesePrice: 10 };
+  private addonSettings: AddonSettings = {
+    eggPrice: 10,
+    cheesePrice: 10,
+    items: [],
+  };
 
   constructor(options: PgStoreOptions = {}) {
     this.dataFilePath = options.dataFilePath ?? "./data/store.json";
@@ -101,19 +107,38 @@ export class PgStore implements Store {
   }
 
   getAddonSettings(): AddonSettings {
-    return { ...this.addonSettings };
+    return {
+      ...this.addonSettings,
+      items: this.addonSettings.items.map((item) => ({ ...item })),
+    };
   }
 
   async updateAddonSettings(input: AddonSettings): Promise<AddonSettings> {
     await db
+      .delete(productAddonSettingsTable)
+      .where(
+        and(
+          ne(productAddonSettingsTable.key, "egg"),
+          ne(productAddonSettingsTable.key, "cheese"),
+        ),
+      );
+    await db
       .insert(productAddonSettingsTable)
       .values([
-        { key: "egg", price: input.eggPrice },
-        { key: "cheese", price: input.cheesePrice },
+        { key: "egg", name: "加蛋", price: input.eggPrice, isActive: true },
+        { key: "cheese", name: "加起司", price: input.cheesePrice, isActive: true },
+        ...input.items
+          .filter((item) => item.key !== "egg" && item.key !== "cheese")
+          .map((item) => ({ ...item })),
       ])
       .onConflictDoUpdate({
         target: productAddonSettingsTable.key,
-        set: { price: sql`excluded.price`, updatedAt: new Date() },
+        set: {
+          name: sql`excluded.name`,
+          price: sql`excluded.price`,
+          isActive: sql`excluded.is_active`,
+          updatedAt: new Date(),
+        },
       });
     await this.reloadAddonSettings();
     this.menu = this.menu.map((item) => this.withAddonSettings(item));
@@ -127,6 +152,7 @@ export class PgStore implements Store {
     largePrice?: number;
     eggPrice?: number;
     cheesePrice?: number;
+    addonKeys?: string[];
     category: string;
     description?: string;
     imageUrl: string;
@@ -153,6 +179,7 @@ export class PgStore implements Store {
         largePrice?: number | null;
         eggPrice?: number | null;
         cheesePrice?: number | null;
+        addonKeys?: string[];
         category?: string;
         description?: string;
         imageUrl?: string;
@@ -273,6 +300,7 @@ export class PgStore implements Store {
       size?: "small" | "large";
       eggQty?: number;
       cheeseQty?: number;
+      addons?: OrderItem["addons"];
       sugarLevel?: string;
       iceLevel?: string;
       note?: string;
@@ -298,10 +326,31 @@ export class PgStore implements Store {
 
     const menuItem = this.menu.find((item) => item.id === input.itemId);
     if (!menuItem) return { ok: false, code: "MENU_ITEM_NOT_FOUND" };
+    const addonByKey = new Map(
+      this.addonSettings.items.map((item) => [item.key, item]),
+    );
+    const addons = (input.addons ?? [])
+      .filter(
+        (item) =>
+          (menuItem.addonKeys ?? []).includes(item.key) &&
+          (addonByKey.get(item.key)?.isActive ?? false) &&
+          item.qty > 0,
+      )
+      .map((item) => ({
+        key: item.key,
+        name: addonByKey.get(item.key)?.name ?? item.name,
+        price: addonByKey.get(item.key)?.price ?? item.price,
+        qty: item.qty,
+      }));
+    const addonTotal = addons.reduce(
+      (sum, item) => sum + item.price * item.qty,
+      0,
+    );
     input = {
       ...input,
       eggQty: menuItem.eggPrice === undefined ? 0 : input.eggQty ?? 0,
       cheeseQty: menuItem.cheesePrice === undefined ? 0 : input.cheeseQty ?? 0,
+      addons,
     };
 
     const existingIdx =
@@ -343,6 +392,7 @@ export class PgStore implements Store {
             size: input.size,
             eggQty: input.eggQty ?? 0,
             cheeseQty: input.cheeseQty ?? 0,
+            addons,
             unitPrice:
               (input.size === "large" && menuItem.largePrice !== undefined
                 ? menuItem.largePrice
@@ -354,7 +404,8 @@ export class PgStore implements Store {
               (menuItem.cheesePrice === undefined
                 ? 0
                 : this.addonSettings.cheesePrice) *
-                (input.cheeseQty ?? 0),
+                (input.cheeseQty ?? 0) +
+              addonTotal,
           })
           .where(
             and(
@@ -373,6 +424,7 @@ export class PgStore implements Store {
           target.size = input.size;
           target.eggQty = input.eggQty;
           target.cheeseQty = input.cheeseQty;
+          target.addons = addons;
           target.menuItemPrice =
             (input.size === "large" && menuItem.largePrice !== undefined
               ? menuItem.largePrice
@@ -384,7 +436,8 @@ export class PgStore implements Store {
             (menuItem.cheesePrice === undefined
               ? 0
               : this.addonSettings.cheesePrice) *
-              (input.cheeseQty ?? 0);
+              (input.cheeseQty ?? 0) +
+            addonTotal;
         }
       }
     } else if (input.qty > 0) {
@@ -398,6 +451,7 @@ export class PgStore implements Store {
         size: input.size,
         eggQty: input.eggQty ?? 0,
         cheeseQty: input.cheeseQty ?? 0,
+        addons,
         unitPrice:
           (input.size === "large" && menuItem.largePrice !== undefined
             ? menuItem.largePrice
@@ -407,7 +461,8 @@ export class PgStore implements Store {
           (menuItem.cheesePrice === undefined
             ? 0
             : this.addonSettings.cheesePrice) *
-            (input.cheeseQty ?? 0),
+            (input.cheeseQty ?? 0) +
+          addonTotal,
       }).returning();
       order.items.push({
         id: insertedItem?.id,
@@ -422,7 +477,8 @@ export class PgStore implements Store {
           (menuItem.cheesePrice === undefined
             ? 0
             : this.addonSettings.cheesePrice) *
-            (input.cheeseQty ?? 0),
+            (input.cheeseQty ?? 0) +
+          addonTotal,
         qty: input.qty,
         sugarLevel: input.sugarLevel,
         iceLevel: input.iceLevel,
@@ -430,6 +486,7 @@ export class PgStore implements Store {
         size: input.size,
         eggQty: input.eggQty,
         cheeseQty: input.cheeseQty,
+        addons,
       });
     }
 
@@ -723,6 +780,7 @@ export class PgStore implements Store {
         size: orderItemsTable.size,
         eggQty: orderItemsTable.eggQty,
         cheeseQty: orderItemsTable.cheeseQty,
+        addons: orderItemsTable.addons,
         unitPrice: orderItemsTable.unitPrice,
         menuItemName: menuItemsTable.name,
         menuItemPrice: menuItemsTable.price,
@@ -749,6 +807,7 @@ export class PgStore implements Store {
         size: row.size === "large" ? "large" : "small",
         eggQty: row.eggQty,
         cheeseQty: row.cheeseQty,
+        addons: (row.addons as OrderItem["addons"] | null) ?? [],
       });
       itemsByOrderId.set(row.orderId, items);
     }
@@ -869,6 +928,10 @@ export class PgStore implements Store {
         ADD COLUMN IF NOT EXISTS "cheese_price" integer
     `);
     await db.execute(sql`
+      ALTER TABLE "bf_v10"."menu_items"
+        ADD COLUMN IF NOT EXISTS "addon_keys" jsonb DEFAULT '[]'::jsonb NOT NULL
+    `);
+    await db.execute(sql`
       ALTER TABLE "bf_v10"."order_items"
         ADD COLUMN IF NOT EXISTS "unit_price" integer
     `);
@@ -884,21 +947,35 @@ export class PgStore implements Store {
       ALTER TABLE "bf_v10"."order_items"
         ADD COLUMN IF NOT EXISTS "cheese_qty" integer DEFAULT 0 NOT NULL
     `);
+    await db.execute(sql`
+      ALTER TABLE "bf_v10"."order_items"
+        ADD COLUMN IF NOT EXISTS "addons" jsonb DEFAULT '[]'::jsonb NOT NULL
+    `);
   }
 
   private async ensureAddonSettingsTable(): Promise<void> {
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS "bf_v10"."product_addon_settings" (
         "key" text PRIMARY KEY,
+        "name" text DEFAULT '' NOT NULL,
         "price" integer NOT NULL,
+        "is_active" boolean DEFAULT true NOT NULL,
         "updated_at" timestamp with time zone DEFAULT now() NOT NULL
       )
+    `);
+    await db.execute(sql`
+      ALTER TABLE "bf_v10"."product_addon_settings"
+        ADD COLUMN IF NOT EXISTS "name" text DEFAULT '' NOT NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE "bf_v10"."product_addon_settings"
+        ADD COLUMN IF NOT EXISTS "is_active" boolean DEFAULT true NOT NULL
     `);
     await db
       .insert(productAddonSettingsTable)
       .values([
-        { key: "egg", price: 10 },
-        { key: "cheese", price: 10 },
+        { key: "egg", name: "加蛋", price: 10, isActive: true },
+        { key: "cheese", name: "加起司", price: 10, isActive: true },
       ])
       .onConflictDoNothing();
   }
@@ -916,6 +993,20 @@ export class PgStore implements Store {
     this.addonSettings = {
       eggPrice: priceByKey.get("egg") ?? 10,
       cheesePrice: priceByKey.get("cheese") ?? 10,
+      items: rows
+        .filter((row) => row.isActive)
+        .map((row) => ({
+          key: row.key,
+          name:
+            row.name ||
+            (row.key === "egg"
+              ? "加蛋"
+              : row.key === "cheese"
+                ? "加起司"
+                : row.key),
+          price: row.price,
+          isActive: row.isActive,
+        })),
     };
   }
 

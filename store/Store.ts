@@ -41,6 +41,7 @@ export interface Store {
     largePrice?: number;
     eggPrice?: number;
     cheesePrice?: number;
+    addonKeys?: string[];
     category: string;
     description?: string;
     imageUrl: string;
@@ -56,6 +57,7 @@ export interface Store {
         largePrice?: number | null;
         eggPrice?: number | null;
         cheesePrice?: number | null;
+        addonKeys?: string[];
         category?: string;
         description?: string;
         imageUrl?: string;
@@ -86,6 +88,7 @@ export interface Store {
       size?: "small" | "large";
       eggQty?: number;
       cheeseQty?: number;
+      addons?: Order["items"][number]["addons"];
       sugarLevel?: string;
       iceLevel?: string;
       note?: string;

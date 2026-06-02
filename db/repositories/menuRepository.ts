@@ -34,6 +34,7 @@ export interface MenuItemChanges {
   largePrice?: number | null;
   eggPrice?: number | null;
   cheesePrice?: number | null;
+  addonKeys?: string[];
   category?: string;
   description?: string;
   imageUrl?: string;
@@ -55,6 +56,7 @@ function toMenuItem(row: MenuRow): MenuItem {
     largePrice: row.largePrice ?? undefined,
     eggPrice: row.eggPrice ?? undefined,
     cheesePrice: row.cheesePrice ?? undefined,
+    addonKeys: (row.addonKeys as string[] | null) ?? [],
     category: row.category,
     description: row.description,
     translations: translations ?? fallbackTranslations(row.name, row.description),
@@ -193,6 +195,7 @@ export class MenuRepository {
     largePrice?: number;
     eggPrice?: number;
     cheesePrice?: number;
+    addonKeys?: string[];
     category: string;
     description?: string;
     imageUrl: string;
@@ -215,6 +218,7 @@ export class MenuRepository {
         largePrice: input.largePrice,
         eggPrice: input.eggPrice,
         cheesePrice: input.cheesePrice,
+        addonKeys: input.addonKeys ?? [],
         category: input.category,
         description: input.description ?? zh?.description ?? "",
         translations: input.translations,
@@ -288,6 +292,8 @@ export class MenuRepository {
             changes.cheesePrice === undefined
               ? current.cheesePrice
               : changes.cheesePrice,
+          addonKeys:
+            changes.addonKeys === undefined ? current.addonKeys : changes.addonKeys,
           category: changes.category ?? current.category,
           description: changes.description ?? zh?.description ?? current.description,
           translations: nextTranslations,

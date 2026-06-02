@@ -1021,10 +1021,16 @@ export default function App() {
   const [addonSettings, setAddonSettings] = useState<AddonSettings>({
     eggPrice: 10,
     cheesePrice: 10,
+    items: [],
   });
   const [addonSettingsDraft, setAddonSettingsDraft] = useState({
     eggPrice: "10",
     cheesePrice: "10",
+    items: [] as AddonSettings["items"],
+  });
+  const [newAddonDraft, setNewAddonDraft] = useState({
+    name: "",
+    price: "",
   });
   const [editingCouponCode, setEditingCouponCode] = useState<string | null>(null);
   const [newCoupon, setNewCoupon] = useState<CouponFormState>({
@@ -1046,6 +1052,7 @@ export default function App() {
     eggPrice: "10",
     allowCheese: false,
     cheesePrice: "10",
+    addonKeys: [] as string[],
     category: "主餐",
     imageUrl: "",
     translations: {
@@ -1095,6 +1102,7 @@ export default function App() {
     size: "small" as "small" | "large",
     eggQty: 0,
     cheeseQty: 0,
+    addons: [] as NonNullable<OrderItem["addons"]>,
     sugarLevel: "",
     iceLevel: "",
     note: "",
@@ -1123,6 +1131,7 @@ export default function App() {
       eggPrice: "10",
       allowCheese: false,
       cheesePrice: "10",
+      addonKeys: [],
       category: "主餐",
       imageUrl: "",
       translations: {
@@ -1144,6 +1153,7 @@ export default function App() {
       allowCheese: item.cheesePrice !== undefined,
       cheesePrice:
         item.cheesePrice === undefined ? "10" : String(item.cheesePrice),
+      addonKeys: item.addonKeys ?? [],
       category: item.category,
       imageUrl: item.imageUrl,
       translations:
@@ -1217,6 +1227,9 @@ export default function App() {
     if ((detail.cheeseQty ?? 0) > 0) {
       parts.push(`${text.addCheese} x ${detail.cheeseQty}`);
     }
+    for (const addon of detail.addons ?? []) {
+      if (addon.qty > 0) parts.push(`${addon.name} x ${addon.qty}`);
+    }
     return parts.join(" / ");
   };
   const couponCanApply = appliedCoupon ? isCouponUsable(appliedCoupon) : false;
@@ -1232,6 +1245,10 @@ export default function App() {
         : activeCustomizingItem.price) +
       (activeCustomizingItem.eggPrice ?? 0) * cartDraft.eggQty
       + (activeCustomizingItem.cheesePrice ?? 0) * cartDraft.cheeseQty
+      + cartDraft.addons.reduce(
+        (sum, addon) => sum + addon.price * addon.qty,
+        0,
+      )
     : 0;
 
   function syncCartFromOrder(order: Order) {
@@ -1301,6 +1318,7 @@ export default function App() {
     setAddonSettingsDraft({
       eggPrice: String(payload.data.eggPrice),
       cheesePrice: String(payload.data.cheesePrice),
+      items: payload.data.items,
     });
   }
 
@@ -2275,7 +2293,11 @@ export default function App() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ eggPrice, cheesePrice }),
+      body: JSON.stringify({
+        eggPrice,
+        cheesePrice,
+        items: addonSettingsDraft.items,
+      }),
     });
 
     if (!response.ok) {
@@ -2288,9 +2310,29 @@ export default function App() {
     setAddonSettingsDraft({
       eggPrice: String(payload.data.eggPrice),
       cheesePrice: String(payload.data.cheesePrice),
+      items: payload.data.items,
     });
     await loadMenu();
     setAdminError("共用加料價格已更新。");
+  }
+
+  function addAddonDraft(): void {
+    const name = newAddonDraft.name.trim();
+    const priceText = newAddonDraft.price.trim();
+    if (!name || !priceText) {
+      setAdminError("請輸入加料名稱與價格。");
+      return;
+    }
+    const key = `addon-${Date.now()}`;
+    setAddonSettingsDraft((current) => ({
+      ...current,
+      items: [
+        ...current.items,
+        { key, name, price: parseWholeNumber(priceText), isActive: true },
+      ],
+    }));
+    setNewAddonDraft({ name: "", price: "" });
+    setAdminError("已加入加料草稿，請按更新加料價格儲存。");
   }
 
   async function saveAdminMenuItem(): Promise<void> {
@@ -2330,6 +2372,7 @@ export default function App() {
               !newMenuItem.allowEgg ? null : addonSettings.eggPrice,
             cheesePrice:
               !newMenuItem.allowCheese ? null : addonSettings.cheesePrice,
+            addonKeys: newMenuItem.addonKeys,
             category: newMenuItem.category,
             imageUrl: newMenuItem.imageUrl,
             translations: newMenuItem.translations,
@@ -2347,6 +2390,7 @@ export default function App() {
             !newMenuItem.allowEgg ? undefined : addonSettings.eggPrice,
           cheesePrice:
             !newMenuItem.allowCheese ? undefined : addonSettings.cheesePrice,
+          addonKeys: newMenuItem.addonKeys,
           category: newMenuItem.category,
           imageUrl: newMenuItem.imageUrl,
           translations: newMenuItem.translations,
@@ -2485,6 +2529,7 @@ export default function App() {
       size: "small",
       eggQty: 0,
       cheeseQty: 0,
+      addons: [],
       sugarLevel: "",
       iceLevel: "",
       note: "",
@@ -2500,6 +2545,7 @@ export default function App() {
       size?: "small" | "large";
       eggQty?: number;
       cheeseQty?: number;
+      addons?: NonNullable<OrderItem["addons"]>;
       sugarLevel?: string;
       iceLevel?: string;
       note?: string;
@@ -2530,6 +2576,7 @@ export default function App() {
               size: options.size,
               eggQty: options.eggQty,
               cheeseQty: options.cheeseQty,
+              addons: options.addons,
               sugarLevel: options.sugarLevel || undefined,
               iceLevel: options.iceLevel || undefined,
               note: options.note?.trim() || undefined,
@@ -2636,6 +2683,7 @@ export default function App() {
             size: orderItem.size,
             eggQty: orderItem.eggQty,
             cheeseQty: orderItem.cheeseQty,
+            addons: orderItem.addons,
             forceNew: true,
           }),
         });
@@ -2670,6 +2718,7 @@ export default function App() {
       size?: "small" | "large";
       eggQty?: number;
       cheeseQty?: number;
+      addons?: NonNullable<OrderItem["addons"]>;
     },
   ): Promise<void> {
     if (!user || orderId === null) return;
@@ -2693,6 +2742,7 @@ export default function App() {
         size: next.size ?? current?.size,
         eggQty: next.eggQty ?? current?.eggQty,
         cheeseQty: next.cheeseQty ?? current?.cheeseQty,
+        addons: next.addons ?? current?.addons,
       }),
     });
 
@@ -2730,6 +2780,7 @@ export default function App() {
         size: detail.orderItem?.size,
         eggQty: detail.orderItem?.eggQty,
         cheeseQty: detail.orderItem?.cheeseQty,
+        addons: detail.orderItem?.addons,
       }),
     });
 
@@ -3050,7 +3101,9 @@ export default function App() {
                 <span className="label-text mb-1 block">可選加料</span>
                 <details className="dropdown w-full">
                   <summary className="btn btn-outline w-full justify-between">
-                    {[newMenuItem.allowEgg ? "加蛋" : "", newMenuItem.allowCheese ? "加起司" : ""]
+                    {[newMenuItem.allowEgg ? "加蛋" : "", newMenuItem.allowCheese ? "加起司" : "", ...addonSettings.items
+                      .filter((addon) => newMenuItem.addonKeys.includes(addon.key))
+                      .map((addon) => addon.name)]
                       .filter(Boolean)
                       .join("、") || "請選擇加料"}
                     <span>⌄</span>
@@ -3090,6 +3143,35 @@ export default function App() {
                       {formatMoney(addonSettings.cheesePrice)}
                     </span>
                   </label>
+                  {addonSettings.items
+                    .filter((addon) => addon.key !== "egg" && addon.key !== "cheese" && addon.isActive)
+                    .map((addon) => (
+                      <label
+                        key={addon.key}
+                        className="flex cursor-pointer items-center justify-between gap-3"
+                      >
+                        <span className="flex items-center gap-3">
+                          <input
+                            className="checkbox checkbox-primary"
+                            type="checkbox"
+                            checked={newMenuItem.addonKeys.includes(addon.key)}
+                            onChange={(event) => {
+                              const checked = event.currentTarget.checked;
+                              setNewMenuItem((current) => ({
+                                ...current,
+                                addonKeys: checked
+                                  ? [...current.addonKeys, addon.key]
+                                  : current.addonKeys.filter((key) => key !== addon.key),
+                              }));
+                            }}
+                          />
+                          <span className="font-semibold">{addon.name}</span>
+                        </span>
+                        <span className="text-sm opacity-70">
+                          {formatMoney(addon.price)}
+                        </span>
+                      </label>
+                    ))}
                   </div>
                 </details>
               </div>
@@ -3543,6 +3625,101 @@ export default function App() {
               >
                 更新加料價格
               </button>
+            </div>
+            <div className="mt-5 border-t border-base-300 pt-5">
+              <h3 className="font-bold">其他加料</h3>
+              <p className="mt-1 text-sm opacity-60">
+                可以新增早餐店需要的其他加料，儲存後會保留獨立價格。
+              </p>
+              <div className="mt-3 space-y-2">
+                {addonSettingsDraft.items
+                  .filter((item) => item.key !== "egg" && item.key !== "cheese")
+                  .map((item) => (
+                    <div
+                      key={item.key}
+                      className="grid grid-cols-1 items-center gap-2 rounded-lg border border-base-300 p-3 sm:grid-cols-[1fr_160px_auto]"
+                    >
+                      <input
+                        className="input input-bordered"
+                        value={item.name}
+                        onChange={(event) => {
+                          const name = event.currentTarget.value;
+                          setAddonSettingsDraft((current) => ({
+                            ...current,
+                            items: current.items.map((candidate) =>
+                              candidate.key === item.key
+                                ? { ...candidate, name }
+                                : candidate,
+                            ),
+                          }));
+                        }}
+                      />
+                      <input
+                        className="input input-bordered"
+                        inputMode="numeric"
+                        value={item.price}
+                        onChange={(event) => {
+                          const price = parseWholeNumber(event.currentTarget.value);
+                          setAddonSettingsDraft((current) => ({
+                            ...current,
+                            items: current.items.map((candidate) =>
+                              candidate.key === item.key
+                                ? { ...candidate, price }
+                                : candidate,
+                            ),
+                          }));
+                        }}
+                      />
+                      <button
+                        className="btn btn-error btn-outline"
+                        onClick={() => {
+                          setAddonSettingsDraft((current) => ({
+                            ...current,
+                            items: current.items.filter(
+                              (candidate) => candidate.key !== item.key,
+                            ),
+                          }));
+                        }}
+                      >
+                        刪除
+                      </button>
+                    </div>
+                  ))}
+              </div>
+              <div className="mt-3 grid grid-cols-1 items-end gap-2 sm:grid-cols-[1fr_160px_auto]">
+                <label className="form-control">
+                  <span className="label-text mb-1">新增加料名稱</span>
+                  <input
+                    className="input input-bordered"
+                    value={newAddonDraft.name}
+                    onChange={(event) =>
+                      setNewAddonDraft((current) => ({
+                        ...current,
+                        name: event.currentTarget.value,
+                      }))
+                    }
+                    placeholder="例如 培根"
+                  />
+                </label>
+                <label className="form-control">
+                  <span className="label-text mb-1">單價（NT）</span>
+                  <input
+                    className="input input-bordered"
+                    inputMode="numeric"
+                    value={newAddonDraft.price}
+                    onChange={(event) =>
+                      setNewAddonDraft((current) => ({
+                        ...current,
+                        price: event.currentTarget.value.replace(/\D/g, ""),
+                      }))
+                    }
+                    placeholder="例如 15"
+                  />
+                </label>
+                <button className="btn btn-outline" onClick={addAddonDraft}>
+                  新增加料
+                </button>
+              </div>
             </div>
           </section>
 
@@ -5303,6 +5480,70 @@ export default function App() {
                 </section>
               ) : null}
 
+              {(activeCustomizingItem.addonKeys ?? []).map((addonKey) => {
+                const addon = addonSettings.items.find(
+                  (candidate) => candidate.key === addonKey && candidate.isActive,
+                );
+                if (!addon) return null;
+                const selected = cartDraft.addons.find(
+                  (candidate) => candidate.key === addon.key,
+                );
+                return (
+                  <section
+                    key={addon.key}
+                    className="border-b border-base-300 px-5 py-6"
+                  >
+                    <span className="label-text mb-2 block">
+                      {addon.name} +{formatMoney(addon.price)}
+                    </span>
+                    <div className="join">
+                      <button
+                        className="btn join-item"
+                        onClick={() =>
+                          setCartDraft((current) => ({
+                            ...current,
+                            addons: current.addons
+                              .map((candidate) =>
+                                candidate.key === addon.key
+                                  ? { ...candidate, qty: Math.max(0, candidate.qty - 1) }
+                                  : candidate,
+                              )
+                              .filter((candidate) => candidate.qty > 0),
+                          }))
+                        }
+                      >
+                        -
+                      </button>
+                      <span className="btn join-item no-animation">
+                        {selected?.qty ?? 0}
+                      </span>
+                      <button
+                        className="btn join-item"
+                        onClick={() =>
+                          setCartDraft((current) => {
+                            const existing = current.addons.find(
+                              (candidate) => candidate.key === addon.key,
+                            );
+                            return {
+                              ...current,
+                              addons: existing
+                                ? current.addons.map((candidate) =>
+                                    candidate.key === addon.key
+                                      ? { ...candidate, qty: candidate.qty + 1 }
+                                      : candidate,
+                                  )
+                                : [...current.addons, { ...addon, qty: 1 }],
+                            };
+                          })
+                        }
+                      >
+                        +
+                      </button>
+                    </div>
+                  </section>
+                );
+              })}
+
               {isDrink(activeCustomizingItem) ? (
                 <section className="divide-y divide-base-300 border-b border-base-300">
                   <div className="px-5 py-6">
@@ -5690,6 +5931,86 @@ export default function App() {
                                       </div>
                                     </div>
                                   ) : null}
+                                  {(detail.item.addonKeys ?? []).map((addonKey) => {
+                                    const addon = addonSettings.items.find(
+                                      (candidate) =>
+                                        candidate.key === addonKey && candidate.isActive,
+                                    );
+                                    if (!addon) return null;
+                                    const selected = (detail.orderItem.addons ?? []).find(
+                                      (candidate) => candidate.key === addon.key,
+                                    );
+                                    return (
+                                      <div
+                                        key={addon.key}
+                                        className="flex items-center justify-between gap-3"
+                                      >
+                                        <span className="text-sm">
+                                          {addon.name} +{formatMoney(addon.price)}
+                                        </span>
+                                        <div className="join">
+                                          <button
+                                            className="btn btn-xs join-item"
+                                            onClick={() => {
+                                              void updateCartItemOptions(
+                                                detail.orderItemId,
+                                                detail.itemId,
+                                                {
+                                                  addons: (detail.orderItem.addons ?? [])
+                                                    .map((candidate) =>
+                                                      candidate.key === addon.key
+                                                        ? {
+                                                            ...candidate,
+                                                            qty: Math.max(
+                                                              0,
+                                                              candidate.qty - 1,
+                                                            ),
+                                                          }
+                                                        : candidate,
+                                                    )
+                                                    .filter(
+                                                      (candidate) => candidate.qty > 0,
+                                                    ),
+                                                },
+                                              );
+                                            }}
+                                          >
+                                            -
+                                          </button>
+                                          <span className="btn btn-xs join-item no-animation">
+                                            {selected?.qty ?? 0}
+                                          </span>
+                                          <button
+                                            className="btn btn-xs join-item"
+                                            onClick={() => {
+                                              const current = detail.orderItem.addons ?? [];
+                                              const exists = current.some(
+                                                (candidate) => candidate.key === addon.key,
+                                              );
+                                              void updateCartItemOptions(
+                                                detail.orderItemId,
+                                                detail.itemId,
+                                                {
+                                                  addons: exists
+                                                    ? current.map((candidate) =>
+                                                        candidate.key === addon.key
+                                                          ? {
+                                                              ...candidate,
+                                                              qty: candidate.qty + 1,
+                                                            }
+                                                          : candidate,
+                                                      )
+                                                    : [...current, { ...addon, qty: 1 }],
+                                                },
+                                              );
+                                            }}
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                   <input
                                     className="input input-sm input-bordered w-full"
                                     placeholder={text.itemNotePlaceholder}

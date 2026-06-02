@@ -682,6 +682,12 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     useCoupon: "使用",
     couponSelected: "已選用",
     selectCoupon: "選擇已新增優惠券",
+    useCouponTitle: "使用優惠券",
+    enterCouponCode: "輸入優惠碼",
+    availableCoupons: "可使用的優惠券",
+    unavailableCoupons: "不適用於此訂單的優惠券",
+    noAvailableCoupons: "目前沒有符合條件的優惠券。",
+    noUnavailableCoupons: "目前沒有其他優惠券。",
     noRecommendedCoupons: "目前沒有推薦優惠券。",
     noCollectedCoupons: "目前尚未新增優惠券。",
     promotionNoticeTitle: "限時優惠",
@@ -778,6 +784,12 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     useCoupon: "Use",
     couponSelected: "Selected",
     selectCoupon: "Choose an added coupon",
+    useCouponTitle: "Use a coupon",
+    enterCouponCode: "Enter coupon code",
+    availableCoupons: "Available coupons",
+    unavailableCoupons: "Coupons not applicable to this order",
+    noAvailableCoupons: "No coupons meet the requirements.",
+    noUnavailableCoupons: "No other coupons.",
     noRecommendedCoupons: "No recommended coupons available.",
     noCollectedCoupons: "You have not added any coupons yet.",
     promotionNoticeTitle: "Limited-time offers",
@@ -874,6 +886,12 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     useCoupon: "使用",
     couponSelected: "選択済み",
     selectCoupon: "追加済みクーポンを選択",
+    useCouponTitle: "クーポンを使用",
+    enterCouponCode: "クーポンコードを入力",
+    availableCoupons: "利用可能なクーポン",
+    unavailableCoupons: "この注文では利用できないクーポン",
+    noAvailableCoupons: "条件を満たすクーポンはありません。",
+    noUnavailableCoupons: "その他のクーポンはありません。",
     noRecommendedCoupons: "おすすめクーポンはありません。",
     noCollectedCoupons: "追加済みクーポンはありません。",
     promotionNoticeTitle: "期間限定キャンペーン",
@@ -970,6 +988,12 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     useCoupon: "사용",
     couponSelected: "선택됨",
     selectCoupon: "추가한 쿠폰 선택",
+    useCouponTitle: "쿠폰 사용",
+    enterCouponCode: "쿠폰 코드 입력",
+    availableCoupons: "사용 가능한 쿠폰",
+    unavailableCoupons: "이 주문에 적용할 수 없는 쿠폰",
+    noAvailableCoupons: "조건을 충족하는 쿠폰이 없습니다.",
+    noUnavailableCoupons: "다른 쿠폰이 없습니다.",
     noRecommendedCoupons: "추천 쿠폰이 없습니다.",
     noCollectedCoupons: "아직 추가한 쿠폰이 없습니다.",
     promotionNoticeTitle: "기간 한정 할인",
@@ -1013,6 +1037,7 @@ export default function App() {
   const isOrderHistoryPage = currentPath === "/orders";
   const isProfilePage = currentPath === "/profile";
   const isCouponWalletPage = currentPath === "/coupons";
+  const isCheckoutCouponsPage = currentPath === "/checkout-coupons";
   const isItemPage = currentPath.startsWith("/item/");
   const itemPageId = isItemPage
     ? decodeURIComponent(currentPath.replace(/^\/item\//, ""))
@@ -1316,6 +1341,12 @@ export default function App() {
   const collectedCoupons = collectedCouponCodes
     .map((code) => coupons.find((coupon) => coupon.code === code))
     .filter((coupon): coupon is Coupon => Boolean(coupon));
+  const availableCollectedCoupons = collectedCoupons.filter((coupon) =>
+    isCouponUsable(coupon),
+  );
+  const unavailableCollectedCoupons = collectedCoupons.filter(
+    (coupon) => !isCouponUsable(coupon),
+  );
   const recommendedCoupons = coupons.filter(
     (coupon) =>
       isCouponCollectable(coupon) &&
@@ -1525,7 +1556,7 @@ export default function App() {
       setIsProfileOpen(false);
       setIsCartOpen(false);
       setCollectedCouponCodes([]);
-      if (["/cart", "/orders", "/profile", "/coupons"].includes(currentPath)) {
+      if (["/cart", "/orders", "/profile", "/coupons", "/checkout-coupons"].includes(currentPath)) {
         navigate("/");
       }
       resetCartState();
@@ -2981,11 +3012,11 @@ export default function App() {
     });
   }
 
-  function applyCouponCode(): void {
+  function applyCouponCode(): boolean {
     const code = couponCode.trim();
     if (!code) {
       setCheckoutNotice(text.couponInvalid);
-      return;
+      return false;
     }
 
     const coupon =
@@ -2996,16 +3027,17 @@ export default function App() {
     if (!coupon) {
       setAppliedCoupon(null);
       setCheckoutNotice(text.couponInvalid);
-      return;
+      return false;
     }
 
     if (hasUsedCoupon(coupon)) {
       setAppliedCoupon(null);
       setCheckoutNotice(text.couponAlreadyUsed);
-      return;
+      return false;
     }
 
     selectCoupon(coupon);
+    return isCouponUsable(coupon);
   }
 
   function updateCouponCode(nextCode: string): void {
@@ -5533,6 +5565,113 @@ export default function App() {
         </>
       ) : null}
 
+      {user && isCheckoutCouponsPage ? (
+        <section className="fixed inset-0 z-50 flex flex-col bg-base-100">
+          <div className="flex items-center justify-between border-b border-base-300 p-4">
+            <h2 className="text-xl font-bold">{text.useCouponTitle}</h2>
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={() => {
+                navigate("/cart");
+                setCartView("checkout");
+              }}
+            >
+              {text.close}
+            </button>
+          </div>
+          <div className="flex-1 overflow-auto p-4">
+            <div className="mx-auto max-w-3xl space-y-8">
+              <section className="space-y-3">
+                <label className="block text-sm font-semibold">
+                  {text.enterCouponCode}
+                </label>
+                <div className="join w-full">
+                  <input
+                    className="input input-bordered join-item flex-1 focus:outline-none"
+                    placeholder={text.couponPlaceholder}
+                    value={couponCode}
+                    onChange={(event) => {
+                      updateCouponCode(event.currentTarget.value);
+                    }}
+                  />
+                  <button
+                    className="btn btn-primary join-item"
+                    onClick={() => {
+                      if (applyCouponCode()) {
+                        navigate("/cart");
+                        setCartView("checkout");
+                      }
+                    }}
+                  >
+                    {text.useCoupon}
+                  </button>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="mb-3 text-lg font-bold">{text.availableCoupons}</h3>
+                {availableCollectedCoupons.length === 0 ? (
+                  <p className="rounded-lg bg-base-200 p-4 text-sm opacity-70">
+                    {text.noAvailableCoupons}
+                  </p>
+                ) : (
+                  <div className="grid gap-3">
+                    {availableCollectedCoupons.map((coupon) => (
+                      <article
+                        key={`checkout-available-${coupon.code}`}
+                        className="rounded-lg border border-primary/30 bg-base-200 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <h4 className="font-bold">{coupon.name}</h4>
+                            <p className="mt-1 text-sm opacity-70">
+                              {couponRuleText(coupon)}
+                            </p>
+                          </div>
+                          <button
+                            className="btn btn-sm btn-primary shrink-0"
+                            onClick={() => {
+                              selectCoupon(coupon);
+                              navigate("/cart");
+                              setCartView("checkout");
+                            }}
+                          >
+                            {appliedCoupon?.code === coupon.code
+                              ? text.couponSelected
+                              : text.useCoupon}
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section>
+                <h3 className="mb-3 text-lg font-bold">{text.unavailableCoupons}</h3>
+                {unavailableCollectedCoupons.length === 0 ? (
+                  <p className="rounded-lg bg-base-200 p-4 text-sm opacity-70">
+                    {text.noUnavailableCoupons}
+                  </p>
+                ) : (
+                  <div className="grid gap-3 opacity-60">
+                    {unavailableCollectedCoupons.map((coupon) => (
+                      <article
+                        key={`checkout-unavailable-${coupon.code}`}
+                        className="rounded-lg border border-base-300 bg-base-200 p-4"
+                      >
+                        <h4 className="font-bold">{coupon.name}</h4>
+                        <p className="mt-1 text-sm">{couponRuleText(coupon)}</p>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       {user && isCouponWalletPage ? (
         <section className="fixed inset-0 z-50 flex flex-col bg-base-100">
           <div className="flex items-center justify-between border-b border-base-300 p-4">
@@ -6505,49 +6644,13 @@ export default function App() {
                     onChange={(event) => setOrderNote(event.currentTarget.value)}
                   />
                   <div className="space-y-2">
-                    {collectedCoupons.length > 0 ? (
-                      <div className="space-y-2">
-                        <p className="text-sm font-semibold">
-                          {text.selectCoupon}
-                        </p>
-                        <div className="grid gap-2 md:grid-cols-2">
-                          {collectedCoupons.map((coupon) => (
-                            <button
-                              key={`checkout-${coupon.code}`}
-                              className={`rounded-lg border p-3 text-left text-sm ${
-                                appliedCoupon?.code === coupon.code
-                                  ? "border-primary bg-primary/10"
-                                  : "border-base-300 bg-base-200"
-                              }`}
-                              onClick={() => selectCoupon(coupon)}
-                            >
-                              <span className="block font-semibold">
-                                {coupon.name}
-                              </span>
-                              <span className="block text-xs opacity-70">
-                                {couponRuleText(coupon)}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-                    <div className="join w-full">
-                      <input
-                        className="input input-bordered join-item flex-1 focus:outline-none"
-                        placeholder={text.couponPlaceholder}
-                        value={couponCode}
-                        onChange={(event) => {
-                          updateCouponCode(event.currentTarget.value);
-                        }}
-                      />
-                      <button
-                        className="btn btn-outline join-item"
-                        onClick={applyCouponCode}
-                      >
-                        {text.addCoupon}
-                      </button>
-                    </div>
+                    <button
+                      className="btn btn-outline w-full justify-between"
+                      onClick={() => navigate("/checkout-coupons")}
+                    >
+                      <span>{text.useCouponTitle}</span>
+                      <span aria-hidden="true">›</span>
+                    </button>
                     {appliedCoupon ? (
                       <div
                         className={`rounded-lg px-3 py-2 text-sm border ${

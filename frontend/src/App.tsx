@@ -1190,7 +1190,7 @@ export default function App() {
   );
   const [pendingAdminOrderAction, setPendingAdminOrderAction] = useState<{
     orderId: number;
-    action: "complete" | "pick-up";
+    action: "pick-up";
   } | null>(null);
   const [adminHistoryDate, setAdminHistoryDate] = useState(todayTaipeiDate());
   const [adminStatsDate, setAdminStatsDate] = useState(todayTaipeiDate());
@@ -2708,11 +2708,10 @@ export default function App() {
 
   function requestAdminOrderConfirmation(
     order: Order,
-    action: "complete" | "pick-up",
   ): void {
     setPendingAdminOrderAction({
       orderId: order.id,
-      action,
+      action: "pick-up",
     });
   }
 
@@ -4353,39 +4352,17 @@ export default function App() {
                         </td>
                         <td>
                           {order.status === "submitted" ? (
-                            pendingAdminOrderAction?.orderId === order.id &&
-                            pendingAdminOrderAction.action === "complete" ? (
-                              <div className="flex flex-wrap gap-1">
-                                <button
-                                  className="btn btn-xs btn-success whitespace-nowrap"
-                                  disabled={adminOrderActionId !== null}
-                                  onClick={() => {
-                                    void completeAdminOrder(order.id);
-                                  }}
-                                >
-                                  確定完成
-                                </button>
-                                <button
-                                  className="btn btn-xs btn-ghost whitespace-nowrap"
-                                  disabled={adminOrderActionId !== null}
-                                  onClick={() => setPendingAdminOrderAction(null)}
-                                >
-                                  取消
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                className="btn btn-xs btn-success min-w-12 whitespace-nowrap"
-                                disabled={adminOrderActionId !== null}
-                                onClick={() => {
-                                  requestAdminOrderConfirmation(order, "complete");
-                                }}
-                              >
-                                {adminOrderActionId === order.id
-                                  ? "處理中..."
-                                  : "完成"}
-                              </button>
-                            )
+                            <button
+                              className="btn btn-xs btn-success min-w-12 whitespace-nowrap"
+                              disabled={adminOrderActionId !== null}
+                              onClick={() => {
+                                void completeAdminOrder(order.id);
+                              }}
+                            >
+                              {adminOrderActionId === order.id
+                                ? "處理中..."
+                                : "完成"}
+                            </button>
                           ) : order.status === "completed" ? (
                             pendingAdminOrderAction?.orderId === order.id &&
                             pendingAdminOrderAction.action === "pick-up" ? (
@@ -4412,7 +4389,7 @@ export default function App() {
                                 className="btn btn-xs btn-primary min-w-16 whitespace-nowrap"
                                 disabled={adminOrderActionId !== null}
                                 onClick={() => {
-                                  requestAdminOrderConfirmation(order, "pick-up");
+                                  requestAdminOrderConfirmation(order);
                                 }}
                               >
                                 {adminOrderActionId === order.id

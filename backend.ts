@@ -752,6 +752,13 @@ app.get(
     const waitingOrders = store
       .getOrders()
       .filter((order) => order.status === "submitted" && isTodayOrder(order));
+    const readyPickupNumbers = completedOrders
+      .filter((order) => order.status === "completed")
+      .map((order) => order.dailySequence ?? order.id)
+      .sort((a, b) => a - b);
+    const waitingPickupNumbers = waitingOrders
+      .map((order) => order.dailySequence ?? order.id)
+      .sort((a, b) => a - b);
 
     return {
       data: {
@@ -772,6 +779,8 @@ app.get(
               )
             : null,
         waitingCount: waitingOrders.length,
+        readyPickupNumbers,
+        waitingPickupNumbers,
       },
     };
   },
@@ -779,7 +788,8 @@ app.get(
     detail: {
       tags: ["orders"],
       summary: "Get order progress",
-      description: "Return latest submitted order id and latest completed id.",
+      description:
+        "Return today's ready-for-pickup and in-progress pickup numbers.",
     },
     response: {
       200: orderProgressResponseSchema,

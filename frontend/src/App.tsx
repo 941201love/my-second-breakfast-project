@@ -599,6 +599,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     appTitle: "博翔早餐菜單",
     currentDone: "目前已做到",
     waitingCount: "等候人數",
+    readyForPickup: "可取餐",
+    waitingPickup: "待取餐",
     cartDetails: "購物車明細",
     orderHistory: "歷史訂單",
     profile: "個人",
@@ -673,6 +675,9 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     discount: "優惠折抵",
     couponLimitOnce: "每個帳號限一次",
     couponLimitedQuantity: "數量有限",
+    couponLimitedQuantityCount: "限量 {count} 張",
+    couponAmountBenefit: "現折 {amount}",
+    couponPercentBenefit: "結帳享 {ratio} 折",
     couponWallet: "優惠券",
     couponWalletTitle: "我的優惠券",
     recommendedCoupons: "推薦優惠券",
@@ -701,6 +706,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     appTitle: "Boxiang Breakfast Menu",
     currentDone: "Now serving",
     waitingCount: "Waiting",
+    readyForPickup: "Ready for pickup",
+    waitingPickup: "In progress",
     cartDetails: "Cart",
     orderHistory: "Order history",
     profile: "Profile",
@@ -775,6 +782,9 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     discount: "Discount",
     couponLimitOnce: "Once per account",
     couponLimitedQuantity: "Limited quantity",
+    couponLimitedQuantityCount: "Limited to {count}",
+    couponAmountBenefit: "Save {amount}",
+    couponPercentBenefit: "Pay {percent}%",
     couponWallet: "Coupons",
     couponWalletTitle: "My coupons",
     recommendedCoupons: "Recommended coupons",
@@ -803,6 +813,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     appTitle: "博翔 朝食メニュー",
     currentDone: "現在提供中",
     waitingCount: "待ち人数",
+    readyForPickup: "受取可能",
+    waitingPickup: "調理中",
     cartDetails: "カート",
     orderHistory: "注文履歴",
     profile: "プロフィール",
@@ -877,6 +889,9 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     discount: "割引",
     couponLimitOnce: "1アカウント1回まで",
     couponLimitedQuantity: "数量限定",
+    couponLimitedQuantityCount: "{count}枚限定",
+    couponAmountBenefit: "{amount}割引",
+    couponPercentBenefit: "お会計は{percent}%",
     couponWallet: "クーポン",
     couponWalletTitle: "マイクーポン",
     recommendedCoupons: "おすすめクーポン",
@@ -905,6 +920,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     appTitle: "보샹 아침 메뉴",
     currentDone: "현재 완료",
     waitingCount: "대기 인원",
+    readyForPickup: "픽업 가능",
+    waitingPickup: "준비 중",
     cartDetails: "장바구니",
     orderHistory: "주문 내역",
     profile: "프로필",
@@ -979,6 +996,9 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     discount: "할인",
     couponLimitOnce: "계정당 1회",
     couponLimitedQuantity: "수량 한정",
+    couponLimitedQuantityCount: "{count}장 한정",
+    couponAmountBenefit: "{amount} 할인",
+    couponPercentBenefit: "결제 금액 {percent}%",
     couponWallet: "쿠폰",
     couponWalletTitle: "내 쿠폰",
     recommendedCoupons: "추천 쿠폰",
@@ -1077,6 +1097,8 @@ export default function App() {
     latestSubmittedOrderId: null,
     latestCompletedOrderId: null,
     waitingCount: 0,
+    readyPickupNumbers: [],
+    waitingPickupNumbers: [],
   });
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
@@ -3084,12 +3106,39 @@ export default function App() {
 
   function couponRuleText(coupon: Coupon): string {
     return [
+      couponBenefitText(coupon),
       `${text.couponMinSpend} ${formatMoney(coupon.minSpend ?? 0)}`,
       text.couponLimitOnce,
-      coupon.usageLimitTotal ? text.couponLimitedQuantity : "",
+      coupon.usageLimitTotal
+        ? text.couponLimitedQuantityCount.replace(
+            "{count}",
+            String(coupon.usageLimitTotal),
+          )
+        : "",
     ]
       .filter(Boolean)
       .join(" · ");
+  }
+
+  function couponBenefitText(coupon: Coupon): string {
+    if (coupon.discountType === "amount") {
+      return text.couponAmountBenefit.replace(
+        "{amount}",
+        formatMoney(coupon.discountValue),
+      );
+    }
+
+    const ratio = Number.isInteger(coupon.discountValue / 10)
+      ? String(coupon.discountValue / 10)
+      : (coupon.discountValue / 10).toFixed(1);
+    return text.couponPercentBenefit
+      .replace("{ratio}", ratio)
+      .replace("{percent}", String(coupon.discountValue));
+  }
+
+  function pickupNumberList(numbers: number[] | undefined): string {
+    if (!numbers || numbers.length === 0) return "-";
+    return numbers.map((number) => `#${number}`).join("、");
   }
 
   function isCouponUsable(coupon: Coupon): boolean {
@@ -5192,15 +5241,19 @@ export default function App() {
         </div>
         <div className="flex-none w-full md:w-auto">
           <div className="flex flex-wrap gap-2 items-center md:justify-end">
-            <div className="rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-sm flex flex-wrap gap-x-4 gap-y-1">
-              <span>
-                {text.currentDone}：
-                <strong>#{orderProgress.latestCompletedOrderId ?? "-"}</strong>
-              </span>
-              <span>
-                {text.waitingCount}：
-                <strong>{orderProgress.waitingCount ?? 0}</strong>
-              </span>
+            <div className="grid min-w-[18rem] grid-cols-2 overflow-hidden rounded-lg border border-base-300 bg-base-200 text-sm">
+              <div className="border-r border-base-300 px-4 py-2">
+                <span className="block text-xs opacity-70">
+                  {text.readyForPickup}
+                </span>
+                <strong>{pickupNumberList(orderProgress.readyPickupNumbers)}</strong>
+              </div>
+              <div className="px-4 py-2">
+                <span className="block text-xs opacity-70">
+                  {text.waitingPickup}
+                </span>
+                <strong>{pickupNumberList(orderProgress.waitingPickupNumbers)}</strong>
+              </div>
             </div>
             <button
               className="btn btn-sm btn-outline"
@@ -6668,11 +6721,7 @@ export default function App() {
                           {appliedCoupon.code}
                         </p>
                         <p className="opacity-70">
-                          {text.couponMinSpend} {formatMoney(appliedCoupon.minSpend ?? 0)}，
-                          {text.couponLimitOnce}
-                          {appliedCoupon.usageLimitTotal
-                            ? `，${text.couponLimitedQuantity}`
-                            : ""}
+                          {couponRuleText(appliedCoupon)}
                         </p>
                       </div>
                     ) : null}

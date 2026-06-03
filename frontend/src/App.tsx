@@ -2388,8 +2388,22 @@ export default function App() {
     }
 
     try {
-      const [promotionsResponse, ordersResponse, couponsResponse] =
-        await Promise.all([
+      const isBranchAdmin = Boolean(adminStoreCode);
+      let promotionsResponse: Response | null = null;
+      let ordersResponse: Response;
+      let couponsResponse: Response;
+
+      if (isBranchAdmin) {
+        [ordersResponse, couponsResponse] = await Promise.all([
+          fetch(buildApiUrl("/api/orders"), {
+            credentials: "include",
+          }),
+          fetch(buildApiUrl("/api/coupons"), {
+            credentials: "include",
+          }),
+        ]);
+      } else {
+        [promotionsResponse, ordersResponse, couponsResponse] = await Promise.all([
           fetch(buildApiUrl("/api/promotions"), {
             credentials: "include",
           }),
@@ -2400,9 +2414,12 @@ export default function App() {
             credentials: "include",
           }),
         ]);
+      }
 
       const failedEndpoints: string[] = [];
-      if (!promotionsResponse.ok) failedEndpoints.push(`/api/promotions (HTTP ${promotionsResponse.status})`);
+      if (!isBranchAdmin && promotionsResponse && !promotionsResponse.ok) {
+        failedEndpoints.push(`/api/promotions (HTTP ${promotionsResponse.status})`);
+      }
       if (!ordersResponse.ok) failedEndpoints.push(`/api/orders (HTTP ${ordersResponse.status})`);
       if (!couponsResponse.ok) failedEndpoints.push(`/api/coupons (HTTP ${couponsResponse.status})`);
 
@@ -2415,17 +2432,24 @@ export default function App() {
         throw new Error(msg);
       }
 
-      const promotionsPayload =
-        (await promotionsResponse.json()) as ApiDataResponse<
-          ActivePromotion[]
-        >;
+      let promotionsPayload: ApiDataResponse<ActivePromotion[]> | null = null;
+      if (!isBranchAdmin && promotionsResponse) {
+        promotionsPayload =
+          (await promotionsResponse.json()) as ApiDataResponse<
+            ActivePromotion[]
+          >;
+      }
       const ordersPayload =
         (await ordersResponse.json()) as ApiDataResponse<Order[]>;
       const couponsPayload =
         (await couponsResponse.json()) as ApiDataResponse<Coupon[]>;
 
       setActivePromotions(
-        Array.isArray(promotionsPayload?.data) ? promotionsPayload.data : [],
+        isBranchAdmin
+          ? []
+          : Array.isArray(promotionsPayload?.data)
+          ? promotionsPayload.data
+          : [],
       );
       setAdminOrders(
         Array.isArray(ordersPayload?.data) ? ordersPayload.data : [],

@@ -443,7 +443,7 @@ app.get("/api/addons", () => ({ data: store.getAddonSettings() }), {
 app.patch(
   "/api/addons",
   async ({ body, request }) => {
-    requireAdmin(request);
+    requireHeadquarter(request);
     return { data: await store.updateAddonSettings(body) };
   },
   {

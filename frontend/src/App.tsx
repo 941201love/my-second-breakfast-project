@@ -2369,15 +2369,18 @@ export default function App() {
           }),
         ]);
 
-      if (
-        !promotionsResponse.ok ||
-        !ordersResponse.ok ||
-        !couponsResponse.ok
-      ) {
+      const failedEndpoints: string[] = [];
+      if (!promotionsResponse.ok) failedEndpoints.push(`/api/promotions (HTTP ${promotionsResponse.status})`);
+      if (!ordersResponse.ok) failedEndpoints.push(`/api/orders (HTTP ${ordersResponse.status})`);
+      if (!couponsResponse.ok) failedEndpoints.push(`/api/coupons (HTTP ${couponsResponse.status})`);
+
+      if (failedEndpoints.length > 0) {
         if (ordersResponse.status === 401) {
           setAdminAuthed(false);
         }
-        throw new Error("Admin API failed");
+        const msg = `Admin API 讀取失敗：${failedEndpoints.join(", ")}`;
+        console.error(msg, { promotionsResponse, ordersResponse, couponsResponse });
+        throw new Error(msg);
       }
 
       const promotionsPayload =
@@ -3020,15 +3023,12 @@ export default function App() {
 
       const payload = (await response.json()) as ApiDataResponse<Order>;
       const completedOrder = payload.data;
-      setAdminOrders((current) =>
-        current.map((order) => (order.id === orderId ? completedOrder : order)),
-      );
+      // Immediately remove the completed order from the kitchen view so it disappears
+      // after staff marks it complete. We still refresh admin data in background.
+      setAdminOrders((current) => current.filter((order) => order.id !== orderId));
       const dailySequence = completedOrder.dailySequence ?? orderId;
       setAdminError(`今日單號 #${dailySequence} 已完成，等待顧客取貨。`);
-      void Promise.all([
-        loadAdminData({ clearNotice: false }),
-        loadOrderProgress(),
-      ]).catch((error) => console.error(error));
+      void Promise.all([loadAdminData({ clearNotice: false }), loadOrderProgress()]).catch((error) => console.error(error));
     } catch (error) {
       console.error(error);
       setAdminError("完成訂單失敗，請檢查網路後再試。");

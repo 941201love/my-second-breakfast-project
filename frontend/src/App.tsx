@@ -1139,7 +1139,6 @@ export default function App() {
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminAuthed, setAdminAuthed] = useState(false);
   const [isAdminMenuFormOpen, setIsAdminMenuFormOpen] = useState(false);
-  const [isPickingUpOrders, setIsPickingUpOrders] = useState<number[]>([]);
   const [adminLogin, setAdminLogin] = useState({
     username: "admin",
     password: "admin1234",
@@ -2830,16 +2829,6 @@ export default function App() {
     }
   }
 
-  function requestAdminOrderConfirmation(
-    order: Order,
-  ): void {
-    const dailySequence = order.dailySequence ?? order.id;
-    requestActionConfirm(
-      `確定今日單號 #${dailySequence} 已經取貨嗎？`,
-      () => pickUpAdminOrder(order.id),
-    );
-  }
-
   function openAddToCart(item: MenuItem) {
     if (!user) {
       setActionError("請先使用 Google 登入後再加入購物車。");
@@ -3329,82 +3318,6 @@ export default function App() {
     }
 
     return [...new Set(ownNumbers)].sort((left, right) => left - right);
-  }
-
-  function currentUserReadyOrders(): Order[] {
-    const readyNumbers = new Set(orderProgress.readyPickupNumbers);
-    return historyOrders.filter(
-      (order) =>
-        order.status === "completed" &&
-        (readyNumbers.size === 0 ||
-          readyNumbers.has(order.dailySequence ?? order.id)),
-    );
-  }
-
-  async function pickUpMyOrders(orderIds: number[]): Promise<void> {
-    if (orderIds.length === 0) return;
-
-    setIsPickingUpOrders(orderIds);
-    setActionError("");
-
-    try {
-      const updatedOrders = await Promise.all(
-        orderIds.map(async (orderId) => {
-          const response = await fetch(
-            buildApiUrl(`/api/orders/${orderId}/pick-up`),
-            {
-              method: "PATCH",
-              credentials: "include",
-            },
-          );
-
-          if (!response.ok) {
-            throw new Error(`Pick up order failed: HTTP ${response.status}`);
-          }
-
-          const payload = (await response.json()) as ApiDataResponse<Order>;
-          return payload.data;
-        }),
-      );
-
-      setHistoryOrders((current) =>
-        current.map((order) => {
-          const updated = updatedOrders.find((item) => item.id === order.id);
-          return updated ?? order;
-        }),
-      );
-
-      await loadOrderProgress();
-
-      const pickupNumbers = updatedOrders
-        .map((order) => order.dailySequence ?? order.id)
-        .sort((a, b) => a - b)
-        .map((number) => `#${number}`)
-        .join(" ");
-      setCheckoutNotice(`已取餐 ${pickupNumbers}`);
-    } catch (error) {
-      console.error(error);
-      setActionError("標記已取餐失敗，請稍後再試。");
-    } finally {
-      setIsPickingUpOrders([]);
-    }
-  }
-
-  function requestUserPickupConfirmation(orderIds: number[]): void {
-    if (orderIds.length === 0) return;
-
-    const numberLabel = orderIds
-      .map((orderId) => {
-        const order = historyOrders.find((item) => item.id === orderId);
-        return order ? order.dailySequence ?? order.id : orderId;
-      })
-      .map((number) => `#${number}`)
-      .join(" ");
-
-    requestActionConfirm(
-      `確定已取餐 ${numberLabel} 嗎？`,
-      () => pickUpMyOrders(orderIds),
-    );
   }
 
   function isCouponUsable(coupon: Coupon): boolean {
@@ -4617,7 +4530,7 @@ export default function App() {
                                 adminOrderActionId !== order.id
                               }
                               onClick={() => {
-                                requestAdminOrderConfirmation(order);
+                                void pickUpAdminOrder(order.id);
                               }}
                             >
                               {adminOrderActionId === order.id
@@ -7150,27 +7063,6 @@ export default function App() {
                   </strong>
                 </div>
               </div>
-              {currentUserReadyOrders().length > 0 ? (
-                <div className="mt-4">
-                  <button
-                    className="btn btn-secondary w-full"
-                    disabled={isPickingUpOrders.length > 0}
-                    onClick={() =>
-                      requestUserPickupConfirmation(
-                        currentUserReadyOrders().map((order) => order.id),
-                      )
-                    }
-                  >
-                    {isPickingUpOrders.length > 0
-                      ? "處理中..."
-                      : `我已取餐 ${pickupNumberList(
-                          currentUserReadyOrders().map(
-                            (order) => order.dailySequence ?? order.id,
-                          ),
-                        )}`}
-                  </button>
-                </div>
-              ) : null}
             </div>
           </section>
         </div>

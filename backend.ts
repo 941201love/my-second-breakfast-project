@@ -157,6 +157,32 @@ function isAdminRequest(request: Request) {
   return isAdminSessionValue(session);
 }
 
+function adminSessionBranch(request: Request): string | null {
+  const cookie = request.headers.get("cookie") ?? "";
+  const session = cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("admin_session="))
+    ?.split("=")[1];
+  if (!session) return null;
+
+  // check branch codes
+  for (const code of Object.keys(adminBranchPasswords)) {
+    const expected = signAdminSession(`branch:${code}`);
+    const sessionBuffer = Buffer.from(session);
+    const expectedBuffer = Buffer.from(expected);
+    if (
+      sessionBuffer.length === expectedBuffer.length &&
+      timingSafeEqual(sessionBuffer, expectedBuffer)
+    ) {
+      return code;
+    }
+  }
+
+  // not a branch session
+  return null;
+}
+
 function requireAdmin(request: Request) {
   if (isAdminRequest(request)) return;
 
@@ -716,7 +742,12 @@ app.get(
   "/api/orders",
   ({ request }) => {
     requireAdmin(request);
-    return { data: store.getOrders().map(toOrderResponse) };
+    const branch = adminSessionBranch(request);
+    const orders = store.getOrders().filter((o) => {
+      if (!branch) return true;
+      return (o.storeCode ?? "default") === branch;
+    });
+    return { data: orders.map(toOrderResponse) };
   },
   {
     detail: {
@@ -777,14 +808,14 @@ app.get(
 // 創建新訂單
 app.post(
   "/api/orders",
-  async ({ request, set }) => {
+  async ({ body, request, set }) => {
     const user = await requireUser(request);
     const existingOrder = store.getCurrentOrderByUserId(user.id);
     if (existingOrder) {
       return { data: toOrderResponse(existingOrder) };
     }
 
-    const newOrder = await store.createOrder({ userId: user.id });
+    const newOrder = await store.createOrder({ userId: user.id, storeCode: (body as any)?.storeCode });
     set.status = 201;
     return { data: toOrderResponse(newOrder) };
   },
@@ -805,28 +836,25 @@ app.post(
 
 app.get(
   "/api/orders/progress",
-  () => {
+  ({ request }) => {
     const today = new Date().toLocaleDateString("sv-SE", {
       timeZone: "Asia/Taipei",
     });
-    const isTodayOrder = (order: { submittedAt?: string; createdAt: string }) =>
+    const branch = adminSessionBranch(request);
+    const isTodayOrder = (order: { submittedAt?: string; createdAt: string; storeCode?: string }) =>
       new Date(order.submittedAt ?? order.createdAt).toLocaleDateString(
         "sv-SE",
         { timeZone: "Asia/Taipei" },
       ) === today;
-    const submittedOrders = store
-      .getOrders()
-      .filter((order) => order.status !== "pending" && isTodayOrder(order));
-    const completedOrders = store
-      .getOrders()
-      .filter(
-        (order) =>
-          (order.status === "completed" || order.status === "picked_up") &&
-          isTodayOrder(order),
-      );
-    const waitingOrders = store
-      .getOrders()
-      .filter((order) => order.status === "submitted" && isTodayOrder(order));
+    const allOrders = store.getOrders();
+    const filteredOrders = branch
+      ? allOrders.filter((o) => (o.storeCode ?? "default") === branch)
+      : allOrders;
+    const submittedOrders = filteredOrders.filter((order) => order.status !== "pending" && isTodayOrder(order));
+    const completedOrders = filteredOrders.filter(
+      (order) => (order.status === "completed" || order.status === "picked_up") && isTodayOrder(order),
+    );
+    const waitingOrders = filteredOrders.filter((order) => order.status === "submitted" && isTodayOrder(order));
     const readyPickupNumbers = completedOrders
       .filter((order) => order.status === "completed")
       .map((order) => order.dailySequence ?? order.id)

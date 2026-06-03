@@ -199,6 +199,7 @@ export const orderSchema = z.object({
   submittedAt: z.string().min(1).optional(),
   completedAt: z.string().min(1).optional(),
   pickedUpAt: z.string().min(1).optional(),
+  storeCode: z.string().min(1).optional(),
 });
 
 export const orderProgressSchema = z.object({

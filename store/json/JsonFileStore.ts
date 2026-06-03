@@ -659,6 +659,7 @@ export class JsonFileStore implements Store {
       items: [],
       total: 0,
       status: "pending",
+      storeCode: (input as any).storeCode ?? "default",
       createdAt: new Date().toISOString(),
     };
 
@@ -944,7 +945,7 @@ export class JsonFileStore implements Store {
       : 0;
     order.total = Math.max(0, order.total - discountTotal);
     order.status = "submitted";
-    order.dailySequence = this.nextDailySequence();
+    order.dailySequence = this.nextDailySequence(order.storeCode ?? "default");
     order.paymentMethod = input.paymentMethod ?? "cash";
     order.note = input.note;
     order.couponCode = coupon?.code;
@@ -1141,17 +1142,17 @@ export class JsonFileStore implements Store {
     await this.persistQueue;
   }
 
-  private nextDailySequence(): number {
+  private nextDailySequence(storeCode: string): number {
     const today = new Date().toLocaleDateString("sv-SE", {
       timeZone: "Asia/Taipei",
     });
     const todayOrders = this.orders.filter((order) => {
       const source = order.submittedAt ?? order.createdAt;
-      return (
-        new Date(source).toLocaleDateString("sv-SE", {
-          timeZone: "Asia/Taipei",
-        }) === today && order.dailySequence !== undefined
-      );
+      const sameDay =
+        new Date(source).toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" }) ===
+        today;
+      const sameStore = (order.storeCode ?? "default") === storeCode;
+      return sameDay && order.dailySequence !== undefined && sameStore;
     });
 
     return Math.max(0, ...todayOrders.map((order) => order.dailySequence ?? 0)) + 1;

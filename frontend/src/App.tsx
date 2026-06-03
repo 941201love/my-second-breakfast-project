@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import "./App.css";
 import type {
   ApiDataResponse,
@@ -141,12 +141,14 @@ function submittedOrderDate(order: Order) {
 }
 
 function submittedOrderHour(order: Order) {
+  const source = order.submittedAt ?? order.createdAt;
+  if (!source) return 0;
   const hourPart = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Taipei",
     hour: "2-digit",
     hour12: false,
   })
-    .formatToParts(new Date(order.submittedAt ?? order.createdAt))
+    .formatToParts(new Date(source))
     .find((part) => part.type === "hour")?.value;
   const hour = Number(hourPart);
   return Number.isFinite(hour) ? hour % 24 : 0;
@@ -688,6 +690,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponCollected: "已新增",
     useCoupon: "使用",
     couponSelected: "已選用",
+    couponUnselect: "取消使用",
     selectCoupon: "選擇已新增優惠券",
     useCouponTitle: "使用優惠券",
     enterCouponCode: "輸入優惠碼",
@@ -797,6 +800,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponCollected: "Added",
     useCoupon: "Use",
     couponSelected: "Selected",
+    couponUnselect: "Remove",
     selectCoupon: "Choose an added coupon",
     useCouponTitle: "Use a coupon",
     enterCouponCode: "Enter coupon code",
@@ -906,6 +910,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponCollected: "追加済み",
     useCoupon: "使用",
     couponSelected: "選択済み",
+    couponUnselect: "使用を解除",
     selectCoupon: "追加済みクーポンを選択",
     useCouponTitle: "クーポンを使用",
     enterCouponCode: "クーポンコードを入力",
@@ -1015,6 +1020,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponCollected: "추가됨",
     useCoupon: "사용",
     couponSelected: "선택됨",
+    couponUnselect: "사용 취소",
     selectCoupon: "추가한 쿠폰 선택",
     useCouponTitle: "쿠폰 사용",
     enterCouponCode: "쿠폰 코드 입력",
@@ -1045,6 +1051,19 @@ type CouponFormState = {
   startsDate: string;
   endsDate: string;
 };
+
+function createDefaultCartDraft() {
+  return {
+    qty: 1,
+    size: "small" as "small" | "large",
+    eggQty: 0,
+    cheeseQty: 0,
+    addons: [] as NonNullable<OrderItem["addons"]>,
+    sugarLevel: "",
+    iceLevel: "",
+    note: "",
+  };
+}
 
 export default function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -1098,9 +1117,6 @@ export default function App() {
   const [lastSubmittedOrder, setLastSubmittedOrder] = useState<Order | null>(
     null,
   );
-  const [completedNoticeOrder, setCompletedNoticeOrder] = useState<Order | null>(
-    null,
-  );
   const [isPickupStatusOpen, setIsPickupStatusOpen] = useState(false);
   const [orderProgress, setOrderProgress] = useState<OrderProgress>({
     latestSubmittedOrderId: null,
@@ -1123,6 +1139,7 @@ export default function App() {
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminAuthed, setAdminAuthed] = useState(false);
   const [isAdminMenuFormOpen, setIsAdminMenuFormOpen] = useState(false);
+  const [isPickingUpOrders, setIsPickingUpOrders] = useState<number[]>([]);
   const [adminLogin, setAdminLogin] = useState({
     username: "admin",
     password: "admin1234",
@@ -1218,35 +1235,61 @@ export default function App() {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     message: string;
-    onConfirm: () => void;
+    onConfirm: () => void | Promise<void>;
   } | null>(null);
+  const pendingConfirmRef = useRef<((confirmed: boolean) => void) | null>(null);
+  const [priceAdjustItem, setPriceAdjustItem] = useState<MenuItem | null>(null);
+  const [priceAdjustValue, setPriceAdjustValue] = useState("");
   const [nowText, setNowText] = useState(
     new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei" }),
   );
   const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
-  const [cartDraft, setCartDraft] = useState({
-    qty: 1,
-    size: "small" as "small" | "large",
-    eggQty: 0,
-    cheeseQty: 0,
-    addons: [] as NonNullable<OrderItem["addons"]>,
-    sugarLevel: "",
-    iceLevel: "",
-    note: "",
-  });
+  const [cartDraft, setCartDraft] = useState(createDefaultCartDraft);
+  const lastCustomizingItemIdRef = useRef<string | null>(null);
   const text = uiText[profile.language] ?? uiText["zh-TW"];
   const routeItem =
     itemPageId && items.length > 0
       ? items.find((item) => item.id === itemPageId || item.logicalId === itemPageId) ??
         null
       : null;
-  const activeCustomizingItem = customizingItem ?? routeItem;
+  const activeCustomizingItem = isItemPage ? (routeItem ?? customizingItem) : null;
 
   function navigate(path: string): void {
     if (window.location.pathname !== path) {
       window.history.pushState({}, "", path);
     }
     setCurrentPath(path);
+  }
+
+  function requestConfirm(message: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      pendingConfirmRef.current = resolve;
+      setConfirmDialog({ message, onConfirm: () => {} });
+    });
+  }
+
+  function requestActionConfirm(
+    message: string,
+    action: () => void | Promise<void>,
+  ): void {
+    pendingConfirmRef.current = null;
+    setConfirmDialog({ message, onConfirm: action });
+  }
+
+  async function closeConfirmDialog(confirmed: boolean): Promise<void> {
+    const resolver = pendingConfirmRef.current;
+    pendingConfirmRef.current = null;
+    const action = confirmDialog?.onConfirm;
+    setConfirmDialog(null);
+
+    if (resolver) {
+      resolver(confirmed);
+      return;
+    }
+
+    if (confirmed && action) {
+      await action();
+    }
   }
 
   function resetNewMenuItemForm(): void {
@@ -1336,10 +1379,20 @@ export default function App() {
   };
   const categoryLabel = (category: string) =>
     categoryLabels[profile.language]?.[category] ?? category;
+  const normalizeSugarOption = (option: string) =>
+    option === "預設糖" || option === "Default sugar" || option === "標準の甘さ" || option === "기본 당도"
+      ? "正常糖"
+      : option;
+  const normalizeIceOption = (option: string) =>
+    option === "預設冰" || option === "Default ice" || option === "標準の氷" || option === "기본 얼음"
+      ? "正常冰"
+      : option;
   const sugarLabel = (option: string) =>
-    sugarOptionLabels[profile.language]?.[option] ?? option;
+    sugarOptionLabels[profile.language]?.[normalizeSugarOption(option)] ??
+    normalizeSugarOption(option);
   const iceLabel = (option: string) =>
-    iceOptionLabels[profile.language]?.[option] ?? option;
+    iceOptionLabels[profile.language]?.[normalizeIceOption(option)] ??
+    normalizeIceOption(option);
   const orderItemSpecification = (detail: OrderItem) => {
     const item = orderItemMenuItem(detail);
     const parts: string[] = [];
@@ -1380,6 +1433,26 @@ export default function App() {
       isCouponCollectable(coupon) &&
       !collectedCouponCodes.includes(coupon.code),
   );
+
+  useEffect(() => {
+    if (coupons.length === 0 || collectedCouponCodes.length === 0) return;
+
+    const nextCodes = collectedCouponCodes.filter((code) => {
+      const coupon = coupons.find((item) => item.code === code);
+      return !coupon || !hasUsedCoupon(coupon);
+    });
+
+    if (nextCodes.length !== collectedCouponCodes.length) {
+      saveCollectedCouponCodes(nextCodes);
+    }
+  }, [collectedCouponCodes, coupons, historyOrders]);
+
+  useEffect(() => {
+    if (!appliedCoupon || !hasUsedCoupon(appliedCoupon)) return;
+    setAppliedCoupon(null);
+    setCouponCode("");
+  }, [appliedCoupon, historyOrders]);
+
   const customizingUnitPrice = activeCustomizingItem
     ? promotionalMenuItemPrice(
         activeCustomizingItem,
@@ -1388,8 +1461,12 @@ export default function App() {
           ? activeCustomizingItem.largePrice
           : activeCustomizingItem.price,
       ) +
-      (activeCustomizingItem.eggPrice ?? 0) * cartDraft.eggQty
-      + (activeCustomizingItem.cheesePrice ?? 0) * cartDraft.cheeseQty
+      (activeCustomizingItem.eggPrice === undefined
+        ? 0
+        : addonSettings.eggPrice * cartDraft.eggQty)
+      + (activeCustomizingItem.cheesePrice === undefined
+        ? 0
+        : addonSettings.cheesePrice * cartDraft.cheeseQty)
       + (cartDraft.addons ?? []).reduce(
         (sum, addon) => sum + addon.price * addon.qty,
         0,
@@ -1676,16 +1753,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!completedNoticeOrder) return;
-
-    const timer = window.setTimeout(() => {
-      setCompletedNoticeOrder(null);
-    }, 5000);
-
-    return () => window.clearTimeout(timer);
-  }, [completedNoticeOrder]);
-
-  useEffect(() => {
     if (!checkoutNotice) return;
 
     const timer = window.setTimeout(() => {
@@ -1694,6 +1761,16 @@ export default function App() {
 
     return () => window.clearTimeout(timer);
   }, [checkoutNotice]);
+
+  useEffect(() => {
+    if (!actionError) return;
+
+    const timer = window.setTimeout(() => {
+      setActionError("");
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [actionError]);
 
   useEffect(() => {
     if (!profileNotice) return;
@@ -1758,18 +1835,21 @@ export default function App() {
   ]);
 
   useEffect(() => {
+    const isCustomerFullPage =
+      isCartOpen ||
+      isCartPage ||
+      isHistoryOpen ||
+      isOrderHistoryPage ||
+      isProfileOpen ||
+      isProfilePage ||
+      isCouponWalletPage ||
+      isCheckoutCouponsPage ||
+      isItemPage ||
+      isPickupStatusOpen;
     const shouldLockBody =
       Boolean(adminPriceHistoryModal) ||
       Boolean(confirmDialog) ||
-      (isAdminPage
-        ? isAdminMenuPage && isAdminMenuFormOpen
-        : isCartPage ||
-          isOrderHistoryPage ||
-          isCartOpen ||
-          isHistoryOpen ||
-          isProfileOpen ||
-          isPickupStatusOpen ||
-          Boolean(customizingItem));
+      (!isAdminPage && isCustomerFullPage);
     if (!shouldLockBody) {
       document.body.style.overflow = "";
       document.body.style.position = "";
@@ -1786,25 +1866,33 @@ export default function App() {
       document.body.style.position = previousPosition;
     };
   }, [
-    customizingItem,
-    isAdminMenuPage,
     isAdminPage,
-    isAdminMenuFormOpen,
     adminPriceHistoryModal,
     confirmDialog,
-    isCartPage,
-    isOrderHistoryPage,
     isCartOpen,
+    isCartPage,
     isHistoryOpen,
+    isOrderHistoryPage,
     isProfileOpen,
+    isProfilePage,
+    isCouponWalletPage,
+    isCheckoutCouponsPage,
+    isItemPage,
     isPickupStatusOpen,
   ]);
 
   useEffect(() => {
-    if (!isItemPage) return;
+    if (!isItemPage) {
+      setCustomizingItem(null);
+      setCartDraft(createDefaultCartDraft());
+      lastCustomizingItemIdRef.current = null;
+      return;
+    }
 
     if (!user) {
       setCustomizingItem(null);
+      setCartDraft(createDefaultCartDraft());
+      lastCustomizingItemIdRef.current = null;
       setActionError("請先使用 Google 登入後再加入購物車。");
       navigate("/");
       return;
@@ -1813,6 +1901,8 @@ export default function App() {
     if (!routeItem) {
       if (!loading && items.length > 0) {
         setCustomizingItem(null);
+        setCartDraft(createDefaultCartDraft());
+        lastCustomizingItemIdRef.current = null;
         setActionError("找不到這個商品，請重新選擇。");
         navigate("/");
       }
@@ -1820,17 +1910,11 @@ export default function App() {
     }
 
     setCustomizingItem(routeItem);
-    setCartDraft({
-      qty: 1,
-      size: "small",
-      eggQty: 0,
-      cheeseQty: 0,
-      addons: [],
-      sugarLevel: "",
-      iceLevel: "",
-      note: "",
-    });
-  }, [isItemPage, items.length, loading, routeItem?.id, user]);
+    if (lastCustomizingItemIdRef.current !== routeItem.id) {
+      lastCustomizingItemIdRef.current = routeItem.id;
+      setCartDraft(createDefaultCartDraft());
+    }
+  }, [isItemPage, items.length, loading, routeItem?.id, user?.id]);
 
   useEffect(() => {
     if (!isAdminAddProductPage) return;
@@ -1849,17 +1933,6 @@ export default function App() {
     if (!user || !isOrderHistoryPage) return;
     void loadOrderHistory();
   }, [isOrderHistoryPage, user]);
-
-  useEffect(() => {
-    if (!lastSubmittedOrder || completedNoticeOrder) return;
-
-    const submittedNumber =
-      lastSubmittedOrder.dailySequence ?? lastSubmittedOrder.id;
-    if (orderProgress.latestCompletedOrderId === submittedNumber) {
-      setCompletedNoticeOrder(lastSubmittedOrder);
-      setLastSubmittedOrder(null);
-    }
-  }, [completedNoticeOrder, lastSubmittedOrder, orderProgress.latestCompletedOrderId]);
 
   const grouped = useMemo(() => {
     const recentItems = items.filter((item) => item.isRecentlyUpdated);
@@ -1915,17 +1988,35 @@ export default function App() {
           return null;
         }
 
+        const basePrice =
+          orderItem.size === "large" && item.largePrice !== undefined
+            ? item.largePrice
+            : item.price;
+        const addonTotal = (orderItem.addons ?? []).reduce(
+          (sum, addon) => sum + addon.price * addon.qty,
+          0,
+        );
+        const unitPrice =
+          promotionalMenuItemPrice(item, basePrice) +
+          (item.eggPrice === undefined
+            ? 0
+            : addonSettings.eggPrice * (orderItem.eggQty ?? 0)) +
+          (item.cheesePrice === undefined
+            ? 0
+            : addonSettings.cheesePrice * (orderItem.cheeseQty ?? 0)) +
+          addonTotal;
+
         return {
           itemId: orderItem.menuItemId,
           orderItemId: orderItem.id,
           qty: orderItem.qty,
           item,
           orderItem,
-          subtotal: orderItem.menuItemPrice * orderItem.qty,
+          subtotal: unitPrice * orderItem.qty,
         };
       })
       .filter((entry): entry is CartDetail => entry !== null);
-  }, [cartOrderItemById, items]);
+  }, [addonSettings, cartOrderItemById, items]);
 
   const cartGroups = useMemo(() => {
     const groupByItemId = new Map<
@@ -1958,6 +2049,16 @@ export default function App() {
 
     return Array.from(groupByItemId.values());
   }, [cartDetails]);
+
+  useEffect(() => {
+    const nextCartTotal = cartDetails.reduce(
+      (sum, detail) => sum + detail.subtotal,
+      0,
+    );
+    if (nextCartTotal !== cartTotal) {
+      setCartTotal(nextCartTotal);
+    }
+  }, [cartDetails, cartTotal]);
 
   const todayAdminStats = useMemo(() => {
     const today = new Date().toLocaleDateString("sv-SE", {
@@ -2255,7 +2356,7 @@ export default function App() {
       setAdminError("請填寫完整的促銷活動資料。");
       return;
     }
-    if (!window.confirm(`確定要新增促銷「${name}」嗎？`)) return;
+    if (!(await requestConfirm(`確定要新增促銷「${name}」嗎？`))) return;
 
     const responses = await Promise.all(
       menuItemLogicalIds.map((menuItemLogicalId) =>
@@ -2291,7 +2392,7 @@ export default function App() {
   }
 
   async function deleteAdminPromotion(id: number): Promise<void> {
-    if (!window.confirm("確定要刪除這個促銷活動嗎？")) return;
+    if (!(await requestConfirm("確定要刪除這個促銷活動嗎？"))) return;
     const response = await fetch(buildApiUrl(`/api/promotions/${id}`), {
       method: "DELETE",
       credentials: "include",
@@ -2338,7 +2439,7 @@ export default function App() {
       setAdminError("編輯優惠券時不能更改優惠碼，請重新新增一張。");
       return;
     }
-    if (!window.confirm(`確定要${editingCouponCode ? "更新" : "新增"}優惠券「${code}」嗎？`)) {
+    if (!(await requestConfirm(`確定要${editingCouponCode ? "更新" : "新增"}優惠券「${code}」嗎？`))) {
       return;
     }
 
@@ -2425,7 +2526,7 @@ export default function App() {
   }
 
   async function deleteAdminCoupon(code: string): Promise<void> {
-    if (!window.confirm(`確定要刪除優惠券「${code}」嗎？`)) {
+    if (!(await requestConfirm(`確定要刪除優惠券「${code}」嗎？`))) {
       return;
     }
 
@@ -2454,7 +2555,7 @@ export default function App() {
     }
     const eggPrice = parseWholeNumber(addonSettingsDraft.eggPrice);
     const cheesePrice = parseWholeNumber(addonSettingsDraft.cheesePrice);
-    if (!window.confirm("確定要更新共用加料價格嗎？新加入購物車的品項會套用新價格。")) {
+    if (!(await requestConfirm("確定要更新共用加料價格嗎？新加入購物車的品項會套用新價格。"))) {
       return;
     }
 
@@ -2519,11 +2620,11 @@ export default function App() {
       return;
     }
     if (
-      !window.confirm(
+      !(await requestConfirm(
         editingAdminMenuLogicalId
           ? "確定要更新這個商品嗎？"
           : "確定要新增這個商品嗎？",
-      )
+      ))
     ) {
       return;
     }
@@ -2601,14 +2702,27 @@ export default function App() {
     setAdminError(notice);
   }
 
-  async function updateAdminMenuPrice(item: MenuItem): Promise<void> {
-    const raw = window.prompt(`調整「${item.name}」價格`, String(item.price));
-    if (!raw) return;
-    const price = Number(raw);
-    if (!Number.isFinite(price) || price < 0) return;
-    if (!window.confirm(`確定要把「${item.name}」改成 ${formatMoney(price)} 嗎？`)) {
+  function openPriceAdjust(item: MenuItem): void {
+    setPriceAdjustItem(item);
+    setPriceAdjustValue(String(item.price));
+  }
+
+  async function updateAdminMenuPrice(): Promise<void> {
+    if (!priceAdjustItem) return;
+
+    const item = priceAdjustItem;
+    const price = Number(priceAdjustValue);
+    if (!Number.isFinite(price) || price < 0) {
+      setAdminError("請輸入正確的價格。");
       return;
     }
+
+    if (!(await requestConfirm(`確定要把「${item.name}」改成 ${formatMoney(price)} 嗎？`))) {
+      return;
+    }
+
+    setPriceAdjustItem(null);
+    setPriceAdjustValue("");
 
     const response = await fetch(buildApiUrl(`/api/menu/${item.logicalId}`), {
       method: "PATCH",
@@ -2632,7 +2746,7 @@ export default function App() {
   }
 
   async function deleteAdminMenuItem(item: MenuItem): Promise<void> {
-    if (!window.confirm(`確定要刪除商品「${item.name}」嗎？`)) {
+    if (!(await requestConfirm(`確定要刪除商品「${item.name}」嗎？`))) {
       return;
     }
 
@@ -2720,12 +2834,10 @@ export default function App() {
     order: Order,
   ): void {
     const dailySequence = order.dailySequence ?? order.id;
-    setConfirmDialog({
-      message: `確定今日單號 #${dailySequence} 已經取貨嗎？`,
-      onConfirm: () => {
-        void pickUpAdminOrder(order.id);
-      },
-    });
+    requestActionConfirm(
+      `確定今日單號 #${dailySequence} 已經取貨嗎？`,
+      () => pickUpAdminOrder(order.id),
+    );
   }
 
   function openAddToCart(item: MenuItem) {
@@ -2734,16 +2846,8 @@ export default function App() {
       return;
     }
 
-    setCartDraft({
-      qty: 1,
-      size: "small",
-      eggQty: 0,
-      cheeseQty: 0,
-      addons: [],
-      sugarLevel: "",
-      iceLevel: "",
-      note: "",
-    });
+    setCartDraft(createDefaultCartDraft());
+    lastCustomizingItemIdRef.current = item.id;
     setCustomizingItem(item);
     navigate(`/item/${encodeURIComponent(item.id)}`);
   }
@@ -2863,6 +2967,8 @@ export default function App() {
     } finally {
       setActiveItemId(null);
       setCustomizingItem(null);
+      setCartDraft(createDefaultCartDraft());
+      lastCustomizingItemIdRef.current = null;
       if (currentPath.startsWith("/item/")) {
         navigate("/");
       }
@@ -3038,12 +3144,7 @@ export default function App() {
 
   function clearCart(): void {
     if (!user || orderId === null || cartDetails.length === 0) return;
-    setConfirmDialog({
-      message: text.confirmClearCart,
-      onConfirm: () => {
-        void clearCartConfirmed();
-      },
-    });
+    requestActionConfirm(text.confirmClearCart, clearCartConfirmed);
   }
 
   function applyCouponCode(): boolean {
@@ -3187,7 +3288,7 @@ export default function App() {
 
   function pickupNumberList(numbers: number[] | undefined): string {
     if (!numbers || numbers.length === 0) return "-";
-    return numbers.map((number) => `#${number}`).join("、");
+    return numbers.map((number) => `#${number}`).join(" ");
   }
 
   function currentUserPickupNumbers(): number[] {
@@ -3195,6 +3296,7 @@ export default function App() {
       ...orderProgress.readyPickupNumbers,
       ...orderProgress.waitingPickupNumbers,
     ]);
+    const activeStatuses = new Set(["submitted", "completed"]);
     const today = new Date().toLocaleDateString("sv-SE", {
       timeZone: "Asia/Taipei",
     });
@@ -3204,10 +3306,10 @@ export default function App() {
           new Date(order.submittedAt ?? order.createdAt).toLocaleDateString(
             "sv-SE",
             { timeZone: "Asia/Taipei" },
-          ) === today,
+          ) === today && activeStatuses.has(order.status),
       )
       .map((order) => order.dailySequence ?? order.id)
-      .filter((number) => activeNumbers.has(number));
+      .filter((number) => activeNumbers.size === 0 || activeNumbers.has(number));
 
     if (lastSubmittedOrder) {
       const lastNumber =
@@ -3217,12 +3319,92 @@ export default function App() {
       ).toLocaleDateString("sv-SE", {
         timeZone: "Asia/Taipei",
       });
-      if (lastOrderDate === today && activeNumbers.has(lastNumber)) {
+      if (
+        lastOrderDate === today &&
+        activeStatuses.has(lastSubmittedOrder.status) &&
+        (activeNumbers.size === 0 || activeNumbers.has(lastNumber))
+      ) {
         ownNumbers.push(lastNumber);
       }
     }
 
     return [...new Set(ownNumbers)].sort((left, right) => left - right);
+  }
+
+  function currentUserReadyOrders(): Order[] {
+    const readyNumbers = new Set(orderProgress.readyPickupNumbers);
+    return historyOrders.filter(
+      (order) =>
+        order.status === "completed" &&
+        (readyNumbers.size === 0 ||
+          readyNumbers.has(order.dailySequence ?? order.id)),
+    );
+  }
+
+  async function pickUpMyOrders(orderIds: number[]): Promise<void> {
+    if (orderIds.length === 0) return;
+
+    setIsPickingUpOrders(orderIds);
+    setActionError("");
+
+    try {
+      const updatedOrders = await Promise.all(
+        orderIds.map(async (orderId) => {
+          const response = await fetch(
+            buildApiUrl(`/api/orders/${orderId}/pick-up`),
+            {
+              method: "PATCH",
+              credentials: "include",
+            },
+          );
+
+          if (!response.ok) {
+            throw new Error(`Pick up order failed: HTTP ${response.status}`);
+          }
+
+          const payload = (await response.json()) as ApiDataResponse<Order>;
+          return payload.data;
+        }),
+      );
+
+      setHistoryOrders((current) =>
+        current.map((order) => {
+          const updated = updatedOrders.find((item) => item.id === order.id);
+          return updated ?? order;
+        }),
+      );
+
+      await loadOrderProgress();
+
+      const pickupNumbers = updatedOrders
+        .map((order) => order.dailySequence ?? order.id)
+        .sort((a, b) => a - b)
+        .map((number) => `#${number}`)
+        .join(" ");
+      setCheckoutNotice(`已取餐 ${pickupNumbers}`);
+    } catch (error) {
+      console.error(error);
+      setActionError("標記已取餐失敗，請稍後再試。");
+    } finally {
+      setIsPickingUpOrders([]);
+    }
+  }
+
+  function requestUserPickupConfirmation(orderIds: number[]): void {
+    if (orderIds.length === 0) return;
+
+    const numberLabel = orderIds
+      .map((orderId) => {
+        const order = historyOrders.find((item) => item.id === orderId);
+        return order ? order.dailySequence ?? order.id : orderId;
+      })
+      .map((number) => `#${number}`)
+      .join(" ");
+
+    requestActionConfirm(
+      `確定已取餐 ${numberLabel} 嗎？`,
+      () => pickUpMyOrders(orderIds),
+    );
   }
 
   function isCouponUsable(coupon: Coupon): boolean {
@@ -3240,7 +3422,8 @@ export default function App() {
         order.status !== "pending" &&
         order.couponCode === coupon.code,
     ).length;
-    if ((coupon.usageLimitTotal ?? 0) > 0 && totalUsedCount >= coupon.usageLimitTotal) {
+    const totalUsageLimit = coupon.usageLimitTotal ?? 0;
+    if (totalUsageLimit > 0 && totalUsedCount >= totalUsageLimit) {
       return false;
     }
 
@@ -3272,7 +3455,7 @@ export default function App() {
       setCheckoutNotice(text.phoneInvalid);
       return;
     }
-    if (!window.confirm("確定要送出訂單嗎？送出後店家會開始製作。")) {
+    if (!(await requestConfirm("確定要送出訂單嗎？送出後店家會開始製作。"))) {
       return;
     }
     setIsSubmittingOrder(true);
@@ -4114,7 +4297,7 @@ export default function App() {
                   </button>
                 </div>
                 {adminMenuNotice ? (
-                  <div className="fixed left-1/2 top-20 z-[120] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 pointer-events-none">
+                  <div className="fixed left-1/2 top-20 z-[2147483647] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 pointer-events-none">
                     <div className="alert alert-warning shadow-lg justify-center">
                       <span>{adminMenuNotice}</span>
                     </div>
@@ -4414,7 +4597,10 @@ export default function App() {
                           {order.status === "submitted" ? (
                             <button
                               className="btn btn-xs btn-success min-w-12 whitespace-nowrap"
-                              disabled={adminOrderActionId !== null}
+                              disabled={
+                                adminOrderActionId !== null &&
+                                adminOrderActionId !== order.id
+                              }
                               onClick={() => {
                                 void completeAdminOrder(order.id);
                               }}
@@ -4426,7 +4612,10 @@ export default function App() {
                           ) : order.status === "completed" ? (
                             <button
                               className="btn btn-xs btn-primary min-w-16 whitespace-nowrap"
-                              disabled={adminOrderActionId !== null}
+                              disabled={
+                                adminOrderActionId !== null &&
+                                adminOrderActionId !== order.id
+                              }
                               onClick={() => {
                                 requestAdminOrderConfirmation(order);
                               }}
@@ -4751,11 +4940,11 @@ export default function App() {
                                   編輯
                                 </button>
                                 <button
-                                  className="btn btn-xs btn-outline"
-                                  onClick={() => {
-                                    void updateAdminMenuPrice(item);
-                                  }}
-                                >
+                          className="btn btn-xs btn-outline"
+                          onClick={() => {
+                            openPriceAdjust(item);
+                          }}
+                        >
                                   調價
                                 </button>
                                 <button
@@ -5267,6 +5456,47 @@ export default function App() {
             </>
           ) : null}
         </main>
+
+        {priceAdjustItem ? (
+          <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/60 px-4">
+            <section className="w-full max-w-sm rounded-lg bg-base-100 p-5 shadow-2xl">
+              <h3 className="text-2xl font-bold">調整價格</h3>
+              <p className="mt-2 opacity-70">{priceAdjustItem.name}</p>
+              <label className="mt-5 block">
+                <span className="mb-2 block font-semibold">新價格（NT）</span>
+                <input
+                  className="input input-bordered w-full"
+                  inputMode="numeric"
+                  value={priceAdjustValue}
+                  onChange={(event) =>
+                    setPriceAdjustValue(event.currentTarget.value)
+                  }
+                  autoFocus
+                />
+              </label>
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    setPriceAdjustItem(null);
+                    setPriceAdjustValue("");
+                  }}
+                >
+                  取消
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    void updateAdminMenuPrice();
+                  }}
+                >
+                  更新價格
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
       </div>
     );
   }
@@ -5283,12 +5513,15 @@ export default function App() {
           <div className="flex flex-wrap gap-2 items-center md:justify-end">
             <button
               className="btn btn-sm btn-outline"
-              onClick={() => setIsPickupStatusOpen(true)}
+              onClick={() => {
+                setIsPickupStatusOpen(true);
+                void loadOrderProgress();
+                if (user) {
+                  void loadOrderHistory();
+                }
+              }}
             >
               {text.pickupStatus}
-              {currentUserPickupNumbers().length > 0
-                ? ` ${pickupNumberList(currentUserPickupNumbers())}`
-                : ""}
             </button>
             <button
               className="btn btn-sm btn-outline"
@@ -5363,18 +5596,9 @@ export default function App() {
         ) : null}
 
         {actionError ? (
-          <div className="alert alert-warning mb-4">
-            <span>{actionError}</span>
-          </div>
-        ) : null}
-
-        {completedNoticeOrder ? (
-          <div className="alert alert-info mb-4 max-w-4xl mx-auto">
-            <div>
-              <p className="font-semibold">{text.completedTitle}</p>
-              <p className="text-sm">
-                {text.pickupNumber}：#{completedNoticeOrder.dailySequence ?? completedNoticeOrder.id}
-              </p>
+          <div className="fixed left-1/2 top-24 z-[2147483647] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 pointer-events-none">
+            <div className="alert alert-warning shadow-lg justify-center">
+              <span>{actionError}</span>
             </div>
           </div>
         ) : null}
@@ -5559,7 +5783,7 @@ export default function App() {
 
       {user && (isHistoryOpen || isOrderHistoryPage) ? (
         <>
-          <section className="fixed inset-0 z-50 bg-base-100 shadow-2xl flex flex-col overscroll-none">
+          <section className="fixed inset-0 z-[2147483600] flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-none bg-base-100 shadow-2xl">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
               <h2 className="text-xl font-bold">{text.orderHistory}</h2>
               <button
@@ -5572,7 +5796,7 @@ export default function App() {
                 {text.close}
               </button>
             </div>
-            <div className="p-4 flex-1 overflow-auto overscroll-contain">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
               {historyLoading ? (
                 <div className="alert">
                   <span>{text.loading}</span>
@@ -5654,7 +5878,7 @@ export default function App() {
       ) : null}
 
       {user && isCheckoutCouponsPage ? (
-        <section className="fixed inset-0 z-50 flex flex-col bg-base-100">
+        <section className="fixed inset-0 z-[2147483600] flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-none bg-base-100">
           <div className="flex items-center justify-between border-b border-base-300 p-4">
             <h2 className="text-xl font-bold">{text.useCouponTitle}</h2>
             <button
@@ -5667,7 +5891,7 @@ export default function App() {
               {text.close}
             </button>
           </div>
-          <div className="flex-1 overflow-auto p-4">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
             <div className="mx-auto max-w-3xl space-y-8">
               <section className="space-y-3">
                 <label className="block text-sm font-semibold">
@@ -5726,7 +5950,7 @@ export default function App() {
                             }}
                           >
                             {appliedCoupon?.code === coupon.code
-                              ? text.couponSelected
+                              ? text.couponUnselect
                               : text.useCoupon}
                           </button>
                         </div>
@@ -5762,7 +5986,7 @@ export default function App() {
       ) : null}
 
       {user && isCouponWalletPage ? (
-        <section className="fixed inset-0 z-50 flex flex-col bg-base-100">
+        <section className="fixed inset-0 z-[2147483600] flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-none bg-base-100">
           <div className="flex items-center justify-between border-b border-base-300 p-4">
             <h2 className="text-xl font-bold">{text.couponWalletTitle}</h2>
             <button
@@ -5772,7 +5996,7 @@ export default function App() {
               {text.close}
             </button>
           </div>
-          <div className="flex-1 overflow-auto p-4">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
             <section className="mb-8">
               <label className="mb-3 block text-lg font-bold">
                 {text.enterCouponCode}
@@ -5823,7 +6047,7 @@ export default function App() {
                           }}
                         >
                           {appliedCoupon?.code === coupon.code
-                            ? text.couponSelected
+                            ? text.couponUnselect
                             : text.useCoupon}
                         </button>
                       </div>
@@ -5961,13 +6185,15 @@ export default function App() {
         </>
       ) : null}
 
-      {activeCustomizingItem ? (
-        <section className="fixed inset-0 z-[2147483647] h-[100dvh] bg-base-100 flex flex-col">
+      {isItemPage ? (
+        <section className="fixed inset-0 z-[2147483647] flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-base-100">
           <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-start p-4">
             <button
               className="btn btn-circle bg-base-100/90 shadow"
               onClick={() => {
                 setCustomizingItem(null);
+                setCartDraft(createDefaultCartDraft());
+                lastCustomizingItemIdRef.current = null;
                 navigate("/");
               }}
               aria-label={text.back}
@@ -5976,7 +6202,28 @@ export default function App() {
             </button>
           </div>
 
-          <div className="flex-1 overflow-auto pb-28">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-28">
+            {!activeCustomizingItem ? (
+              <div className="grid min-h-full place-items-center px-6 text-center">
+                <div className="space-y-4">
+                  <p className="text-2xl font-bold">
+                    {loading ? "商品載入中..." : "找不到這個商品"}
+                  </p>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setCustomizingItem(null);
+                      setCartDraft(createDefaultCartDraft());
+                      lastCustomizingItemIdRef.current = null;
+                      navigate("/");
+                    }}
+                  >
+                    {text.back}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
             <figure className="bg-base-200">
               <img
                 src={activeCustomizingItem.imageUrl || fallbackMenuImage}
@@ -6080,7 +6327,7 @@ export default function App() {
               {activeCustomizingItem.eggPrice !== undefined ? (
                 <section className="border-b border-base-300 px-5 py-6">
                   <span className="label-text mb-2 block">
-                    {text.addEgg} +{formatMoney(activeCustomizingItem.eggPrice)}
+                    {text.addEgg} +{formatMoney(addonSettings.eggPrice)}
                   </span>
                   <div className="join">
                     <button
@@ -6115,7 +6362,7 @@ export default function App() {
               {activeCustomizingItem.cheesePrice !== undefined ? (
                 <section className="border-b border-base-300 px-5 py-6">
                   <span className="label-text mb-2 block">
-                    {text.addCheese} +{formatMoney(activeCustomizingItem.cheesePrice)}
+                    {text.addCheese} +{formatMoney(addonSettings.cheesePrice)}
                   </span>
                   <div className="join">
                     <button
@@ -6271,7 +6518,10 @@ export default function App() {
                 />
               </label>
             </div>
+              </>
+            )}
           </div>
+          {activeCustomizingItem ? (
           <div className="border-t border-base-300 p-4 bg-base-100">
             <div className="w-full px-1 md:px-6 lg:px-12">
               <button
@@ -6287,12 +6537,13 @@ export default function App() {
               </button>
             </div>
           </div>
+          ) : null}
         </section>
       ) : null}
 
       {user && (isCartOpen || isCartPage) ? (
         <>
-          <aside className="fixed inset-0 bg-base-100 shadow-2xl z-50 flex flex-col overscroll-none">
+          <aside className="fixed inset-0 z-[2147483600] flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-none bg-base-100 shadow-2xl">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {cartView === "checkout" ? (
@@ -6320,7 +6571,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="p-4 flex-1 overflow-auto overscroll-contain">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
               {staleCartItems.length > 0 ? (
                 <div className="alert alert-warning mb-4 items-start">
                   <div>
@@ -6514,7 +6765,7 @@ export default function App() {
                                   {detail.item.eggPrice !== undefined ? (
                                     <div className="flex items-center justify-between gap-3">
                                       <span className="text-sm">
-                                        {text.addEgg} +{formatMoney(detail.item.eggPrice)}
+                                        {text.addEgg} +{formatMoney(addonSettings.eggPrice)}
                                       </span>
                                       <div className="join">
                                         <button
@@ -6558,7 +6809,7 @@ export default function App() {
                                   {detail.item.cheesePrice !== undefined ? (
                                     <div className="flex items-center justify-between gap-3">
                                       <span className="text-sm">
-                                        {text.addCheese} +{formatMoney(detail.item.cheesePrice)}
+                                        {text.addCheese} +{formatMoney(addonSettings.cheesePrice)}
                                       </span>
                                       <div className="join">
                                         <button
@@ -6857,7 +7108,7 @@ export default function App() {
       ) : null}
 
       {isPickupStatusOpen ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 px-4">
+        <div className="fixed inset-0 z-[2147483646] flex items-center justify-center bg-black/60 px-4">
           <section className="w-full max-w-lg rounded-lg bg-base-100 shadow-2xl">
             <div className="flex items-center justify-between border-b border-base-300 p-4">
               <h2 className="text-xl font-bold">{text.pickupStatus}</h2>
@@ -6899,13 +7150,34 @@ export default function App() {
                   </strong>
                 </div>
               </div>
+              {currentUserReadyOrders().length > 0 ? (
+                <div className="mt-4">
+                  <button
+                    className="btn btn-secondary w-full"
+                    disabled={isPickingUpOrders.length > 0}
+                    onClick={() =>
+                      requestUserPickupConfirmation(
+                        currentUserReadyOrders().map((order) => order.id),
+                      )
+                    }
+                  >
+                    {isPickingUpOrders.length > 0
+                      ? "處理中..."
+                      : `我已取餐 ${pickupNumberList(
+                          currentUserReadyOrders().map(
+                            (order) => order.dailySequence ?? order.id,
+                          ),
+                        )}`}
+                  </button>
+                </div>
+              ) : null}
             </div>
           </section>
         </div>
       ) : null}
 
       {checkoutNotice ? (
-        <div className="fixed left-1/2 top-20 z-[80] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 pointer-events-none">
+        <div className="fixed left-1/2 top-20 z-[2147483647] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 pointer-events-none">
           <div className="alert alert-warning shadow-lg justify-center">
             <span>{checkoutNotice}</span>
           </div>
@@ -6913,7 +7185,7 @@ export default function App() {
       ) : null}
 
       {profileNotice ? (
-        <div className="fixed left-1/2 top-20 z-[80] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 pointer-events-none">
+        <div className="fixed left-1/2 top-20 z-[2147483647] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 pointer-events-none">
           <div className="alert alert-warning shadow-lg justify-center">
             <span>{profileNotice}</span>
           </div>
@@ -6921,7 +7193,7 @@ export default function App() {
       ) : null}
 
       {couponWalletNotice ? (
-        <div className="fixed left-1/2 top-20 z-[80] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 pointer-events-none">
+        <div className="fixed left-1/2 top-20 z-[2147483647] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 pointer-events-none">
           <div className="alert alert-info shadow-lg justify-center">
             <span>{couponWalletNotice}</span>
           </div>
@@ -6929,23 +7201,19 @@ export default function App() {
       ) : null}
 
       {confirmDialog ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4">
+        <div className="fixed inset-0 z-[2147483647] flex items-center justify-center bg-black/60 px-4">
           <section className="w-full max-w-sm rounded-lg bg-base-100 p-5 shadow-2xl">
             <p className="text-lg">{confirmDialog.message}</p>
             <div className="mt-6 flex justify-end gap-2">
               <button
                 className="btn btn-ghost"
-                onClick={() => setConfirmDialog(null)}
+                onClick={() => void closeConfirmDialog(false)}
               >
                 {text.cancel}
               </button>
               <button
                 className="btn btn-primary"
-                onClick={() => {
-                  const onConfirm = confirmDialog.onConfirm;
-                  setConfirmDialog(null);
-                  onConfirm();
-                }}
+                onClick={() => void closeConfirmDialog(true)}
               >
                 {text.confirm}
               </button>

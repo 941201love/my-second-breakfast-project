@@ -828,16 +828,39 @@ app.patch(
 app.patch(
   "/api/orders/:id/pick-up",
   async ({ params, request, set }) => {
-    requireAdmin(request);
     const orderId = parseInt(params.id, 10);
-    const order = await store.pickUpOrder(orderId);
+    const order = store.getOrderById(orderId);
 
     if (!order) {
       set.status = 404;
       return { error: "Order not found or cannot be picked up" };
     }
 
-    return { data: toOrderResponse(order) };
+    let isAuthorized = false;
+    try {
+      const user = await requireUser(request);
+      if (order.userId === user.id) {
+        isAuthorized = true;
+      }
+    } catch {
+      // ignore, user may still be admin
+    }
+
+    if (!isAuthorized && !isAdminRequest(request)) {
+      throw new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const pickedUpOrder = await store.pickUpOrder(orderId);
+
+    if (!pickedUpOrder) {
+      set.status = 404;
+      return { error: "Order not found or cannot be picked up" };
+    }
+
+    return { data: toOrderResponse(pickedUpOrder) };
   },
   {
     params: updateOrderParamsSchema,

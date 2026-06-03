@@ -49,6 +49,11 @@ const host = process.env.HOST || "localhost";
 const allowedOrigin = process.env.API_ALLOWED_ORIGIN || "*";
 const adminUsername = process.env.ADMIN_USERNAME || "admin";
 const adminPassword = process.env.ADMIN_PASSWORD || "admin1234";
+const defaultAdminBranchPasswords: Record<string, string> = {
+  taipei: "taipei1234",
+  tainan: "tainan1234",
+  kaohsiung: "kaohsiung1234",
+};
 const adminBranchPasswords = (process.env.ADMIN_BRANCH_PASSWORDS || "")
   .split(",")
   .map((entry) => entry.trim())
@@ -60,6 +65,9 @@ const adminBranchPasswords = (process.env.ADMIN_BRANCH_PASSWORDS || "")
     }
     return mapping;
   }, {});
+if (Object.keys(adminBranchPasswords).length === 0) {
+  Object.assign(adminBranchPasswords, defaultAdminBranchPasswords);
+}
 const adminSessionSecret =
   process.env.ADMIN_SESSION_SECRET || "change-this-admin-session-secret";
 const isProduction =

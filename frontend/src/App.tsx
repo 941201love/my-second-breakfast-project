@@ -1171,6 +1171,7 @@ export default function App() {
     storeCode: "",
   });
   const [adminStoreCode, setAdminStoreCode] = useState<string | null>(null);
+  const [orderStoreCode, setOrderStoreCode] = useState<string>("");
   const [adminError, setAdminError] = useState("");
   const [kitchenPage, setKitchenPage] = useState(1);
   const [kitchenLoading, setKitchenLoading] = useState(false);
@@ -2010,6 +2011,32 @@ export default function App() {
     void restoreAdmin();
   }, [isAdminPage, loading, items]);
 
+  useEffect(() => {
+    const storedOrderStoreCode = window.localStorage.getItem(
+      "breakfast-order-store-code",
+    );
+    if (adminStoreCode) {
+      setOrderStoreCode(adminStoreCode);
+      window.localStorage.setItem(
+        "breakfast-order-store-code",
+        adminStoreCode,
+      );
+      return;
+    }
+    if (storedOrderStoreCode) {
+      setOrderStoreCode(storedOrderStoreCode);
+    }
+  }, [adminStoreCode]);
+
+  useEffect(() => {
+    if (!adminStoreCode && orderStoreCode) {
+      window.localStorage.setItem(
+        "breakfast-order-store-code",
+        orderStoreCode,
+      );
+    }
+  }, [adminStoreCode, orderStoreCode]);
+
   const cartItemCount = useMemo(
     () => Object.values(cartQtyByItemId).reduce((sum, qty) => sum + qty, 0),
     [cartQtyByItemId],
@@ -2226,11 +2253,16 @@ export default function App() {
       return orderId;
     }
 
+    const requestPayload = adminStoreCode
+      ? { storeCode: adminStoreCode }
+      : orderStoreCode
+      ? { storeCode: orderStoreCode }
+      : {};
     const response = await fetch(buildApiUrl("/api/orders"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({}),
+      body: JSON.stringify(requestPayload),
     });
 
     if (!response.ok) {
@@ -3628,6 +3660,7 @@ export default function App() {
             customerName: customerName.trim() || user.name,
             customerPhone: normalizedPhone,
             pickupTime: pickupTime.trim() || undefined,
+            storeCode: adminStoreCode || orderStoreCode || undefined,
           }),
         },
       );
@@ -7383,6 +7416,36 @@ export default function App() {
                     }}
                     required
                   />
+                  {adminStoreCode ? (
+                    <div className="rounded-lg border border-base-300 bg-base-200 p-3 text-sm">
+                      <div className="font-semibold">門市已指定</div>
+                      <div>
+                        {adminStoreCode === "taipei"
+                          ? "台北分店"
+                          : adminStoreCode === "tainan"
+                          ? "台南分店"
+                          : adminStoreCode === "kaohsiung"
+                          ? "高雄分店"
+                          : adminStoreCode}
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="form-control">
+                      <span className="label-text">門市</span>
+                      <select
+                        className="select select-bordered w-full"
+                        value={orderStoreCode}
+                        onChange={(event) => {
+                          setOrderStoreCode(event.currentTarget.value);
+                        }}
+                      >
+                        <option value="">請選擇門市</option>
+                        <option value="taipei">台北分店</option>
+                        <option value="tainan">台南分店</option>
+                        <option value="kaohsiung">高雄分店</option>
+                      </select>
+                    </label>
+                  )}
                   <input
                     className="input input-bordered w-full"
                     placeholder={text.pickupTimePlaceholder}

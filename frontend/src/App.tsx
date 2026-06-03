@@ -3984,12 +3984,54 @@ export default function App() {
   }
 
   if (isAdminPage) {
+    const storeNameMapping: Record<string, string> = {
+      taipei: "台北",
+      tainan: "台南",
+      kaohsiung: "高雄",
+    };
+
+    const adminTitle = adminStoreCode
+      ? `${storeNameMapping[adminStoreCode] ?? adminStoreCode}分店管理後台`
+      : "博翔早餐店管理後台";
+
+    const modules = [
+      {
+        path: "/admin/orders",
+        title: "訂單與營收",
+        description: "歷史訂單、日期區間營收",
+      },
+      {
+        path: "/kitchen",
+        title: "後廚 POS",
+        description: "簡化製作畫面，最多 8 張待製作訂單",
+      },
+      {
+        path: "/admin/menu",
+        title: "菜單與加料",
+        description: "商品、圖片、售價與共用加料",
+      },
+      ...(adminStoreCode
+        ? []
+        : [
+            {
+              path: "/admin/coupons",
+              title: "促銷與優惠券",
+              description: "優惠條件、數量與期限",
+            },
+          ]),
+      {
+        path: "/admin/reports",
+        title: "銷售統計",
+        description: "熱門品項與下單時段",
+      },
+    ];
+
     return (
       <div className="min-h-screen bg-base-200">
         <div className="navbar bg-base-100 shadow-lg">
           <div className="flex-1">
             <a className="normal-case text-2xl font-bold px-2" href="/admin">
-              博翔早餐店管理後台
+              {adminTitle}
             </a>
           </div>
           <div className="flex-none flex flex-wrap gap-2">
@@ -4220,33 +4262,7 @@ export default function App() {
           </section>
 
           <section className={`${isAdminDashboardPage ? "" : "hidden "}grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4`}>
-            {[
-              {
-                path: "/admin/orders",
-                title: "訂單與營收",
-                description: "歷史訂單、日期區間營收",
-              },
-              {
-                path: "/kitchen",
-                title: "後廚 POS",
-                description: "簡化製作畫面，最多 8 張待製作訂單",
-              },
-              {
-                path: "/admin/menu",
-                title: "菜單與加料",
-                description: "商品、圖片、售價與共用加料",
-              },
-              {
-                path: "/admin/coupons",
-                title: "促銷與優惠券",
-                description: "優惠條件、數量與期限",
-              },
-              {
-                path: "/admin/reports",
-                title: "銷售統計",
-                description: "熱門品項與下單時段",
-              },
-            ].map((module) => (
+            {modules.map((module) => (
               <button
                 key={module.path}
                 className="rounded-lg border border-base-300 bg-base-100 p-4 text-left shadow transition hover:border-primary"
@@ -5350,6 +5366,11 @@ export default function App() {
           </section>
 
           <section className={isAdminCouponsPage ? "" : "hidden"}>
+            {adminStoreCode ? (
+              <div className="alert bg-base-100">
+                <span>注意：促銷管理僅限總部帳號，分店無法建立或刪除促銷。</span>
+              </div>
+            ) : null}
             <h2 className="text-2xl font-bold mb-3">目前促銷</h2>
             <div className="mb-4 rounded-lg bg-base-100 p-4 shadow">
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -5487,6 +5508,7 @@ export default function App() {
               <button
                 className="btn btn-primary mt-3 w-full"
                 onClick={() => void createAdminPromotion()}
+                disabled={Boolean(adminStoreCode)}
               >
                 新增促銷
               </button>
@@ -5532,6 +5554,11 @@ export default function App() {
           </section>
 
           <section className={isAdminCouponsPage ? "" : "hidden"}>
+            {adminStoreCode ? (
+              <div className="alert bg-base-100">
+                <span>注意：優惠券管理僅限總部帳號，分店無法建立或刪除優惠券。</span>
+              </div>
+            ) : null}
             <h2 className="text-2xl font-bold mb-3">優惠券管理</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="card bg-base-100 shadow">
@@ -5766,6 +5793,7 @@ export default function App() {
                     onClick={() => {
                       void createAdminCoupon();
                     }}
+                    disabled={Boolean(adminStoreCode)}
                   >
                     {editingCouponCode ? "更新優惠券" : "新增優惠券"}
                   </button>

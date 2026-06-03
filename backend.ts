@@ -166,6 +166,35 @@ function requireAdmin(request: Request) {
   });
 }
 
+function requireHeadquarter(request: Request) {
+  const cookie = request.headers.get("cookie") ?? "";
+  const session = cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("admin_session="))
+    ?.split("=")[1];
+  if (!session) {
+    throw new Response(JSON.stringify({ error: "Admin unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Only the headquarter admin username is allowed to manage promotions/coupons
+  const expected = signAdminSession(adminUsername);
+  const sessionBuffer = Buffer.from(session);
+  const expectedBuffer = Buffer.from(expected);
+  const ok =
+    sessionBuffer.length === expectedBuffer.length &&
+    timingSafeEqual(sessionBuffer, expectedBuffer);
+  if (ok) return;
+
+  throw new Response(JSON.stringify({ error: "Headquarter admin required" }), {
+    status: 401,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 function adminCookie(value: string, maxAge: number) {
   const secure = isProduction ? "; Secure" : "";
   return `admin_session=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secure}`;
@@ -531,7 +560,7 @@ app.get(
 app.get(
   "/api/promotions",
   async ({ request }) => {
-    requireAdmin(request);
+    requireHeadquarter(request);
     return { data: await menuRepository.getPromotions() };
   },
   {
@@ -544,7 +573,7 @@ app.get(
 app.post(
   "/api/promotions",
   async ({ body, request, set }) => {
-    requireAdmin(request);
+    requireHeadquarter(request);
     const promotion = await menuRepository.createPromotion(body);
     set.status = 201;
     return { data: promotion };
@@ -560,7 +589,7 @@ app.post(
 app.delete(
   "/api/promotions/:id",
   async ({ params, request, set }) => {
-    requireAdmin(request);
+    requireHeadquarter(request);
     const promotion = await menuRepository.deletePromotion(
       Number.parseInt(params.id, 10),
     );
@@ -588,7 +617,7 @@ app.get("/api/coupons", () => ({ data: [...store.getCoupons()] }), {
 app.post(
   "/api/coupons",
   async ({ body, request }) => {
-    requireAdmin(request);
+    requireHeadquarter(request);
     const coupon = await store.createCoupon({
       code: body.code,
       name: body.name,
@@ -616,7 +645,7 @@ app.post(
 app.delete(
   "/api/coupons/:code",
   async ({ params, request, set }) => {
-    requireAdmin(request);
+    requireHeadquarter(request);
     const coupon = await store.deleteCoupon(params.code);
     if (!coupon) {
       set.status = 404;

@@ -49,6 +49,17 @@ const host = process.env.HOST || "localhost";
 const allowedOrigin = process.env.API_ALLOWED_ORIGIN || "*";
 const adminUsername = process.env.ADMIN_USERNAME || "admin";
 const adminPassword = process.env.ADMIN_PASSWORD || "admin1234";
+const adminBranchPasswords = (process.env.ADMIN_BRANCH_PASSWORDS || "")
+  .split(",")
+  .map((entry) => entry.trim())
+  .filter(Boolean)
+  .reduce<Record<string, string>>((mapping, entry) => {
+    const [code, password] = entry.split(":").map((part) => part.trim());
+    if (code && password) {
+      mapping[code] = password;
+    }
+    return mapping;
+  }, {});
 const adminSessionSecret =
   process.env.ADMIN_SESSION_SECRET || "change-this-admin-session-secret";
 const isProduction =
@@ -106,8 +117,24 @@ async function requireUser(request: Request) {
   return user;
 }
 
-function signAdminSession(username: string) {
-  return createHmac("sha256", adminSessionSecret).update(username).digest("hex");
+function signAdminSession(sessionKey: string) {
+  return createHmac("sha256", adminSessionSecret).update(sessionKey).digest("hex");
+}
+
+function isAdminSessionValue(session: string) {
+  const validKeys = [adminUsername, ...Object.keys(adminBranchPasswords).map(
+    (code) => `branch:${code}`,
+  )];
+
+  return validKeys.some((sessionKey) => {
+    const expected = signAdminSession(sessionKey);
+    const sessionBuffer = Buffer.from(session);
+    const expectedBuffer = Buffer.from(expected);
+    return (
+      sessionBuffer.length === expectedBuffer.length &&
+      timingSafeEqual(sessionBuffer, expectedBuffer)
+    );
+  });
 }
 
 function isAdminRequest(request: Request) {
@@ -119,13 +146,7 @@ function isAdminRequest(request: Request) {
     ?.split("=")[1];
   if (!session) return false;
 
-  const expected = signAdminSession(adminUsername);
-  const sessionBuffer = Buffer.from(session);
-  const expectedBuffer = Buffer.from(expected);
-  return (
-    sessionBuffer.length === expectedBuffer.length &&
-    timingSafeEqual(sessionBuffer, expectedBuffer)
-  );
+  return isAdminSessionValue(session);
 }
 
 function requireAdmin(request: Request) {
@@ -304,7 +325,24 @@ app.post(
   ({ body, request }) => {
     checkAdminLoginRateLimit(request);
 
-    if (body.username !== adminUsername || body.password !== adminPassword) {
+    let sessionKey: string | null = null;
+    const storeCode = body.storeCode?.trim();
+
+    if (storeCode) {
+      const branchPassword = adminBranchPasswords[storeCode];
+      if (!branchPassword || body.password !== branchPassword) {
+        recordAdminLoginFailure(request);
+        throw new Response(JSON.stringify({ error: "Invalid admin login" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      sessionKey = `branch:${storeCode}`;
+    } else if (body.username === adminUsername && body.password === adminPassword) {
+      sessionKey = adminUsername;
+    }
+
+    if (!sessionKey) {
       recordAdminLoginFailure(request);
       throw new Response(JSON.stringify({ error: "Invalid admin login" }), {
         status: 401,
@@ -314,11 +352,11 @@ app.post(
 
     clearAdminLoginFailures(request);
     return new Response(
-      JSON.stringify({ data: { username: adminUsername } }),
+      JSON.stringify({ data: { username: sessionKey } }),
       {
         headers: {
           "Content-Type": "application/json",
-          "Set-Cookie": adminCookie(signAdminSession(adminUsername), 86400),
+          "Set-Cookie": adminCookie(signAdminSession(sessionKey), 86400),
         },
       },
     );

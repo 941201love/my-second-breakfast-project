@@ -106,9 +106,15 @@ export const updateMenuItemBodySchema = z.object({
 });
 
 export const adminLoginBodySchema = z.object({
-  username: z.string().min(1),
+  username: z.string().min(1).optional(),
   password: z.string().min(1),
-});
+  storeCode: z.string().min(1).optional(),
+}).refine(
+  (value) => Boolean(value.storeCode) || Boolean(value.username),
+  {
+    message: "Username or storeCode is required",
+  },
+);
 
 export const adminLoginResponseSchema = z.object({
   data: z.object({

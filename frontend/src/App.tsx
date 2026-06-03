@@ -1078,6 +1078,7 @@ export default function App() {
   const adminEditProductLogicalId = isAdminEditProductPage
     ? decodeURIComponent(currentPath.replace(/^\/admin\/edit-product\//, ""))
     : "";
+  const isKitchenPage = currentPath === "/kitchen";
   const isAdminProductFormPage =
     isAdminAddProductPage || isAdminEditProductPage;
   const isCartPage = currentPath === "/cart";
@@ -1140,10 +1141,17 @@ export default function App() {
   const [adminAuthed, setAdminAuthed] = useState(false);
   const [isAdminMenuFormOpen, setIsAdminMenuFormOpen] = useState(false);
   const [adminLogin, setAdminLogin] = useState({
-    username: "admin",
+    username: "",
     password: "admin1234",
+    storeCode: "",
   });
   const [adminError, setAdminError] = useState("");
+  const [kitchenPage, setKitchenPage] = useState(1);
+  const [kitchenLoading, setKitchenLoading] = useState(false);
+  const [kitchenStaffName, setKitchenStaffName] = useState("");
+  const [kitchenClockIns, setKitchenClockIns] = useState<
+    { name: string; checkedAt: string }[]
+  >([]);
   const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>(
     [],
   );
@@ -2109,6 +2117,22 @@ export default function App() {
     [adminHistoryDate, adminOrders],
   );
 
+  const kitchenOrders = useMemo(
+    () => adminOrders.filter((order) => order.status === "submitted"),
+    [adminOrders],
+  );
+
+  const kitchenPageCount = Math.max(
+    1,
+    Math.ceil(kitchenOrders.length / 8),
+  );
+
+  const kitchenPageOrders = useMemo(
+    () =>
+      kitchenOrders.slice((kitchenPage - 1) * 8, kitchenPage * 8),
+    [kitchenOrders, kitchenPage],
+  );
+
   function couponUsedCount(coupon: Coupon) {
     return adminOrders.filter(
       (order) =>
@@ -2340,6 +2364,63 @@ export default function App() {
     setVersionHistoryByLogicalId({});
     navigate("/admin");
   }
+
+  async function loadKitchenData(): Promise<void> {
+    if (!adminAuthed) return;
+    setKitchenLoading(true);
+    try {
+      await loadAdminData({ clearNotice: false });
+    } finally {
+      setKitchenLoading(false);
+    }
+  }
+
+  function loadKitchenClockIns(): void {
+    const key = `breakfast-kitchen-clockins:${todayTaipeiDate()}`;
+    const stored = window.localStorage.getItem(key);
+    if (!stored) {
+      setKitchenClockIns([]);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(stored) as { name: string; checkedAt: string }[];
+      setKitchenClockIns(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setKitchenClockIns([]);
+    }
+  }
+
+  function saveKitchenClockIns(clockIns: { name: string; checkedAt: string }[]): void {
+    const key = `breakfast-kitchen-clockins:${todayTaipeiDate()}`;
+    window.localStorage.setItem(key, JSON.stringify(clockIns));
+  }
+
+  function handleKitchenClockIn(): void {
+    const name = kitchenStaffName.trim();
+    if (!name) return;
+
+    const nextClockIns = [
+      { name, checkedAt: formatTaipeiDateTime(new Date().toISOString()) },
+      ...kitchenClockIns.filter((entry) => entry.name !== name),
+    ];
+    setKitchenClockIns(nextClockIns.slice(0, 10));
+    saveKitchenClockIns(nextClockIns.slice(0, 10));
+    setKitchenStaffName("");
+  }
+
+  useEffect(() => {
+    if (!isKitchenPage) return;
+    loadKitchenClockIns();
+    if (adminAuthed) {
+      void loadKitchenData();
+    }
+  }, [isKitchenPage, adminAuthed]);
+
+  useEffect(() => {
+    if (!isKitchenPage) return;
+    setKitchenPage(1);
+  }, [isKitchenPage]);
 
   async function createAdminPromotion(): Promise<void> {
     const name = newPromotion.name.trim();
@@ -3839,6 +3920,18 @@ export default function App() {
                 <h2 className="card-title">後台登入</h2>
                 <input
                   className="input input-bordered"
+                  value={adminLogin.storeCode}
+                  onChange={(event) => {
+                    const storeCode = event.currentTarget.value;
+                    setAdminLogin((current) => ({
+                      ...current,
+                      storeCode,
+                    }));
+                  }}
+                  placeholder="門市代號（分店）"
+                />
+                <input
+                  className="input input-bordered"
                   value={adminLogin.username}
                   onChange={(event) => {
                     const username = event.currentTarget.value;
@@ -3847,7 +3940,7 @@ export default function App() {
                       username,
                     }));
                   }}
-                  placeholder="帳號"
+                  placeholder="帳號（總部）"
                 />
                 <input
                   className="input input-bordered"
@@ -3863,7 +3956,7 @@ export default function App() {
                   placeholder="密碼"
                 />
                 <p className="text-xs opacity-60">
-                  預設帳號 admin，預設密碼 admin1234。
+                  如果是分店，請輸入門市代號與分店密碼；總部請輸入帳號與密碼。
                 </p>
                 <button
                   className="btn btn-primary"
@@ -3941,6 +4034,11 @@ export default function App() {
                 description: "歷史訂單、日期區間營收",
               },
               {
+                path: "/kitchen",
+                title: "後廚 POS",
+                description: "簡化製作畫面，最多 8 張待製作訂單",
+              },
+              {
                 path: "/admin/menu",
                 title: "菜單與加料",
                 description: "商品、圖片、售價與共用加料",
@@ -3965,6 +4063,151 @@ export default function App() {
                 <div className="mt-1 text-sm opacity-60">{module.description}</div>
               </button>
             ))}
+          </section>
+
+          <section className={`${isKitchenPage ? "" : "hidden "}space-y-5`}>
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">後廚 POS</h1>
+                <p className="text-sm opacity-60">
+                  只顯示訂單號、製作時間、品項與完成操作，最多 8 筆訂單並支援分頁。
+                </p>
+              </div>
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={() => navigate("/admin")}
+              >
+                返回後台
+              </button>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+              <div className="space-y-4">
+                {kitchenLoading ? (
+                  <div className="rounded-lg border border-base-300 bg-base-100 p-6 text-center">
+                    讀取中...
+                  </div>
+                ) : kitchenPageOrders.length === 0 ? (
+                  <div className="rounded-lg border border-base-300 bg-base-100 p-6 text-center">
+                    目前沒有待製作訂單。
+                  </div>
+                ) : (
+                  kitchenPageOrders.map((order) => {
+                    const waitMinutes = orderWaitMinutes(order);
+                    return (
+                      <article
+                        key={order.id}
+                        className={`rounded-xl border p-4 shadow transition ${
+                          order.status === "submitted"
+                            ? "bg-base-100"
+                            : "bg-success/10"
+                        }`}
+                      >
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm opacity-70">單號</p>
+                            <p className="text-2xl font-bold">
+                              #{order.dailySequence ?? order.id}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm opacity-70">製作時間</p>
+                            <p className="text-xl font-semibold">
+                              {waitMinutes} 分鐘
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mb-3 border-t border-base-300 pt-3 text-sm text-slate-800">
+                          <div className="mb-2 text-xs opacity-70">下單時間</div>
+                          <div>{formatTaipeiDateTime(order.submittedAt)}</div>
+                        </div>
+                        <div className="mb-4 space-y-2 text-sm">
+                          {order.items.map((item, index) => (
+                            <div
+                              key={`${order.id}-${item.id ?? item.menuItemId}-${index}`}
+                              className="rounded-lg border border-base-300 bg-base-200 p-3"
+                            >
+                              <div className="font-semibold">
+                                {item.menuItemName} x {item.qty}
+                              </div>
+                              {orderItemIsDrink(item) ? (
+                                <div className="text-xs opacity-70">
+                                  {item.sugarLevel ? sugarLabel(item.sugarLevel) : "正常糖"} / {item.iceLevel ? iceLabel(item.iceLevel) : "正常冰"}
+                                </div>
+                              ) : null}
+                              {item.note ? (
+                                <div className="text-xs opacity-70">備註：{item.note}</div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                        <button
+                          className="btn btn-block btn-primary"
+                          disabled={adminOrderActionId !== null}
+                          onClick={() => {
+                            void completeAdminOrder(order.id);
+                          }}
+                        >
+                          {adminOrderActionId === order.id ? "處理中..." : "標記完成"}
+                        </button>
+                      </article>
+                    );
+                  })
+                )}
+
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    className="btn btn-sm"
+                    disabled={kitchenPage <= 1}
+                    onClick={() => setKitchenPage((current) => Math.max(1, current - 1))}
+                  >
+                    上一頁
+                  </button>
+                  <span className="text-sm opacity-70">
+                    第 {kitchenPage} / {kitchenPageCount} 頁
+                  </span>
+                  <button
+                    className="btn btn-sm"
+                    disabled={kitchenPage >= kitchenPageCount}
+                    onClick={() => setKitchenPage((current) => Math.min(kitchenPageCount, current + 1))}
+                  >
+                    下一頁
+                  </button>
+                </div>
+              </div>
+              <aside className="rounded-xl border border-base-300 bg-base-100 p-4 shadow">
+                <h2 className="text-lg font-bold">打卡紀錄</h2>
+                <p className="text-sm opacity-60">輸入姓名即可加入當日打卡名單。</p>
+                <label className="form-control mt-4">
+                  <span className="label-text">員工姓名</span>
+                  <input
+                    className="input input-bordered"
+                    value={kitchenStaffName}
+                    onChange={(event) => setKitchenStaffName(event.currentTarget.value)}
+                    placeholder="例如：小明"
+                  />
+                </label>
+                <button
+                  className="btn btn-primary mt-3 w-full"
+                  onClick={handleKitchenClockIn}
+                  disabled={!kitchenStaffName.trim()}
+                >
+                  打卡
+                </button>
+                <div className="mt-6 space-y-2">
+                  {kitchenClockIns.length === 0 ? (
+                    <div className="text-sm opacity-60">今天尚未有人打卡。</div>
+                  ) : (
+                    kitchenClockIns.map((entry) => (
+                      <div key={`${entry.name}-${entry.checkedAt}`} className="rounded-lg border border-base-300 bg-base-200 p-3">
+                        <div className="font-semibold">{entry.name}</div>
+                        <div className="text-xs opacity-70">{entry.checkedAt}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </aside>
+            </div>
           </section>
 
           <section className={`${isAdminOrdersPage ? "" : "hidden "}rounded-lg bg-base-100 p-5 shadow`}>

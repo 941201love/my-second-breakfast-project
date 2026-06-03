@@ -42,6 +42,19 @@ function formatTaipeiDateTime(value?: string) {
   });
 }
 
+function formatTaipeiTime(value?: string) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleTimeString("zh-TW", {
+    timeZone: "Asia/Taipei",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 function orderStatusLabel(status: Order["status"]) {
   if (status === "picked_up") return "已取貨";
   if (status === "completed") return "已完成";
@@ -227,6 +240,15 @@ type CartDetail = {
   item: MenuItem;
   orderItem: OrderItem;
   subtotal: number;
+};
+
+type KitchenClockRecord = {
+  employee: string;
+  storeCode: string;
+  date: string;
+  timeIn: string;
+  timeOut: string | null;
+  durationMinutes: number | null;
 };
 
 const sugarOptions = ["正常糖", "少糖", "半糖", "微糖", "無糖"];
@@ -1140,18 +1162,20 @@ export default function App() {
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminAuthed, setAdminAuthed] = useState(false);
   const [isAdminMenuFormOpen, setIsAdminMenuFormOpen] = useState(false);
+  const [adminLoginMode, setAdminLoginMode] = useState<"branch" | "headquarter">(
+    "branch",
+  );
   const [adminLogin, setAdminLogin] = useState({
     username: "",
-    password: "admin1234",
+    password: "",
     storeCode: "",
   });
+  const [adminStoreCode, setAdminStoreCode] = useState<string | null>(null);
   const [adminError, setAdminError] = useState("");
   const [kitchenPage, setKitchenPage] = useState(1);
   const [kitchenLoading, setKitchenLoading] = useState(false);
   const [kitchenStaffName, setKitchenStaffName] = useState("");
-  const [kitchenClockIns, setKitchenClockIns] = useState<
-    { name: string; checkedAt: string }[]
-  >([]);
+  const [clockRecords, setClockRecords] = useState<KitchenClockRecord[]>([]);
   const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>(
     [],
   );
@@ -1973,6 +1997,12 @@ export default function App() {
       });
       if (response.ok) {
         setAdminAuthed(true);
+        const storedStoreCode = window.localStorage.getItem(
+          "breakfast-admin-store-code",
+        );
+        if (storedStoreCode) {
+          setAdminStoreCode(storedStoreCode);
+        }
         await loadAdminData();
       }
     }
@@ -2132,6 +2162,47 @@ export default function App() {
       kitchenOrders.slice((kitchenPage - 1) * 8, kitchenPage * 8),
     [kitchenOrders, kitchenPage],
   );
+
+  const kitchenEmployeeSummaries = useMemo(() => {
+    const today = todayTaipeiDate();
+    const currentMonth = today.slice(0, 7);
+    const summary = new Map<
+      string,
+      {
+        todayMinutes: number;
+        monthMinutes: number;
+        openShift: KitchenClockRecord | null;
+      }
+    >();
+
+    for (const record of clockRecords) {
+      const current = summary.get(record.employee) ?? {
+        todayMinutes: 0,
+        monthMinutes: 0,
+        openShift: null,
+      };
+
+      if (record.timeOut && record.durationMinutes != null) {
+        if (record.date === today) {
+          current.todayMinutes += record.durationMinutes;
+        }
+        if (record.date.startsWith(currentMonth)) {
+          current.monthMinutes += record.durationMinutes;
+        }
+      }
+
+      if (record.date === today && record.timeOut === null) {
+        current.openShift = record;
+      }
+
+      summary.set(record.employee, current);
+    }
+
+    return Array.from(summary.entries()).map(([employee, stats]) => ({
+      employee,
+      ...stats,
+    }));
+  }, [clockRecords]);
 
   function couponUsedCount(coupon: Coupon) {
     return adminOrders.filter(
@@ -2335,19 +2406,53 @@ export default function App() {
 
   async function handleAdminLogin(): Promise<void> {
     setAdminError("");
+    const trimmedPassword = adminLogin.password.trim();
+    const trimmedStoreCode = adminLogin.storeCode.trim();
+    const trimmedUsername = adminLogin.username.trim();
+
+    if (!trimmedPassword) {
+      setAdminError("請輸入密碼。分店與總部都需要密碼。\n");
+      return;
+    }
+
+    if (adminLoginMode === "branch" && !trimmedStoreCode) {
+      setAdminError("請輸入門市代號。分店登入需要門市代號與密碼。\n");
+      return;
+    }
+
+    if (adminLoginMode === "headquarter" && !trimmedUsername) {
+      setAdminError("請輸入總部帳號。總部登入需要帳號與密碼。\n");
+      return;
+    }
+
+    const loginPayload = {
+      storeCode: adminLoginMode === "branch" ? trimmedStoreCode : undefined,
+      username: adminLoginMode === "headquarter" ? trimmedUsername : undefined,
+      password: trimmedPassword,
+    };
+
     const response = await fetch(buildApiUrl("/api/admin/login"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify(adminLogin),
+      body: JSON.stringify(loginPayload),
     });
 
     if (!response.ok) {
-      setAdminError("後台登入失敗，請確認帳號密碼。");
+      setAdminError("後台登入失敗，請確認分店或總部密碼。\n");
       return;
     }
 
     setAdminAuthed(true);
+    if (adminLoginMode === "branch") {
+      const branchCode = trimmedStoreCode;
+      setAdminStoreCode(branchCode);
+      window.localStorage.setItem("breakfast-admin-store-code", branchCode);
+    } else {
+      setAdminStoreCode(null);
+      window.localStorage.removeItem("breakfast-admin-store-code");
+    }
+
     await loadAdminData();
   }
 
@@ -2357,6 +2462,8 @@ export default function App() {
       credentials: "include",
     });
     setAdminAuthed(false);
+    setAdminStoreCode(null);
+    window.localStorage.removeItem("breakfast-admin-store-code");
     setAdminError("");
     setAdminOrders([]);
     setCoupons([]);
@@ -2375,47 +2482,100 @@ export default function App() {
     }
   }
 
-  function loadKitchenClockIns(): void {
-    const key = `breakfast-kitchen-clockins:${todayTaipeiDate()}`;
-    const stored = window.localStorage.getItem(key);
-    if (!stored) {
-      setKitchenClockIns([]);
-      return;
-    }
+  const kitchenClockStorageKey = "breakfast-kitchen-clock-records";
+
+  function loadKitchenClockRecords(storeCode: string): KitchenClockRecord[] {
+    const stored = window.localStorage.getItem(kitchenClockStorageKey);
+    if (!stored) return [];
 
     try {
-      const parsed = JSON.parse(stored) as { name: string; checkedAt: string }[];
-      setKitchenClockIns(Array.isArray(parsed) ? parsed : []);
+      const parsed = JSON.parse(stored);
+      if (!parsed || typeof parsed !== "object") return [];
+      const storeData = parsed[storeCode];
+      return Array.isArray(storeData) ? storeData : [];
     } catch {
-      setKitchenClockIns([]);
+      return [];
     }
   }
 
-  function saveKitchenClockIns(clockIns: { name: string; checkedAt: string }[]): void {
-    const key = `breakfast-kitchen-clockins:${todayTaipeiDate()}`;
-    window.localStorage.setItem(key, JSON.stringify(clockIns));
+  function saveKitchenClockRecords(
+    storeCode: string,
+    records: KitchenClockRecord[],
+  ): void {
+    const stored = window.localStorage.getItem(kitchenClockStorageKey);
+    let allData: Record<string, KitchenClockRecord[]> = {};
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === "object") {
+          allData = parsed;
+        }
+      } catch {
+        allData = {};
+      }
+    }
+
+    allData[storeCode] = records;
+    window.localStorage.setItem(kitchenClockStorageKey, JSON.stringify(allData));
   }
 
-  function handleKitchenClockIn(): void {
-    const name = kitchenStaffName.trim();
-    if (!name) return;
+  function handleKitchenClockToggle(): void {
+    const employee = kitchenStaffName.trim();
+    const storeCode = adminStoreCode?.trim();
+    if (!employee || !storeCode) return;
 
-    const nextClockIns = [
-      { name, checkedAt: formatTaipeiDateTime(new Date().toISOString()) },
-      ...kitchenClockIns.filter((entry) => entry.name !== name),
-    ];
-    setKitchenClockIns(nextClockIns.slice(0, 10));
-    saveKitchenClockIns(nextClockIns.slice(0, 10));
+    const today = todayTaipeiDate();
+    const activeShift = clockRecords.find(
+      (record) =>
+        record.employee === employee &&
+        record.date === today &&
+        record.timeOut === null,
+    );
+
+    let nextRecords = [...clockRecords];
+    if (activeShift) {
+      const timeOut = new Date().toISOString();
+      const startTime = new Date(activeShift.timeIn).getTime();
+      const endTime = new Date(timeOut).getTime();
+      const minutes = Math.max(0, Math.round((endTime - startTime) / 60000));
+      nextRecords = nextRecords.map((record) =>
+        record === activeShift
+          ? {
+            ...record,
+            timeOut,
+            durationMinutes: minutes,
+          }
+          : record,
+      );
+    } else {
+      nextRecords = [
+        {
+          employee,
+          storeCode,
+          date: today,
+          timeIn: new Date().toISOString(),
+          timeOut: null,
+          durationMinutes: null,
+        },
+        ...nextRecords,
+      ];
+    }
+
+    setClockRecords(nextRecords);
+    saveKitchenClockRecords(storeCode, nextRecords);
     setKitchenStaffName("");
   }
 
   useEffect(() => {
     if (!isKitchenPage) return;
-    loadKitchenClockIns();
+    if (adminStoreCode) {
+      const records = loadKitchenClockRecords(adminStoreCode);
+      setClockRecords(records);
+    }
     if (adminAuthed) {
       void loadKitchenData();
     }
-  }, [isKitchenPage, adminAuthed]);
+  }, [isKitchenPage, adminAuthed, adminStoreCode]);
 
   useEffect(() => {
     if (!isKitchenPage) return;
@@ -3918,30 +4078,61 @@ export default function App() {
             <section className="max-w-md mx-auto card bg-base-100 shadow">
               <div className="card-body">
                 <h2 className="card-title">後台登入</h2>
-                <input
-                  className="input input-bordered"
-                  value={adminLogin.storeCode}
-                  onChange={(event) => {
-                    const storeCode = event.currentTarget.value;
-                    setAdminLogin((current) => ({
-                      ...current,
-                      storeCode,
-                    }));
-                  }}
-                  placeholder="門市代號（分店）"
-                />
-                <input
-                  className="input input-bordered"
-                  value={adminLogin.username}
-                  onChange={(event) => {
-                    const username = event.currentTarget.value;
-                    setAdminLogin((current) => ({
-                      ...current,
-                      username,
-                    }));
-                  }}
-                  placeholder="帳號（總部）"
-                />
+                <div className="btn-group mb-4">
+                  <button
+                    className={`btn btn-sm ${adminLoginMode === "branch" ? "btn-primary" : "btn-outline"}`}
+                    type="button"
+                    onClick={() => setAdminLoginMode("branch")}
+                  >
+                    分店登入
+                  </button>
+                  <button
+                    className={`btn btn-sm ${adminLoginMode === "headquarter" ? "btn-primary" : "btn-outline"}`}
+                    type="button"
+                    onClick={() => setAdminLoginMode("headquarter")}
+                  >
+                    總部登入
+                  </button>
+                </div>
+
+                {adminLoginMode === "branch" ? (
+                  <>
+                    <input
+                      className="input input-bordered"
+                      value={adminLogin.storeCode}
+                      onChange={(event) => {
+                        const storeCode = event.currentTarget.value;
+                        setAdminLogin((current) => ({
+                          ...current,
+                          storeCode,
+                        }));
+                      }}
+                      placeholder="門市代號（分店）"
+                    />
+                    <p className="text-xs opacity-60 mb-3">
+                      分店登入需輸入門市代號與分店密碼。
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      className="input input-bordered"
+                      value={adminLogin.username}
+                      onChange={(event) => {
+                        const username = event.currentTarget.value;
+                        setAdminLogin((current) => ({
+                          ...current,
+                          username,
+                        }));
+                      }}
+                      placeholder="帳號（總部）"
+                    />
+                    <p className="text-xs opacity-60 mb-3">
+                      總部登入需輸入帳號與總部密碼。
+                    </p>
+                  </>
+                )}
+
                 <input
                   className="input input-bordered"
                   type="password"
@@ -3955,11 +4146,13 @@ export default function App() {
                   }}
                   placeholder="密碼"
                 />
-                <p className="text-xs opacity-60">
-                  如果是分店，請輸入門市代號與分店密碼；總部請輸入帳號與密碼。
-                </p>
+                {adminError ? (
+                  <div className="text-sm text-error mt-2 whitespace-pre-line">
+                    {adminError}
+                  </div>
+                ) : null}
                 <button
-                  className="btn btn-primary"
+                  className="btn btn-primary mt-4"
                   onClick={() => {
                     void handleAdminLogin();
                   }}
@@ -4177,7 +4370,11 @@ export default function App() {
               </div>
               <aside className="rounded-xl border border-base-300 bg-base-100 p-4 shadow">
                 <h2 className="text-lg font-bold">打卡紀錄</h2>
-                <p className="text-sm opacity-60">輸入姓名即可加入當日打卡名單。</p>
+                <p className="text-sm opacity-60">
+                  {adminStoreCode
+                    ? "輸入姓名後，按上班打卡或下班打卡，會保存門市工時。"
+                    : "分店登入後，才能使用後廚打卡與工時統計。"}
+                </p>
                 <label className="form-control mt-4">
                   <span className="label-text">員工姓名</span>
                   <input
@@ -4185,27 +4382,55 @@ export default function App() {
                     value={kitchenStaffName}
                     onChange={(event) => setKitchenStaffName(event.currentTarget.value)}
                     placeholder="例如：小明"
+                    disabled={!adminStoreCode}
                   />
                 </label>
                 <button
                   className="btn btn-primary mt-3 w-full"
-                  onClick={handleKitchenClockIn}
-                  disabled={!kitchenStaffName.trim()}
+                  onClick={handleKitchenClockToggle}
+                  disabled={!adminStoreCode || !kitchenStaffName.trim()}
                 >
-                  打卡
+                  {adminStoreCode && clockRecords.some(
+                    (record) =>
+                      record.employee === kitchenStaffName.trim() &&
+                      record.date === todayTaipeiDate() &&
+                      record.timeOut === null,
+                  )
+                    ? "下班打卡"
+                    : "上班打卡"}
                 </button>
-                <div className="mt-6 space-y-2">
-                  {kitchenClockIns.length === 0 ? (
-                    <div className="text-sm opacity-60">今天尚未有人打卡。</div>
-                  ) : (
-                    kitchenClockIns.map((entry) => (
-                      <div key={`${entry.name}-${entry.checkedAt}`} className="rounded-lg border border-base-300 bg-base-200 p-3">
-                        <div className="font-semibold">{entry.name}</div>
-                        <div className="text-xs opacity-70">{entry.checkedAt}</div>
+
+                {adminStoreCode ? (
+                  <div className="mt-6 space-y-4">
+                    {kitchenEmployeeSummaries.length === 0 ? (
+                      <div className="text-sm opacity-60">
+                        目前尚未有員工完成任何時數紀錄。
                       </div>
-                    ))
-                  )}
-                </div>
+                    ) : (
+                      kitchenEmployeeSummaries.map((summary) => (
+                        <div
+                          key={summary.employee}
+                          className="rounded-lg border border-base-300 bg-base-200 p-3"
+                        >
+                          <div className="font-semibold">
+                            {summary.employee}
+                          </div>
+                          <div className="text-xs opacity-70">
+                            今日：{Math.floor(summary.todayMinutes / 60)}h {summary.todayMinutes % 60}m
+                          </div>
+                          <div className="text-xs opacity-70">
+                            本月：{Math.floor(summary.monthMinutes / 60)}h {summary.monthMinutes % 60}m
+                          </div>
+                          {summary.openShift ? (
+                            <div className="text-xs text-warning">
+                              正在上班中，{formatTaipeiTime(summary.openShift.timeIn)} 開始
+                            </div>
+                          ) : null}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ) : null}
               </aside>
             </div>
           </section>

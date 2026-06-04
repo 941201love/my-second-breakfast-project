@@ -7283,7 +7283,7 @@ export default function App() {
                   取餐門市
                 </span>
                 <details className="dropdown dropdown-bottom w-full">
-                  <summary className="btn btn-outline h-12 w-full justify-between border-base-300 bg-base-100 px-4 text-left font-bold">
+                  <summary className="btn btn-outline h-12 w-full justify-between border-base-300 bg-base-100 px-4 text-left font-bold outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0">
                     <span>
                       {branchStoreOptions.find(
                         (store) => store.code === orderStoreCode,

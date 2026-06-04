@@ -5065,92 +5065,91 @@ export default function App() {
                       return (
                         <article
                           key={order.id}
-                          className={`rounded-xl border p-4 shadow transition ${
+                          className={`rounded-lg border p-3 shadow transition ${
                             order.status === "submitted"
                               ? "bg-base-100"
                               : "bg-success/10"
                           }`}
                         >
-                          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                          <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                             <div>
-                              <p className="text-sm opacity-70">單號</p>
-                              <p className="text-2xl font-bold">
+                              <p className="text-xs font-semibold text-base-content/70">
+                                單號
+                              </p>
+                              <p className="text-xl font-bold">
                                 #{order.dailySequence ?? order.id}
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className="text-sm opacity-70">製作時間</p>
-                              <p className="text-xl font-semibold">
+                              <p className="text-xs font-semibold text-base-content/70">
+                                製作時間
+                              </p>
+                              <p className="text-lg font-semibold">
                                 {waitMinutes} 分鐘
                               </p>
                             </div>
                           </div>
-                          <div className="mb-3 border-t border-base-300 pt-3 text-sm text-base-content">
-                            <div className="mb-2 text-xs font-semibold text-base-content/80">
+                          <div className="mb-2 border-t border-base-300 pt-2 text-sm text-base-content">
+                            <div className="mb-1 text-xs font-semibold text-base-content/80">
                               下單時間
                             </div>
-                            <div className="font-semibold text-base-content/90">
+                            <div className="text-sm font-semibold text-base-content/90">
                               {formatTaipeiDateTime(order.submittedAt)}
                             </div>
                           </div>
-                          <div className="mb-4 space-y-2 text-sm">
+                          <div className="mb-3 grid grid-cols-1 gap-1.5 text-sm md:grid-cols-2 xl:grid-cols-3">
                             {kitchenItems.map(({ item, key, unitIndex }) => {
                               const itemDone = Boolean(checkedPosItems[key]);
                               const details = kitchenOrderItemDetails(item);
                               return (
-                                <label
+                                <button
                                   key={key}
-                                  className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${
+                                  type="button"
+                                  className={`flex min-h-11 items-start gap-2 rounded-md border px-2 py-1.5 text-left transition ${
                                     itemDone
-                                      ? "border-success/60 bg-success/15 text-success"
+                                      ? "border-success/60 bg-success/20 text-success"
                                       : "border-base-300 bg-base-200 text-base-content hover:border-success/50"
                                   }`}
+                                  onClick={() => {
+                                    setCheckedPosItems((current) => ({
+                                      ...current,
+                                      [key]: !current[key],
+                                    }));
+                                  }}
                                 >
-                                  <input
-                                    className="checkbox checkbox-success checkbox-sm mt-1 shrink-0"
-                                    type="checkbox"
-                                    checked={itemDone}
-                                    onChange={(event) => {
-                                      const checked =
-                                        event.currentTarget.checked;
-                                      setCheckedPosItems((current) => ({
-                                        ...current,
-                                        [key]: checked,
-                                      }));
-                                    }}
+                                  <span
+                                    className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full border ${
+                                      itemDone
+                                        ? "border-success bg-success"
+                                        : "border-success/80"
+                                    }`}
+                                    aria-hidden="true"
                                   />
                                   <div className="min-w-0 flex-1">
                                     <div
-                                      className={`font-semibold ${
+                                      className={`truncate font-semibold leading-tight ${
                                         itemDone ? "line-through" : ""
                                       }`}
                                     >
                                       {kitchenOrderItemName(item)}
                                     </div>
                                     {details.length > 0 ? (
-                                      <div className="mt-1 flex flex-wrap gap-1">
-                                        {details.map((detail) => (
-                                          <span
-                                            key={`${key}-${detail}`}
-                                            className="rounded-md bg-base-100/70 px-2 py-0.5 text-xs text-base-content/80"
-                                          >
-                                            {detail}
-                                          </span>
-                                        ))}
+                                      <div className="mt-0.5 truncate text-xs text-base-content/70">
+                                        {details.join(" / ")}
                                       </div>
                                     ) : null}
                                     {item.note ? (
-                                      <div className="mt-1 text-xs font-semibold text-warning">
+                                      <div className="mt-0.5 truncate text-xs font-semibold text-warning">
                                         備註：{item.note}
                                       </div>
                                     ) : null}
                                     {item.qty > 1 ? (
-                                      <div className="mt-1 text-[11px] text-base-content/50">
+                                      <div className="mt-0.5 text-[11px] leading-none text-base-content/50">
                                         第 {unitIndex + 1} 份
                                       </div>
                                     ) : null}
                                   </div>
-                                </label>
+                                </button>
                               );
                             })}
                           </div>

@@ -2162,20 +2162,38 @@ export default function App() {
       Boolean(adminPriceHistoryModal) ||
       Boolean(confirmDialog) ||
       (!isAdminPage && isCustomerFullPage);
-    if (!shouldLockBody) {
-      document.body.style.overflow = "";
-      document.body.style.position = "";
-      return;
-    }
+    if (!shouldLockBody) return;
 
     const previousOverflow = document.body.style.overflow;
     const previousPosition = document.body.style.position;
+    const previousTop = document.body.style.top;
+    const previousLeft = document.body.style.left;
+    const previousRight = document.body.style.right;
+    const previousWidth = document.body.style.width;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollY = window.scrollY;
+    const scrollbarWidth =
+      window.innerWidth - document.documentElement.clientWidth;
+
     document.body.style.overflow = "hidden";
-    document.body.style.position = "relative";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = "0";
+    document.body.style.right = "0";
+    document.body.style.width = "100%";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
 
     return () => {
       document.body.style.overflow = previousOverflow;
       document.body.style.position = previousPosition;
+      document.body.style.top = previousTop;
+      document.body.style.left = previousLeft;
+      document.body.style.right = previousRight;
+      document.body.style.width = previousWidth;
+      document.body.style.paddingRight = previousPaddingRight;
+      window.scrollTo(0, scrollY);
     };
   }, [
     isAdminPage,

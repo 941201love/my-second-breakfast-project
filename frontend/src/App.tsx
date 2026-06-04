@@ -1308,6 +1308,8 @@ export default function App() {
   const [adminError, setAdminError] = useState("");
   const [kitchenPage, setKitchenPage] = useState(1);
   const [kitchenLoading, setKitchenLoading] = useState(false);
+  const selectedStoreCode = adminStoreCode || routeStoreCode || orderStoreCode;
+  const orderProgressRequestIdRef = useRef(0);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [employeeDraft, setEmployeeDraft] = useState<Employee>({
@@ -1786,7 +1788,6 @@ export default function App() {
   }
 
   async function loadCurrentOrder(): Promise<Order | null> {
-    const selectedStoreCode = adminStoreCode || routeStoreCode || orderStoreCode;
     const query = selectedStoreCode
       ? `?storeCode=${encodeURIComponent(selectedStoreCode)}`
       : "";
@@ -1831,8 +1832,9 @@ export default function App() {
   }
 
   async function loadOrderProgress(
-    storeCode = adminStoreCode || orderStoreCode,
+    storeCode = selectedStoreCode,
   ): Promise<void> {
+    const requestId = ++orderProgressRequestIdRef.current;
     const query = storeCode
       ? `?storeCode=${encodeURIComponent(storeCode)}`
       : "";
@@ -1840,7 +1842,9 @@ export default function App() {
     if (!response.ok) return;
 
     const payload = (await response.json()) as ApiDataResponse<OrderProgress>;
-    if (payload?.data) setOrderProgress(payload.data);
+    if (payload?.data && requestId === orderProgressRequestIdRef.current) {
+      setOrderProgress(payload.data);
+    }
   }
 
   function resetOrderProgress(): void {
@@ -1910,12 +1914,6 @@ export default function App() {
         initialStoreCode,
       );
     }
-    void loadOrderProgress(initialStoreCode);
-    const progressTimer = window.setInterval(() => {
-      void loadOrderProgress(
-        window.localStorage.getItem("breakfast-order-store-code") ?? "",
-      );
-    }, 10000);
     const clockTimer = window.setInterval(() => {
       setNowText(
         new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei" }),
@@ -1924,7 +1922,6 @@ export default function App() {
 
     return () => {
       mounted = false;
-      window.clearInterval(progressTimer);
       window.clearInterval(clockTimer);
     };
   }, []);
@@ -1955,8 +1952,13 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    void loadOrderProgress(adminStoreCode || orderStoreCode);
-  }, [adminStoreCode, orderStoreCode]);
+    resetOrderProgress();
+    void loadOrderProgress(selectedStoreCode);
+    const progressTimer = window.setInterval(() => {
+      void loadOrderProgress(selectedStoreCode);
+    }, 10000);
+    return () => window.clearInterval(progressTimer);
+  }, [selectedStoreCode]);
 
   useEffect(() => {
     if (!user) {
@@ -4201,12 +4203,9 @@ export default function App() {
     return numbers.map((number) => `#${number}`).join(" ");
   }
 
-  const selectedPickupStoreCode = adminStoreCode || orderStoreCode;
-
   function orderMatchesSelectedPickupStore(order: Order): boolean {
     return Boolean(
-      selectedPickupStoreCode &&
-        orderStoreCodeOf(order) === selectedPickupStoreCode,
+      selectedStoreCode && orderStoreCodeOf(order) === selectedStoreCode,
     );
   }
 
@@ -4323,7 +4322,7 @@ export default function App() {
             customerName: customerName.trim() || user.name,
             customerPhone: normalizedPhone,
             pickupTime: pickupTime.trim() || undefined,
-            storeCode: adminStoreCode || orderStoreCode || undefined,
+            storeCode: selectedStoreCode || undefined,
           }),
         },
       );
@@ -7420,7 +7419,7 @@ export default function App() {
               className="btn btn-outline h-12"
               onClick={() => {
                 setIsPickupStatusOpen(true);
-                void loadOrderProgress(adminStoreCode || orderStoreCode);
+                void loadOrderProgress(selectedStoreCode);
                 if (user) {
                   void loadOrderHistory();
                 }
@@ -9179,7 +9178,7 @@ export default function App() {
               className="btn btn-sm shrink-0 border-success-content/40 bg-success-content text-success hover:bg-success-content/90"
               onClick={() => {
                 setIsPickupStatusOpen(true);
-                void loadOrderProgress(adminStoreCode || orderStoreCode);
+                void loadOrderProgress(selectedStoreCode);
                 void loadOrderHistory();
               }}
             >

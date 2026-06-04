@@ -1838,7 +1838,9 @@ export default function App() {
     const query = storeCode
       ? `?storeCode=${encodeURIComponent(storeCode)}`
       : "";
-    const response = await fetch(buildApiUrl(`/api/orders/progress${query}`));
+    const response = await fetch(buildApiUrl(`/api/orders/progress${query}`), {
+      credentials: "omit",
+    });
     if (!response.ok) return;
 
     const payload = (await response.json()) as ApiDataResponse<OrderProgress>;

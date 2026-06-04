@@ -905,7 +905,7 @@ app.get(
     const requestedStoreCode = new URL(request.url).searchParams
       .get("storeCode")
       ?.trim();
-    const branch = adminSessionBranch(request) ?? requestedStoreCode;
+    const branch = requestedStoreCode || adminSessionBranch(request);
 
     return {
       data: calculateOrderProgress(store.getOrders(), { storeCode: branch }),

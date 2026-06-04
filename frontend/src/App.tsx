@@ -1089,8 +1089,10 @@ function createDefaultCartDraft() {
 
 export default function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
-  const isAdminPage =
-    currentPath.startsWith("/admin") || currentPath === "/kitchen";
+  const branchKitchenMatch = currentPath.match(/^\/([^/]+)\/kitchen$/);
+  const kitchenBranchCode = branchKitchenMatch?.[1] ?? "";
+  const isKitchenPage = Boolean(branchKitchenMatch);
+  const isAdminPage = currentPath.startsWith("/admin") || isKitchenPage;
   const isAdminDashboardPage = currentPath === "/admin";
   const isAdminOrdersPage = currentPath === "/admin/orders";
   const isAdminMenuPage = currentPath === "/admin/menu";
@@ -1101,7 +1103,6 @@ export default function App() {
   const adminEditProductLogicalId = isAdminEditProductPage
     ? decodeURIComponent(currentPath.replace(/^\/admin\/edit-product\//, ""))
     : "";
-  const isKitchenPage = currentPath === "/kitchen";
   const isAdminProductFormPage =
     isAdminAddProductPage || isAdminEditProductPage;
   const isCartPage = currentPath === "/cart";
@@ -2630,18 +2631,18 @@ export default function App() {
 
   useEffect(() => {
     if (!isKitchenPage) return;
-    if (adminAuthed && !adminStoreCode) {
+    if (!adminAuthed || !adminStoreCode) {
       navigate("/admin");
       return;
     }
-    if (adminStoreCode) {
-      const records = loadKitchenClockRecords(adminStoreCode);
-      setClockRecords(records);
+    if (adminStoreCode && kitchenBranchCode !== adminStoreCode) {
+      navigate(`/${adminStoreCode}/kitchen`);
+      return;
     }
-    if (adminAuthed) {
-      void loadKitchenData();
-    }
-  }, [isKitchenPage, adminAuthed, adminStoreCode]);
+    const records = loadKitchenClockRecords(adminStoreCode);
+    setClockRecords(records);
+    void loadKitchenData();
+  }, [isKitchenPage, adminAuthed, adminStoreCode, kitchenBranchCode]);
 
   useEffect(() => {
     if (!isKitchenPage) return;
@@ -4057,6 +4058,9 @@ export default function App() {
     const adminTitle = adminStoreCode
       ? `${storeNameMapping[adminStoreCode] ?? adminStoreCode}分店管理後台`
       : "博翔早餐店管理後台";
+    const branchKitchenPath = adminStoreCode
+      ? `/${adminStoreCode}/kitchen`
+      : "/kitchen";
 
     const modules = [
       {
@@ -4067,7 +4071,7 @@ export default function App() {
       ...(adminStoreCode
         ? [
             {
-              path: "/kitchen",
+              path: branchKitchenPath,
               title: "後廚 POS",
               description: "簡化製作畫面，最多 8 張待製作訂單",
             },

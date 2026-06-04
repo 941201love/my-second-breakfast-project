@@ -2254,11 +2254,13 @@ export default function App() {
       return orderId;
     }
 
+    if (!adminStoreCode && !orderStoreCode) {
+      throw new Error("請先選擇取餐門市，再加入購物車。");
+    }
+
     const requestPayload = adminStoreCode
       ? { storeCode: adminStoreCode }
-      : orderStoreCode
-      ? { storeCode: orderStoreCode }
-      : {};
+      : { storeCode: orderStoreCode };
     const response = await fetch(buildApiUrl("/api/orders"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -5990,6 +5992,25 @@ export default function App() {
             >
               {text.pickupStatus}
             </button>
+            {!adminStoreCode ? (
+              <label className="form-control w-full max-w-xs">
+                <span className="label-text text-xs opacity-70">
+                  取餐門市
+                </span>
+                <select
+                  className="select select-bordered w-full"
+                  value={orderStoreCode}
+                  onChange={(event) => {
+                    setOrderStoreCode(event.currentTarget.value);
+                  }}
+                >
+                  <option value="">請選擇門市</option>
+                  <option value="taipei">台北分店</option>
+                  <option value="tainan">台南分店</option>
+                  <option value="kaohsiung">高雄分店</option>
+                </select>
+              </label>
+            ) : null}
             <button
               className="btn btn-sm btn-outline"
               onClick={() => {

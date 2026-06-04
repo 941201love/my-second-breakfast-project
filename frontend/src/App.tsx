@@ -2888,6 +2888,36 @@ export default function App() {
     }
   }
 
+  async function loadAdminOrders(
+    options: { storeCode?: string | null } = {},
+  ): Promise<void> {
+    if (!adminAuthed) return;
+
+    const activeAdminStoreCode =
+      options.storeCode === undefined ? adminStoreCode : options.storeCode;
+    const query = activeAdminStoreCode
+      ? `?storeCode=${encodeURIComponent(activeAdminStoreCode)}`
+      : "";
+
+    try {
+      const response = await fetch(buildApiUrl(`/api/orders${query}`), {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setAdminAuthed(false);
+        }
+        throw new Error(`Load orders failed: HTTP ${response.status}`);
+      }
+
+      const payload = (await response.json()) as ApiDataResponse<Order[]>;
+      setAdminOrders(Array.isArray(payload?.data) ? payload.data : []);
+    } catch (ordersError) {
+      console.error(ordersError);
+    }
+  }
+
   async function handleAdminLogin(): Promise<void> {
     setAdminError("");
     const trimmedPassword = adminLogin.password.trim();
@@ -2962,7 +2992,7 @@ export default function App() {
     if (!adminAuthed) return;
     setKitchenLoading(true);
     try {
-      await loadAdminData({ clearNotice: false, storeCode: adminStoreCode });
+      await loadAdminOrders({ storeCode: adminStoreCode });
     } finally {
       setKitchenLoading(false);
     }
@@ -3217,6 +3247,19 @@ export default function App() {
     isAdminAddProductPage,
     isAdminEditProductPage,
   ]);
+
+  useEffect(() => {
+    if (!adminAuthed || !isAdminPage) return;
+
+    const refreshAdminOrders = () => {
+      void loadAdminOrders({ storeCode: adminStoreCode });
+    };
+    const intervalMs = isKitchenPage ? 2000 : 5000;
+
+    refreshAdminOrders();
+    const timer = window.setInterval(refreshAdminOrders, intervalMs);
+    return () => window.clearInterval(timer);
+  }, [adminAuthed, adminStoreCode, isAdminPage, isKitchenPage]);
 
   useEffect(() => {
     if (!isKitchenPage) return;
@@ -5083,7 +5126,7 @@ export default function App() {
                 </div>
 
                 <div className="space-y-4">
-                  {kitchenLoading ? (
+                  {kitchenLoading && adminOrders.length === 0 ? (
                     <div className="rounded-lg border border-base-300 bg-base-100 p-6 text-center">
                       讀取中...
                     </div>

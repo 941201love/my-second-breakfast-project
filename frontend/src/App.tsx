@@ -1110,6 +1110,7 @@ export default function App() {
   const isAdminMenuPage = currentPath === "/admin/menu";
   const isAdminCouponsPage = currentPath === "/admin/coupons";
   const isAdminReportsPage = currentPath === "/admin/reports";
+  const isAdminClockPage = currentPath === "/admin/clock";
   const isAdminAddProductPage = currentPath === "/admin/add-product";
   const isAdminEditProductPage = currentPath.startsWith("/admin/edit-product/");
   const adminEditProductLogicalId = isAdminEditProductPage
@@ -2661,19 +2662,21 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!isKitchenPage) return;
+    if (!isKitchenPage && !isAdminClockPage) return;
     if (!adminAuthed || !adminStoreCode) {
       navigate("/admin");
       return;
     }
-    if (adminStoreCode && kitchenBranchCode !== adminStoreCode) {
+    if (isKitchenPage && adminStoreCode && kitchenBranchCode !== adminStoreCode) {
       navigate(`/${adminStoreCode}/kitchen`);
       return;
     }
     const records = loadKitchenClockRecords(adminStoreCode);
     setClockRecords(records);
-    void loadKitchenData();
-  }, [isKitchenPage, adminAuthed, adminStoreCode, kitchenBranchCode]);
+    if (isKitchenPage) {
+      void loadKitchenData();
+    }
+  }, [isKitchenPage, isAdminClockPage, adminAuthed, adminStoreCode, kitchenBranchCode]);
 
   useEffect(() => {
     if (!adminAuthed || !adminStoreCode) return;
@@ -4123,6 +4126,11 @@ export default function App() {
               title: "後廚 POS",
               description: "簡化製作畫面，管理待製作訂單",
             },
+            {
+              path: "/admin/clock",
+              title: "打卡紀錄",
+              description: "員工上下班打卡與門市工時",
+            },
           ]
         : [
             {
@@ -4411,8 +4419,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-              <div className="space-y-4">
+            <div className="space-y-4">
                 {kitchenLoading ? (
                   <div className="rounded-lg border border-base-300 bg-base-100 p-6 text-center">
                     讀取中...
@@ -4504,15 +4511,27 @@ export default function App() {
                     下一頁
                   </button>
                 </div>
-              </div>
-              <aside className="rounded-xl border border-base-300 bg-base-100 p-4 shadow">
+            </div>
+          </section>
+
+          <section className={`${isAdminClockPage ? "" : "hidden "}mx-auto max-w-xl rounded-xl border border-base-300 bg-base-100 p-5 shadow`}>
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
                 <h2 className="text-lg font-bold">打卡紀錄</h2>
                 <p className="text-sm opacity-60">
                   {adminStoreCode
                     ? "輸入姓名後，按上班打卡或下班打卡，會保存門市工時。"
-                    : "分店登入後，才能使用後廚打卡與工時統計。"}
+                    : "分店登入後，才能使用打卡與工時統計。"}
                 </p>
-                <label className="form-control mt-4">
+              </div>
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={() => navigate("/admin")}
+              >
+                返回後台
+              </button>
+            </div>
+                <label className="form-control">
                   <span className="label-text">員工姓名</span>
                   <input
                     className="input input-bordered"
@@ -4568,8 +4587,6 @@ export default function App() {
                     )}
                   </div>
                 ) : null}
-              </aside>
-            </div>
           </section>
 
           <section className={`${isAdminOrdersPage ? "" : "hidden "}rounded-lg bg-base-100 p-5 shadow`}>

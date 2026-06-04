@@ -78,6 +78,13 @@
       "when": 1780449600000,
       "tag": "0010_coupon_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1780536000000,
+      "tag": "0011_order_store_code",
+      "breakpoints": true
     }
   ]
 }

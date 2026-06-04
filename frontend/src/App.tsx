@@ -1528,6 +1528,10 @@ export default function App() {
     setCartQtyByItemId(nextQtyByItemId);
     setCartOrderItemById(nextOrderItemById);
     setCartTotal(order.total);
+    if (!adminStoreCode && order.storeCode && order.storeCode !== "default") {
+      setOrderStoreCode(order.storeCode);
+      window.localStorage.setItem("breakfast-order-store-code", order.storeCode);
+    }
   }
 
   function resetCartState() {
@@ -1620,8 +1624,11 @@ export default function App() {
     }
   }
 
-  async function loadOrderProgress(): Promise<void> {
-    const response = await fetch(buildApiUrl("/api/orders/progress"));
+  async function loadOrderProgress(storeCode = adminStoreCode || orderStoreCode): Promise<void> {
+    const query = storeCode
+      ? `?storeCode=${encodeURIComponent(storeCode)}`
+      : "";
+    const response = await fetch(buildApiUrl(`/api/orders/progress${query}`));
     if (!response.ok) return;
 
     const payload = (await response.json()) as ApiDataResponse<OrderProgress>;
@@ -1633,6 +1640,8 @@ export default function App() {
   }
 
   useEffect(() => {
+    const initialStoreCode =
+      window.localStorage.getItem("breakfast-order-store-code") ?? "";
     let mounted = true;
 
     // V9: 從 Better Auth session cookie 恢復登入狀態（不再用 localStorage）
@@ -1671,9 +1680,11 @@ export default function App() {
     }
 
     void loadInitialMenu();
-    void loadOrderProgress();
+    void loadOrderProgress(initialStoreCode);
     const progressTimer = window.setInterval(() => {
-      void loadOrderProgress();
+      void loadOrderProgress(
+        window.localStorage.getItem("breakfast-order-store-code") ?? "",
+      );
     }, 10000);
     const clockTimer = window.setInterval(() => {
       setNowText(
@@ -1687,6 +1698,10 @@ export default function App() {
       window.clearInterval(clockTimer);
     };
   }, []);
+
+  useEffect(() => {
+    void loadOrderProgress(adminStoreCode || orderStoreCode);
+  }, [adminStoreCode, orderStoreCode]);
 
   useEffect(() => {
     if (!user) {
@@ -2006,7 +2021,7 @@ export default function App() {
         if (storedStoreCode) {
           setAdminStoreCode(storedStoreCode);
         }
-        await loadAdminData();
+        await loadAdminData({ storeCode: storedStoreCode || null });
       }
     }
 
@@ -2384,7 +2399,7 @@ export default function App() {
   }
 
   async function loadAdminData(
-    options: { clearNotice?: boolean } = {},
+    options: { clearNotice?: boolean; storeCode?: string | null } = {},
   ): Promise<void> {
     setAdminLoading(true);
     if (options.clearNotice !== false) {
@@ -2392,7 +2407,9 @@ export default function App() {
     }
 
     try {
-      const isBranchAdmin = Boolean(adminStoreCode);
+      const activeAdminStoreCode =
+        options.storeCode === undefined ? adminStoreCode : options.storeCode;
+      const isBranchAdmin = Boolean(activeAdminStoreCode);
       let promotionsResponse: Response | null = null;
       let ordersResponse: Response;
       let couponsResponse: Response;
@@ -2516,7 +2533,9 @@ export default function App() {
       window.localStorage.removeItem("breakfast-admin-store-code");
     }
 
-    await loadAdminData();
+    await loadAdminData({
+      storeCode: adminLoginMode === "branch" ? trimmedStoreCode : null,
+    });
   }
 
   async function handleAdminLogout(): Promise<void> {
@@ -2539,7 +2558,7 @@ export default function App() {
     if (!adminAuthed) return;
     setKitchenLoading(true);
     try {
-      await loadAdminData({ clearNotice: false });
+      await loadAdminData({ clearNotice: false, storeCode: adminStoreCode });
     } finally {
       setKitchenLoading(false);
     }
@@ -5997,29 +6016,17 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-base-200">
-      <div className="navbar bg-base-100 shadow-lg flex-col items-stretch gap-2 md:flex-row md:items-center">
-        <div className="flex-1 w-full md:w-auto">
-          <div className="normal-case text-2xl font-bold px-2 py-1">
+      <div className="border-b border-base-300 bg-base-100 shadow-lg">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="normal-case text-2xl font-bold leading-tight">
             🍔 {text.appTitle}
+            </div>
           </div>
-        </div>
-        <div className="flex-none w-full md:w-auto">
-          <div className="flex flex-wrap gap-2 items-center md:justify-end">
-            <button
-              className="btn btn-sm btn-outline"
-              onClick={() => {
-                setIsPickupStatusOpen(true);
-                void loadOrderProgress();
-                if (user) {
-                  void loadOrderHistory();
-                }
-              }}
-            >
-              {text.pickupStatus}
-            </button>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(220px,1fr)_auto_auto_auto_auto] lg:w-auto lg:min-w-[720px] lg:max-w-4xl lg:flex lg:items-end lg:justify-end">
             {!adminStoreCode ? (
-              <label className="form-control w-full max-w-xs">
-                <span className="label-text text-xs opacity-70">
+              <label className="form-control col-span-2 min-w-0 sm:col-span-1 sm:min-w-64">
+                <span className="label-text text-xs font-semibold opacity-70">
                   取餐門市
                 </span>
                 <select
@@ -6035,9 +6042,34 @@ export default function App() {
                   <option value="kaohsiung">高雄分店</option>
                 </select>
               </label>
-            ) : null}
+            ) : (
+              <div className="col-span-2 rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm sm:col-span-1 sm:min-w-52">
+                <div className="text-xs font-semibold opacity-70">取餐門市</div>
+                <div className="font-bold">
+                  {adminStoreCode === "taipei"
+                    ? "台北分店"
+                    : adminStoreCode === "tainan"
+                    ? "台南分店"
+                    : adminStoreCode === "kaohsiung"
+                    ? "高雄分店"
+                    : adminStoreCode}
+                </div>
+              </div>
+            )}
             <button
-              className="btn btn-sm btn-outline"
+              className="btn btn-outline h-12"
+              onClick={() => {
+                setIsPickupStatusOpen(true);
+                void loadOrderProgress(adminStoreCode || orderStoreCode);
+                if (user) {
+                  void loadOrderHistory();
+                }
+              }}
+            >
+              {text.pickupStatus}
+            </button>
+            <button
+              className="btn btn-outline h-12"
               onClick={() => {
                 if (user) {
                   setCustomerName(profile.nickname || user.name);
@@ -6051,7 +6083,7 @@ export default function App() {
               {`${text.cartDetails} (${cartItemCount})`}
             </button>
             <button
-              className="btn btn-sm btn-outline"
+              className="btn btn-outline h-12"
               onClick={() => {
                 navigate("/orders");
                 void loadOrderHistory();
@@ -6062,7 +6094,7 @@ export default function App() {
             </button>
             {user ? (
               <button
-                className="btn btn-sm btn-outline"
+                className="btn btn-outline h-12"
                 onClick={() => navigate("/profile")}
               >
                 {text.profile}
@@ -6070,7 +6102,7 @@ export default function App() {
             ) : null}
             {user ? (
               <button
-                className="btn btn-sm"
+                className="btn h-12 bg-base-200"
                 onClick={() => {
                   void handleLogout();
                 }}

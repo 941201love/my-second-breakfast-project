@@ -139,6 +139,7 @@ export const ordersTable = appSchema.table("orders", {
   paymentMethod: text("payment_method"),
   note: text("note"),
   couponCode: text("coupon_code"),
+  storeCode: text("store_code").notNull().default("default"),
   customerName: text("customer_name"),
   customerPhone: text("customer_phone"),
   pickupTime: text("pickup_time"),

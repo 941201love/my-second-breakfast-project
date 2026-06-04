@@ -849,6 +849,7 @@ export class JsonFileStore implements Store {
       paymentMethod?: "cash" | "card";
       note?: string;
       couponCode?: string;
+      storeCode?: string;
       customerName?: string;
       customerPhone?: string;
       pickupTime?: string;
@@ -944,6 +945,9 @@ export class JsonFileStore implements Store {
         : Math.min(order.total, coupon.discountValue)
       : 0;
     order.total = Math.max(0, order.total - discountTotal);
+    if (input.storeCode?.trim()) {
+      order.storeCode = input.storeCode.trim();
+    }
     order.status = "submitted";
     order.dailySequence = this.nextDailySequence(order.storeCode ?? "default");
     order.paymentMethod = input.paymentMethod ?? "cash";

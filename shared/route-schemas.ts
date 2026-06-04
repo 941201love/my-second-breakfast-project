@@ -179,6 +179,7 @@ export const submitOrderBodySchema = z.object({
   paymentMethod: z.enum(["cash", "card"]).default("cash"),
   note: z.string().optional(),
   couponCode: z.string().optional(),
+  storeCode: z.string().min(1).optional(),
   customerName: z.string().optional(),
   customerPhone: z.string().optional(),
   pickupTime: z.string().optional(),

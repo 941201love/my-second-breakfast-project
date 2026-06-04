@@ -221,6 +221,12 @@ function requireHeadquarter(request: Request) {
   });
 }
 
+function canAdminAccessOrder(request: Request, order: { storeCode?: string }) {
+  const branch = adminSessionBranch(request);
+  if (!branch) return true;
+  return (order.storeCode ?? "default") === branch;
+}
+
 function adminCookie(value: string, maxAge: number) {
   const secure = isProduction ? "; Secure" : "";
   return `admin_session=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secure}`;
@@ -742,7 +748,10 @@ app.get(
   "/api/orders",
   ({ request }) => {
     requireAdmin(request);
-    const branch = adminSessionBranch(request);
+    const selectedStoreCode = new URL(request.url).searchParams
+      .get("storeCode")
+      ?.trim();
+    const branch = adminSessionBranch(request) ?? selectedStoreCode;
     const orders = store.getOrders().filter((o) => {
       if (!branch) return true;
       return (o.storeCode ?? "default") === branch;
@@ -905,6 +914,15 @@ app.patch(
   async ({ params, request, set }) => {
     requireAdmin(request);
     const orderId = parseInt(params.id, 10);
+    const existingOrder = store.getOrderById(orderId);
+    if (!existingOrder) {
+      set.status = 404;
+      return { error: "Order not found or cannot be completed" };
+    }
+    if (!canAdminAccessOrder(request, existingOrder)) {
+      set.status = 403;
+      return { error: "Forbidden" };
+    }
     const order = await store.completeOrder(orderId);
 
     if (!order) {
@@ -923,6 +941,7 @@ app.patch(
     },
     response: {
       200: orderResponseEnvelopeSchema,
+      403: apiErrorResponseSchema,
       404: apiErrorResponseSchema,
     },
   },
@@ -939,6 +958,10 @@ app.patch(
     if (!order) {
       set.status = 404;
       return { error: "Order not found or cannot be picked up" };
+    }
+    if (!canAdminAccessOrder(request, order)) {
+      set.status = 403;
+      return { error: "Forbidden" };
     }
 
     const pickedUpOrder = await store.pickUpOrder(orderId);
@@ -959,6 +982,7 @@ app.patch(
     },
     response: {
       200: orderResponseEnvelopeSchema,
+      403: apiErrorResponseSchema,
       404: apiErrorResponseSchema,
     },
   },
@@ -1130,6 +1154,7 @@ app.post(
       paymentMethod: body.paymentMethod,
       note: body.note,
       couponCode: body.couponCode,
+      storeCode: body.storeCode,
       customerName: body.customerName,
       customerPhone: body.customerPhone,
       pickupTime: body.pickupTime,

@@ -352,3 +352,47 @@ test("completed orders remain ready for pickup until the customer takes them", a
   expect(pickedUp?.pickedUpAt).toBeDefined();
   expect(await store.pickUpOrder(order.id)).toBeNull();
 });
+
+test("orders keep their branch code and branch pickup numbers are independent", async () => {
+  const store = new JsonFileStore({
+    dataFilePath: join(tempDir, "store.json"),
+  });
+  await store.init();
+
+  const item = store.getMenu()[0]!;
+  const taipeiOrder = await store.createOrder({
+    userId: "user-taipei",
+    storeCode: "taipei",
+  });
+  const tainanOrder = await store.createOrder({
+    userId: "user-tainan",
+    storeCode: "tainan",
+  });
+
+  await store.updateOrderItem(taipeiOrder.id, {
+    userId: "user-taipei",
+    itemId: item.id,
+    qty: 1,
+  });
+  await store.updateOrderItem(tainanOrder.id, {
+    userId: "user-tainan",
+    itemId: item.id,
+    qty: 1,
+  });
+
+  const taipeiSubmitted = await store.submitOrder(taipeiOrder.id, {
+    userId: "user-taipei",
+  });
+  const tainanSubmitted = await store.submitOrder(tainanOrder.id, {
+    userId: "user-tainan",
+  });
+
+  expect(taipeiSubmitted.ok).toBe(true);
+  expect(tainanSubmitted.ok).toBe(true);
+  if (taipeiSubmitted.ok && tainanSubmitted.ok) {
+    expect(taipeiSubmitted.order.storeCode).toBe("taipei");
+    expect(tainanSubmitted.order.storeCode).toBe("tainan");
+    expect(taipeiSubmitted.order.dailySequence).toBe(1);
+    expect(tainanSubmitted.order.dailySequence).toBe(1);
+  }
+});

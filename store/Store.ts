@@ -111,6 +111,7 @@ export interface Store {
       paymentMethod?: "cash" | "card";
       note?: string;
       couponCode?: string;
+      storeCode?: string;
       customerName?: string;
       customerPhone?: string;
       pickupTime?: string;

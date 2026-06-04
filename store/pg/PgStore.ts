@@ -31,6 +31,11 @@ interface SeedData {
   >;
 }
 
+const schemaName = process.env.PG_SCHEMA || "bf_v10";
+if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schemaName)) {
+  throw new Error(`Unsafe PG_SCHEMA: ${schemaName}`);
+}
+
 function calculateTotal(items: ReadonlyArray<OrderItem>): number {
   return items.reduce(
     (sum, item) => sum + item.menuItemPrice * item.qty,
@@ -96,6 +101,7 @@ export class PgStore implements Store {
     await db.execute(sql`select 1`);
     await this.ensureProductOptionColumns();
     await this.ensureOrderPickupColumn();
+    await this.ensureOrderStoreCodeColumn();
     await this.ensureAddonSettingsTable();
     await this.ensureCouponRuleColumns();
     await this.seedFromJsonIfEmpty();
@@ -265,14 +271,21 @@ export class PgStore implements Store {
     return this.orders.find((o) => o.id === orderId);
   }
 
-  async createOrder(input: { userId: string }): Promise<Order> {
+  async createOrder(input: { userId: string; storeCode?: string }): Promise<Order> {
     const existingOrder = this.getCurrentOrderByUserId(input.userId);
     if (existingOrder) return existingOrder;
 
     const createdAt = new Date();
+    const storeCode = input.storeCode?.trim() || "default";
     const [inserted] = await db
       .insert(ordersTable)
-      .values({ userId: input.userId, status: "pending", total: 0, createdAt })
+      .values({
+        userId: input.userId,
+        status: "pending",
+        total: 0,
+        storeCode,
+        createdAt,
+      })
       .returning();
 
     if (!inserted) throw new Error("Failed to create order");
@@ -283,6 +296,7 @@ export class PgStore implements Store {
       items: [],
       total: inserted.total,
       status: "pending",
+      storeCode: inserted.storeCode,
       createdAt: toIsoString(inserted.createdAt),
     };
 
@@ -513,6 +527,7 @@ export class PgStore implements Store {
       paymentMethod?: "cash" | "card";
       note?: string;
       couponCode?: string;
+      storeCode?: string;
       customerName?: string;
       customerPhone?: string;
       pickupTime?: string;
@@ -557,7 +572,8 @@ export class PgStore implements Store {
     }
 
     const submittedAt = new Date().toISOString();
-    const dailySequence = this.nextDailySequence();
+    const storeCode = input.storeCode?.trim() || order.storeCode || "default";
+    const dailySequence = this.nextDailySequence(storeCode);
     const coupon = input.couponCode
       ? this.coupons.find(
           (item) =>
@@ -588,6 +604,7 @@ export class PgStore implements Store {
         paymentMethod: input.paymentMethod ?? "cash",
         note: input.note,
         couponCode: coupon?.code,
+        storeCode,
         customerName: input.customerName,
         customerPhone: input.customerPhone,
         pickupTime: input.pickupTime,
@@ -601,6 +618,7 @@ export class PgStore implements Store {
     order.paymentMethod = input.paymentMethod ?? "cash";
     order.note = input.note;
     order.couponCode = coupon?.code;
+    order.storeCode = storeCode;
     order.customerName = input.customerName;
     order.customerPhone = input.customerPhone;
     order.pickupTime = input.pickupTime;
@@ -827,6 +845,7 @@ export class PgStore implements Store {
       customerPhone: row.customerPhone ?? undefined,
       pickupTime: row.pickupTime ?? undefined,
       discountTotal: row.discountTotal,
+      storeCode: row.storeCode,
       createdAt: toIsoString(row.createdAt),
       submittedAt: row.submittedAt ? toIsoString(row.submittedAt) : undefined,
       completedAt: row.completedAt ? toIsoString(row.completedAt) : undefined,
@@ -845,7 +864,7 @@ export class PgStore implements Store {
     return String(next).padStart(3, "0");
   }
 
-  private nextDailySequence(): number {
+  private nextDailySequence(storeCode: string): number {
     const today = new Date().toLocaleDateString("sv-SE", {
       timeZone: "Asia/Taipei",
     });
@@ -854,7 +873,9 @@ export class PgStore implements Store {
       return (
         new Date(source).toLocaleDateString("sv-SE", {
           timeZone: "Asia/Taipei",
-        }) === today && order.dailySequence !== undefined
+        }) === today &&
+        order.dailySequence !== undefined &&
+        (order.storeCode ?? "default") === storeCode
       );
     });
 
@@ -880,73 +901,73 @@ export class PgStore implements Store {
 
   private async ensureCouponRuleColumns(): Promise<void> {
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."coupons"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."coupons"
         ADD COLUMN IF NOT EXISTS "min_spend" integer DEFAULT 0 NOT NULL
     `);
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."coupons"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."coupons"
         ADD COLUMN IF NOT EXISTS "max_discount" integer DEFAULT 0 NOT NULL
     `);
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."coupons"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."coupons"
         ADD COLUMN IF NOT EXISTS "usage_limit_per_user" integer DEFAULT 1 NOT NULL
     `);
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."coupons"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."coupons"
         ADD COLUMN IF NOT EXISTS "usage_limit_total" integer DEFAULT 0 NOT NULL
     `);
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."coupons"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."coupons"
         ADD COLUMN IF NOT EXISTS "starts_at" timestamp with time zone
     `);
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."coupons"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."coupons"
         ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone
     `);
   }
 
   private async ensureProductOptionColumns(): Promise<void> {
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."menu_items"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."menu_items"
         ADD COLUMN IF NOT EXISTS "large_price" integer
     `);
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."menu_items"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."menu_items"
         ADD COLUMN IF NOT EXISTS "egg_price" integer
     `);
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."menu_items"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."menu_items"
         ADD COLUMN IF NOT EXISTS "cheese_price" integer
     `);
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."menu_items"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."menu_items"
         ADD COLUMN IF NOT EXISTS "addon_keys" jsonb DEFAULT '[]'::jsonb NOT NULL
     `);
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."order_items"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."order_items"
         ADD COLUMN IF NOT EXISTS "unit_price" integer
     `);
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."order_items"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."order_items"
         ADD COLUMN IF NOT EXISTS "size" text
     `);
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."order_items"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."order_items"
         ADD COLUMN IF NOT EXISTS "egg_qty" integer DEFAULT 0 NOT NULL
     `);
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."order_items"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."order_items"
         ADD COLUMN IF NOT EXISTS "cheese_qty" integer DEFAULT 0 NOT NULL
     `);
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."order_items"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."order_items"
         ADD COLUMN IF NOT EXISTS "addons" jsonb DEFAULT '[]'::jsonb NOT NULL
     `);
   }
 
   private async ensureAddonSettingsTable(): Promise<void> {
     await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS "bf_v10"."product_addon_settings" (
+      CREATE TABLE IF NOT EXISTS ${sql.raw(`"${schemaName}"`)}."product_addon_settings" (
         "key" text PRIMARY KEY,
         "name" text DEFAULT '' NOT NULL,
         "price" integer NOT NULL,
@@ -955,11 +976,11 @@ export class PgStore implements Store {
       )
     `);
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."product_addon_settings"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."product_addon_settings"
         ADD COLUMN IF NOT EXISTS "name" text DEFAULT '' NOT NULL
     `);
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."product_addon_settings"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."product_addon_settings"
         ADD COLUMN IF NOT EXISTS "is_active" boolean DEFAULT true NOT NULL
     `);
     await db
@@ -973,8 +994,19 @@ export class PgStore implements Store {
 
   private async ensureOrderPickupColumn(): Promise<void> {
     await db.execute(sql`
-      ALTER TABLE "bf_v10"."orders"
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."orders"
       ADD COLUMN IF NOT EXISTS "picked_up_at" timestamp with time zone
+    `);
+  }
+
+  private async ensureOrderStoreCodeColumn(): Promise<void> {
+    await db.execute(sql`
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."orders"
+      ADD COLUMN IF NOT EXISTS "store_code" text DEFAULT 'default' NOT NULL
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS "orders_store_status_created_at_idx"
+      ON ${sql.raw(`"${schemaName}"`)}."orders" ("store_code", "status", "created_at")
     `);
   }
 

@@ -217,16 +217,34 @@ function buildOrderRangeStats(
     return true;
   });
   const revenue = submittedOrders.reduce((sum, order) => sum + order.total, 0);
-  const itemQty = submittedOrders.reduce(
-    (sum, order) =>
-      sum + order.items.reduce((itemSum, item) => itemSum + item.qty, 0),
-    0,
-  );
+  const itemSales = new Map<string, { name: string; qty: number }>();
+  const hourlySales = new Map<number, number>();
+  const itemQty = submittedOrders.reduce((sum, order) => {
+    const hour = submittedOrderHour(order);
+    hourlySales.set(hour, (hourlySales.get(hour) ?? 0) + 1);
+
+    return (
+      sum +
+      order.items.reduce((itemSum, item) => {
+        const current = itemSales.get(item.menuItemId) ?? {
+          name: item.menuItemName,
+          qty: 0,
+        };
+        current.qty += item.qty;
+        itemSales.set(item.menuItemId, current);
+        return itemSum + item.qty;
+      }, 0)
+    );
+  }, 0);
 
   return {
     submittedOrders,
     revenue,
     itemQty,
+    itemRanking: Array.from(itemSales.values()).sort((a, b) => b.qty - a.qty),
+    hourlyRanking: Array.from(hourlySales.entries())
+      .map(([hour, count]) => ({ hour, count }))
+      .sort((a, b) => a.hour - b.hour),
     averageTicket:
       submittedOrders.length === 0
         ? 0
@@ -270,6 +288,24 @@ const branchStoreOptions = [
   { code: "taipei", name: "台北分店" },
   { code: "tainan", name: "台南分店" },
   { code: "kaohsiung", name: "高雄分店" },
+];
+
+const storeEmployeePrefixes: Record<string, string> = {
+  taipei: "TPE",
+  tainan: "TNN",
+  kaohsiung: "KHH",
+};
+
+const employeeTitleOptions = [
+  "店長",
+  "副店長",
+  "正職人員",
+  "早班人員",
+  "晚班人員",
+  "兼職人員",
+  "後廚人員",
+  "收銀人員",
+  "外場人員",
 ];
 
 const sugarOptions = ["正常糖", "少糖", "半糖", "微糖", "無糖"];
@@ -1257,7 +1293,7 @@ export default function App() {
     employeeId: "",
     name: "",
     storeCode: "taipei",
-    title: "",
+    title: employeeTitleOptions[2],
     isActive: true,
   });
   const [clockRecords, setClockRecords] = useState<KitchenClockRecord[]>([]);
@@ -1339,11 +1375,11 @@ export default function App() {
     null,
   );
   const [adminHistoryDate, setAdminHistoryDate] = useState(todayTaipeiDate());
-  const [adminStatsDate, setAdminStatsDate] = useState(todayTaipeiDate());
   const [adminRevenueStartDate, setAdminRevenueStartDate] =
     useState(todayTaipeiDate());
   const [adminRevenueEndDate, setAdminRevenueEndDate] =
     useState(todayTaipeiDate());
+  const [adminReportStoreCode, setAdminReportStoreCode] = useState("");
   const [checkedPosItems, setCheckedPosItems] = useState<
     Record<string, boolean>
   >({});
@@ -1739,6 +1775,23 @@ export default function App() {
     if (payload?.data) setOrderProgress(payload.data);
   }
 
+  function changeOrderStoreCode(storeCode: string): void {
+    setOrderStoreCode(storeCode);
+    if (storeCode) {
+      window.localStorage.setItem("breakfast-order-store-code", storeCode);
+    } else {
+      window.localStorage.removeItem("breakfast-order-store-code");
+    }
+    setOrderProgress({
+      latestSubmittedOrderId: null,
+      latestCompletedOrderId: null,
+      waitingCount: 0,
+      readyPickupNumbers: [],
+      waitingPickupNumbers: [],
+    });
+    void loadOrderProgress(storeCode);
+  }
+
   async function refreshUserOrders(): Promise<void> {
     await Promise.all([loadCurrentOrder(), loadOrderHistory()]);
   }
@@ -1766,24 +1819,7 @@ export default function App() {
     }
     void restoreSession();
 
-    async function loadInitialMenu() {
-      try {
-        if (mounted) {
-          await Promise.all([loadMenu(), loadCoupons(), loadAddonSettings()]);
-        }
-      } catch (fetchError) {
-        if (mounted) {
-          setError("無法取得菜單資料，請稍後再試。");
-          console.error(fetchError);
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void loadInitialMenu();
+    setLoading(false);
     void loadOrderProgress(initialStoreCode);
     const progressTimer = window.setInterval(() => {
       void loadOrderProgress(
@@ -1802,6 +1838,19 @@ export default function App() {
       window.clearInterval(clockTimer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    setLoading(true);
+    Promise.all([loadMenu(), loadCoupons(), loadAddonSettings()])
+      .catch((fetchError) => {
+        setError("無法取得菜單資料，請稍後再試。");
+        console.error(fetchError);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [user]);
 
   useEffect(() => {
     void loadOrderProgress(adminStoreCode || orderStoreCode);
@@ -2247,16 +2296,24 @@ export default function App() {
     }
   }, [cartDetails, cartTotal]);
 
+  const reportOrders = useMemo(() => {
+    const storeCode = adminStoreCode ?? adminReportStoreCode;
+    if (!storeCode) return adminOrders;
+    return adminOrders.filter(
+      (order) => (order.storeCode ?? "default") === storeCode,
+    );
+  }, [adminOrders, adminReportStoreCode, adminStoreCode]);
+
   const todayAdminStats = useMemo(() => {
     const today = new Date().toLocaleDateString("sv-SE", {
       timeZone: "Asia/Taipei",
     });
-    const todayStats = buildOrderStats(adminOrders, today);
+    const todayStats = buildOrderStats(reportOrders, today);
 
     return {
       submittedToday: todayStats.submittedOrders,
       revenue: todayStats.revenue,
-      pendingCount: adminOrders.filter((order) => order.status === "submitted")
+      pendingCount: reportOrders.filter((order) => order.status === "submitted")
         .length,
       completedCount: todayStats.submittedOrders.filter(
         (order) => order.status === "completed" || order.status === "picked_up",
@@ -2264,26 +2321,31 @@ export default function App() {
       itemRanking: todayStats.itemRanking,
       hourlyRanking: todayStats.hourlyRanking,
     };
-  }, [adminOrders]);
+  }, [reportOrders]);
 
   const selectedAdminStats = useMemo(
-    () => buildOrderStats(adminOrders, adminStatsDate),
-    [adminOrders, adminStatsDate],
+    () =>
+      buildOrderRangeStats(
+        reportOrders,
+        adminRevenueStartDate,
+        adminRevenueEndDate,
+      ),
+    [reportOrders, adminRevenueEndDate, adminRevenueStartDate],
   );
 
   const adminRevenueRangeStats = useMemo(
     () =>
       buildOrderRangeStats(
-        adminOrders,
+        reportOrders,
         adminRevenueStartDate,
         adminRevenueEndDate,
       ),
-    [adminOrders, adminRevenueEndDate, adminRevenueStartDate],
+    [reportOrders, adminRevenueEndDate, adminRevenueStartDate],
   );
 
   const adminHistoryOrders = useMemo(
     () =>
-      adminOrders
+      reportOrders
         .filter(
           (order) =>
             order.status === "picked_up" &&
@@ -2294,7 +2356,7 @@ export default function App() {
             new Date(b.submittedAt ?? b.createdAt).getTime() -
             new Date(a.submittedAt ?? a.createdAt).getTime(),
         ),
-    [adminHistoryDate, adminOrders],
+    [adminHistoryDate, reportOrders],
   );
 
   const kitchenOrders = useMemo(
@@ -2322,6 +2384,32 @@ export default function App() {
     [employees, adminStoreCode],
   );
 
+  const activeEmployees = useMemo(
+    () => employees.filter((employee) => employee.isActive),
+    [employees],
+  );
+
+  const resignedEmployees = useMemo(
+    () => employees.filter((employee) => !employee.isActive),
+    [employees],
+  );
+
+  const suggestedEmployeeId = useMemo(() => {
+    const prefix =
+      storeEmployeePrefixes[employeeDraft.storeCode] ??
+      employeeDraft.storeCode.slice(0, 3).toUpperCase();
+    const nextNumber =
+      employees
+        .filter((employee) => employee.employeeId.startsWith(prefix))
+        .map((employee) =>
+          Number.parseInt(employee.employeeId.replace(prefix, ""), 10),
+        )
+        .filter((value) => Number.isFinite(value))
+        .reduce((max, value) => Math.max(max, value), 0) + 1;
+
+    return `${prefix}${String(nextNumber).padStart(3, "0")}`;
+  }, [employeeDraft.storeCode, employees]);
+
   const selectedClockEmployee = useMemo(
     () =>
       branchEmployees.find(
@@ -2340,6 +2428,46 @@ export default function App() {
       ) ?? null
     );
   }, [clockRecords, selectedClockEmployee]);
+
+  const currentPromotions = useMemo(
+    () =>
+      activePromotions.filter(
+        (promotion) => new Date(promotion.endsAt).getTime() >= Date.now(),
+      ),
+    [activePromotions],
+  );
+
+  const historicalPromotions = useMemo(
+    () =>
+      activePromotions.filter(
+        (promotion) => new Date(promotion.endsAt).getTime() < Date.now(),
+      ),
+    [activePromotions],
+  );
+
+  const currentCoupons = useMemo(
+    () =>
+      coupons.filter(
+        (coupon) =>
+          coupon.isActive !== false &&
+          (!coupon.expiresAt ||
+            new Date(coupon.expiresAt).getTime() >= Date.now()),
+      ),
+    [coupons],
+  );
+
+  const historicalCoupons = useMemo(
+    () =>
+      coupons.filter(
+        (coupon) =>
+          coupon.isActive === false ||
+          Boolean(
+            coupon.expiresAt &&
+            new Date(coupon.expiresAt).getTime() < Date.now(),
+          ),
+      ),
+    [coupons],
+  );
 
   const kitchenEmployeeSummaries = useMemo(() => {
     const today = todayTaipeiDate();
@@ -2743,13 +2871,15 @@ export default function App() {
       employeeId: "",
       name: "",
       storeCode: "taipei",
-      title: "",
+      title: employeeTitleOptions[2],
       isActive: true,
     });
   }
 
   async function upsertEmployee(): Promise<void> {
-    const employeeId = employeeDraft.employeeId.trim().toUpperCase();
+    const employeeId = (
+      employeeDraft.employeeId.trim() || suggestedEmployeeId
+    ).toUpperCase();
     const name = employeeDraft.name.trim();
     const storeCode = employeeDraft.storeCode.trim();
     const title = employeeDraft.title.trim();
@@ -3431,6 +3561,30 @@ export default function App() {
     } catch (error) {
       console.error(error);
       setAdminError("完成訂單失敗，請檢查網路後再試。");
+    } finally {
+      setAdminOrderActionId(null);
+    }
+  }
+
+  async function reopenAdminOrder(orderId: number): Promise<void> {
+    setAdminOrderActionId(orderId);
+    setAdminError("正在退回製作...");
+    try {
+      const response = await fetch(
+        buildApiUrl(`/api/orders/${orderId}/reopen`),
+        {
+          method: "PATCH",
+          credentials: "include",
+        },
+      );
+      if (!response.ok) {
+        setAdminError("退回製作失敗，請重新整理後再試。");
+        return;
+      }
+      await loadAdminData({ clearNotice: false, storeCode: adminStoreCode });
+      setAdminError("訂單已退回製作中。");
+    } catch {
+      setAdminError("退回製作失敗，請檢查網路後再試。");
     } finally {
       setAdminOrderActionId(null);
     }
@@ -4682,6 +4836,41 @@ export default function App() {
                   </button>
                 </section>
               ) : null}
+              {!adminStoreCode &&
+              (isAdminDashboardPage ||
+                isAdminOrdersPage ||
+                isAdminReportsPage) ? (
+                <section className="rounded-lg border border-base-300 bg-base-100 p-4 shadow">
+                  <div className="mb-2 text-sm font-semibold opacity-70">
+                    門市篩選
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className={`btn btn-sm ${
+                        adminReportStoreCode === ""
+                          ? "btn-primary"
+                          : "btn-outline"
+                      }`}
+                      onClick={() => setAdminReportStoreCode("")}
+                    >
+                      全部門市
+                    </button>
+                    {branchStoreOptions.map((store) => (
+                      <button
+                        key={store.code}
+                        className={`btn btn-sm ${
+                          adminReportStoreCode === store.code
+                            ? "btn-primary"
+                            : "btn-outline"
+                        }`}
+                        onClick={() => setAdminReportStoreCode(store.code)}
+                      >
+                        {store.name}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
               <section
                 className={`${isAdminDashboardPage ? "" : "hidden "}grid grid-cols-1 md:grid-cols-4 gap-3`}
               >
@@ -4744,12 +4933,6 @@ export default function App() {
                       只顯示訂單號、製作時間、品項與完成操作，協助後廚快速處理待製作訂單。
                     </p>
                   </div>
-                  <button
-                    className="btn btn-sm btn-outline"
-                    onClick={() => navigate("/admin")}
-                  >
-                    返回後台
-                  </button>
                 </div>
 
                 <div className="space-y-4">
@@ -4870,38 +5053,28 @@ export default function App() {
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h2 className="text-2xl font-bold">員工資料</h2>
+                    <h2 className="text-2xl font-bold">新增員工</h2>
                     <p className="text-sm opacity-60">
-                      總部建立員工主檔後，分店打卡會依所屬門市同步顯示。
+                      總部建立員工資料後，分店打卡會依所屬門市同步顯示。
                     </p>
                   </div>
-                  <button
-                    className="btn btn-sm btn-outline"
-                    onClick={() => navigate("/admin")}
-                  >
-                    返回後台
-                  </button>
                 </div>
 
-                <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
+                <div className="grid gap-5 lg:grid-cols-[420px_1fr]">
                   <section className="rounded-lg border border-base-300 bg-base-100 p-5 shadow">
-                    <h3 className="mb-4 text-lg font-bold">員工主檔</h3>
-                    <div className="space-y-3">
-                      <label className="form-control">
-                        <span className="label-text">員工編號</span>
-                        <input
-                          className="input input-bordered"
-                          value={employeeDraft.employeeId}
-                          onChange={(event) =>
-                            setEmployeeDraft((current) => ({
-                              ...current,
-                              employeeId:
-                                event.currentTarget.value.toUpperCase(),
-                            }))
-                          }
-                          placeholder="例如：TPE003"
-                        />
-                      </label>
+                    <div className="mb-5">
+                      <h3 className="text-lg font-bold">新增員工資料</h3>
+                      <p className="mt-1 text-sm opacity-60">
+                        員工編號會依所屬門市自動帶入下一個流水號。
+                      </p>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="rounded-lg border border-base-300 bg-base-200 p-4">
+                        <div className="text-sm opacity-60">員工編號</div>
+                        <div className="mt-1 font-mono text-2xl font-black">
+                          {employeeDraft.employeeId || suggestedEmployeeId}
+                        </div>
+                      </div>
                       <label className="form-control">
                         <span className="label-text">員工姓名</span>
                         <input
@@ -4916,53 +5089,88 @@ export default function App() {
                           placeholder="例如：小明"
                         />
                       </label>
-                      <label className="form-control">
-                        <span className="label-text">所屬門市</span>
-                        <select
-                          className="select select-bordered"
-                          value={employeeDraft.storeCode}
-                          onChange={(event) =>
-                            setEmployeeDraft((current) => ({
-                              ...current,
-                              storeCode: event.currentTarget.value,
-                            }))
-                          }
-                        >
+                      <div>
+                        <div className="mb-2 text-sm font-semibold">
+                          所屬門市
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
                           {branchStoreOptions.map((store) => (
-                            <option key={store.code} value={store.code}>
-                              {store.name}
-                            </option>
+                            <button
+                              key={store.code}
+                              className={`btn btn-sm ${
+                                employeeDraft.storeCode === store.code
+                                  ? "btn-primary"
+                                  : "btn-outline"
+                              }`}
+                              onClick={() =>
+                                setEmployeeDraft((current) => ({
+                                  ...current,
+                                  employeeId: "",
+                                  storeCode: store.code,
+                                }))
+                              }
+                            >
+                              {store.name.replace("分店", "")}
+                            </button>
                           ))}
-                        </select>
-                      </label>
-                      <label className="form-control">
-                        <span className="label-text">職稱</span>
-                        <input
-                          className="input input-bordered"
-                          value={employeeDraft.title}
-                          onChange={(event) =>
-                            setEmployeeDraft((current) => ({
-                              ...current,
-                              title: event.currentTarget.value,
-                            }))
-                          }
-                          placeholder="例如：早班人員"
-                        />
-                      </label>
-                      <label className="flex items-center justify-between rounded-lg border border-base-300 px-4 py-3">
+                        </div>
+                      </div>
+                      <div>
+                        <div className="mb-2 text-sm font-semibold">職稱</div>
+                        <details className="group relative">
+                          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between rounded-lg border border-base-300 bg-base-200 px-4 font-semibold">
+                            <span>{employeeDraft.title || "請選擇職稱"}</span>
+                            <span className="text-sm opacity-60">▼</span>
+                          </summary>
+                          <div className="absolute left-0 right-0 z-30 mt-2 max-h-72 overflow-y-auto rounded-lg border border-base-300 bg-base-100 p-2 shadow-xl">
+                            {employeeTitleOptions.map((title) => (
+                              <button
+                                key={title}
+                                className={`mb-1 w-full rounded-md px-3 py-2 text-left last:mb-0 ${
+                                  employeeDraft.title === title
+                                    ? "bg-primary text-primary-content"
+                                    : "bg-base-200 hover:bg-base-300"
+                                }`}
+                                onClick={(event) => {
+                                  setEmployeeDraft((current) => ({
+                                    ...current,
+                                    title,
+                                  }));
+                                  event.currentTarget
+                                    .closest("details")
+                                    ?.removeAttribute("open");
+                                }}
+                              >
+                                {title}
+                              </button>
+                            ))}
+                          </div>
+                        </details>
+                      </div>
+                      <button
+                        className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left ${
+                          employeeDraft.isActive
+                            ? "border-success/50 bg-success/10"
+                            : "border-base-300 bg-base-200"
+                        }`}
+                        onClick={() =>
+                          setEmployeeDraft((current) => ({
+                            ...current,
+                            isActive: !current.isActive,
+                          }))
+                        }
+                      >
                         <span className="font-semibold">在職中</span>
-                        <input
-                          type="checkbox"
-                          className="toggle toggle-primary"
-                          checked={employeeDraft.isActive}
-                          onChange={(event) =>
-                            setEmployeeDraft((current) => ({
-                              ...current,
-                              isActive: event.currentTarget.checked,
-                            }))
-                          }
-                        />
-                      </label>
+                        <span
+                          className={`badge ${
+                            employeeDraft.isActive
+                              ? "badge-success"
+                              : "badge-ghost"
+                          }`}
+                        >
+                          {employeeDraft.isActive ? "在職" : "離職"}
+                        </span>
+                      </button>
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           className="btn btn-primary"
@@ -4970,7 +5178,7 @@ export default function App() {
                             void upsertEmployee();
                           }}
                         >
-                          儲存員工
+                          {employeeDraft.employeeId ? "更新員工" : "新增員工"}
                         </button>
                         <button
                           className="btn btn-outline"
@@ -4986,7 +5194,7 @@ export default function App() {
                     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                       <h3 className="text-lg font-bold">員工清單</h3>
                       <span className="badge badge-outline">
-                        共 {employees.length} 位
+                        在職 {activeEmployees.length} 位
                       </span>
                     </div>
                     <div className="overflow-x-auto">
@@ -5002,7 +5210,7 @@ export default function App() {
                           </tr>
                         </thead>
                         <tbody>
-                          {employees
+                          {activeEmployees
                             .slice()
                             .sort((a, b) =>
                               a.storeCode === b.storeCode
@@ -5048,7 +5256,7 @@ export default function App() {
                                         )
                                       }
                                     >
-                                      {employee.isActive ? "停用" : "啟用"}
+                                      離職
                                     </button>
                                   </div>
                                 </td>
@@ -5057,12 +5265,63 @@ export default function App() {
                         </tbody>
                       </table>
                     </div>
+                    <div className="mt-6 rounded-lg border border-base-300 bg-base-200 p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <h4 className="font-bold">離職員工資料</h4>
+                        <span className="badge badge-ghost">
+                          {resignedEmployees.length} 位
+                        </span>
+                      </div>
+                      {resignedEmployees.length === 0 ? (
+                        <div className="text-sm opacity-60">
+                          目前沒有離職員工資料。
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {resignedEmployees
+                            .slice()
+                            .sort((a, b) =>
+                              a.storeCode === b.storeCode
+                                ? a.employeeId.localeCompare(b.employeeId)
+                                : a.storeCode.localeCompare(b.storeCode),
+                            )
+                            .map((employee) => (
+                              <div
+                                key={employee.employeeId}
+                                className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-base-100 p-3"
+                              >
+                                <div>
+                                  <div className="font-mono font-semibold">
+                                    {employee.employeeId}
+                                  </div>
+                                  <div className="text-sm opacity-70">
+                                    {employee.name} ·{" "}
+                                    {storeNameMapping[employee.storeCode] ??
+                                      employee.storeCode}
+                                    分店 · {employee.title || "店員"}
+                                  </div>
+                                </div>
+                                <button
+                                  className="btn btn-xs btn-outline"
+                                  onClick={() =>
+                                    void toggleEmployeeActive(
+                                      employee.employeeId,
+                                    )
+                                  }
+                                >
+                                  復職
+                                </button>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
                   </section>
                 </div>
               </section>
 
               <section
-                className={`${isAdminClockPage ? "" : "hidden "}mx-auto max-w-3xl rounded-xl border border-base-300 bg-base-100 p-5 shadow`}
+                className={`${isAdminClockPage ? "" : "hidden "}mx-auto max-w-5xl rounded-xl border border-base-300 bg-base-100 p-5 shadow`}
               >
                 <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -5073,40 +5332,64 @@ export default function App() {
                         : "分店登入後，才能使用打卡與工時統計。"}
                     </p>
                   </div>
-                  <button
-                    className="btn btn-sm btn-outline"
-                    onClick={() => navigate("/admin")}
-                  >
-                    返回後台
-                  </button>
                 </div>
 
                 {adminStoreCode ? (
                   <>
                     <div className="grid gap-4 md:grid-cols-[1fr_220px]">
-                      <label className="form-control">
-                        <span className="label-text">選擇員工</span>
-                        <select
-                          className="select select-bordered"
-                          value={selectedEmployeeId}
-                          onChange={(event) =>
-                            setSelectedEmployeeId(event.currentTarget.value)
-                          }
-                          disabled={branchEmployees.length === 0}
-                        >
-                          <option value="">請選擇員工</option>
-                          {branchEmployees.map((employee) => (
-                            <option
-                              key={employee.employeeId}
-                              value={employee.employeeId}
-                            >
-                              {employee.employeeId} - {employee.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <div>
+                        <div className="mb-2 text-sm font-semibold">
+                          選擇員工
+                        </div>
+                        <details className="group relative">
+                          <summary
+                            className={`flex min-h-14 cursor-pointer list-none items-center justify-between rounded-lg border border-base-300 bg-base-200 px-4 font-semibold ${
+                              branchEmployees.length === 0
+                                ? "pointer-events-none opacity-50"
+                                : ""
+                            }`}
+                          >
+                            <span>
+                              {selectedClockEmployee
+                                ? `${selectedClockEmployee.employeeId} - ${selectedClockEmployee.name}`
+                                : "請選擇員工"}
+                            </span>
+                            <span className="text-sm opacity-60">▼</span>
+                          </summary>
+                          <div className="absolute left-0 right-0 z-30 mt-2 max-h-72 overflow-y-auto rounded-lg border border-base-300 bg-base-100 p-2 shadow-xl">
+                            {branchEmployees.map((employee) => (
+                              <button
+                                key={employee.employeeId}
+                                className={`mb-1 flex w-full items-center justify-between rounded-md px-3 py-3 text-left last:mb-0 ${
+                                  selectedEmployeeId === employee.employeeId
+                                    ? "bg-primary text-primary-content"
+                                    : "bg-base-200 hover:bg-base-300"
+                                }`}
+                                onClick={(event) => {
+                                  setSelectedEmployeeId(employee.employeeId);
+                                  event.currentTarget
+                                    .closest("details")
+                                    ?.removeAttribute("open");
+                                }}
+                              >
+                                <span>
+                                  <span className="font-mono">
+                                    {employee.employeeId}
+                                  </span>
+                                  <span className="ml-3 font-semibold">
+                                    {employee.name}
+                                  </span>
+                                </span>
+                                <span className="text-xs opacity-70">
+                                  {employee.title || "店員"}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </details>
+                      </div>
                       <button
-                        className={`btn mt-0 md:mt-7 ${
+                        className={`btn mt-0 min-h-14 md:mt-7 ${
                           selectedEmployeeOpenShift
                             ? "btn-warning"
                             : "btn-primary"
@@ -5188,15 +5471,13 @@ export default function App() {
                               <div className="rounded-md bg-base-100 p-3">
                                 <div className="opacity-60">今日工時</div>
                                 <div className="font-bold">
-                                  {Math.floor(summary.todayMinutes / 60)}h{" "}
-                                  {summary.todayMinutes % 60}m
+                                  {summary.todayMinutes} 分鐘
                                 </div>
                               </div>
                               <div className="rounded-md bg-base-100 p-3">
                                 <div className="opacity-60">本月工時</div>
                                 <div className="font-bold">
-                                  {Math.floor(summary.monthMinutes / 60)}h{" "}
-                                  {summary.monthMinutes % 60}m
+                                  {summary.monthMinutes} 分鐘
                                 </div>
                               </div>
                             </div>
@@ -5661,7 +5942,11 @@ export default function App() {
                 </>
               ) : null}
 
-              <section className={isAdminDashboardPage ? "" : "hidden"}>
+              <section
+                className={
+                  isAdminDashboardPage && adminStoreCode ? "" : "hidden"
+                }
+              >
                 <h2 className="text-2xl font-bold mb-3">POS 訂單看板</h2>
                 <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
                   <table className="table table-zebra min-w-[1120px]">
@@ -5718,10 +6003,14 @@ export default function App() {
                                     return (
                                       <li
                                         key={checkboxId}
-                                        className="flex items-start gap-2"
+                                        className={`flex items-start gap-2 rounded-md px-2 py-1 ${
+                                          checkedPosItems[checkboxId]
+                                            ? "bg-success/20 text-success"
+                                            : "bg-base-200/40"
+                                        }`}
                                       >
                                         <input
-                                          className="checkbox checkbox-xs mt-1"
+                                          className="checkbox checkbox-success checkbox-sm mt-1"
                                           type="checkbox"
                                           checked={Boolean(
                                             checkedPosItems[checkboxId],
@@ -5786,12 +6075,12 @@ export default function App() {
                                 <div className="opacity-70">
                                   取餐：{order.pickupTime || "-"}
                                 </div>
-                                <div className="opacity-60">
+                                <div className="text-base-content/80">
                                   下單：
                                   {formatTaipeiDateTime(order.submittedAt)}
                                 </div>
                                 {order.completedAt ? (
-                                  <div className="opacity-60">
+                                  <div className="text-base-content/80">
                                     完成：
                                     {formatTaipeiDateTime(order.completedAt)}
                                   </div>
@@ -5817,20 +6106,34 @@ export default function App() {
                                       : "完成"}
                                   </button>
                                 ) : order.status === "completed" ? (
-                                  <button
-                                    className="btn btn-xs btn-primary min-w-16 whitespace-nowrap"
-                                    disabled={
-                                      adminOrderActionId !== null &&
-                                      adminOrderActionId !== order.id
-                                    }
-                                    onClick={() => {
-                                      void pickUpAdminOrder(order.id);
-                                    }}
-                                  >
-                                    {adminOrderActionId === order.id
-                                      ? "處理中..."
-                                      : "已取貨"}
-                                  </button>
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      className="btn btn-xs btn-outline min-w-16 whitespace-nowrap"
+                                      disabled={
+                                        adminOrderActionId !== null &&
+                                        adminOrderActionId !== order.id
+                                      }
+                                      onClick={() => {
+                                        void reopenAdminOrder(order.id);
+                                      }}
+                                    >
+                                      退回製作
+                                    </button>
+                                    <button
+                                      className="btn btn-xs btn-primary min-w-16 whitespace-nowrap"
+                                      disabled={
+                                        adminOrderActionId !== null &&
+                                        adminOrderActionId !== order.id
+                                      }
+                                      onClick={() => {
+                                        void pickUpAdminOrder(order.id);
+                                      }}
+                                    >
+                                      {adminOrderActionId === order.id
+                                        ? "處理中..."
+                                        : "已取貨"}
+                                    </button>
+                                  </div>
                                 ) : (
                                   <span className="text-xs opacity-50">
                                     已歸檔
@@ -5868,6 +6171,7 @@ export default function App() {
                           <tr>
                             <th>單號</th>
                             <th>狀態</th>
+                            <th>門市</th>
                             <th>訂購人</th>
                             <th>品項</th>
                             <th>優惠券</th>
@@ -5879,7 +6183,7 @@ export default function App() {
                         <tbody>
                           {adminHistoryOrders.length === 0 ? (
                             <tr>
-                              <td colSpan={8} className="opacity-60">
+                              <td colSpan={9} className="opacity-60">
                                 這天目前沒有歷史訂單。
                               </td>
                             </tr>
@@ -5895,6 +6199,12 @@ export default function App() {
                                   >
                                     {orderStatusLabel(order.status)}
                                   </span>
+                                </td>
+                                <td>
+                                  {storeNameMapping[order.storeCode ?? ""] ??
+                                    order.storeCode ??
+                                    "-"}
+                                  {order.storeCode ? "分店" : ""}
                                 </td>
                                 <td className="text-sm">
                                   <div>{order.customerName || "-"}</div>
@@ -5987,22 +6297,35 @@ export default function App() {
               <section className={isAdminReportsPage ? "" : "hidden"}>
                 <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
                   <h2 className="text-2xl font-bold">銷售統計</h2>
-                  <label className="form-control w-full max-w-xs">
-                    <span className="label-text mb-1">查詢日期</span>
-                    <input
-                      className="input input-bordered"
-                      type="date"
-                      value={adminStatsDate}
-                      onChange={(event) => {
-                        setAdminStatsDate(event.currentTarget.value);
-                      }}
-                    />
-                  </label>
+                  <div className="grid w-full gap-3 sm:max-w-xl sm:grid-cols-2">
+                    <label className="form-control">
+                      <span className="label-text mb-1">開始日期</span>
+                      <input
+                        className="input input-bordered"
+                        type="date"
+                        value={adminRevenueStartDate}
+                        onChange={(event) => {
+                          setAdminRevenueStartDate(event.currentTarget.value);
+                        }}
+                      />
+                    </label>
+                    <label className="form-control">
+                      <span className="label-text mb-1">結束日期</span>
+                      <input
+                        className="input input-bordered"
+                        type="date"
+                        value={adminRevenueEndDate}
+                        onChange={(event) => {
+                          setAdminRevenueEndDate(event.currentTarget.value);
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
-                <h3 className="mb-3 text-2xl font-bold">每日品項銷售排行</h3>
+                <h3 className="mb-3 text-2xl font-bold">區間品項銷售排行</h3>
                 <div className="bg-base-100 rounded-lg shadow p-4">
                   {selectedAdminStats.itemRanking.length === 0 ? (
-                    <p className="opacity-60">這天目前沒有銷售資料。</p>
+                    <p className="opacity-60">這個區間目前沒有銷售資料。</p>
                   ) : (
                     <ol className="space-y-2">
                       {selectedAdminStats.itemRanking
@@ -6053,7 +6376,7 @@ export default function App() {
                 <h2 className="mb-3 text-2xl font-bold">下單時段統計</h2>
                 <div className="bg-base-100 rounded-lg shadow p-4">
                   {selectedAdminStats.hourlyRanking.length === 0 ? (
-                    <p className="opacity-60">這天目前沒有時段資料。</p>
+                    <p className="opacity-60">這個區間目前沒有時段資料。</p>
                   ) : (
                     <div className="space-y-2">
                       {selectedAdminStats.hourlyRanking.map((row) => (
@@ -6382,12 +6705,12 @@ export default function App() {
                   </button>
                 </div>
                 <div className="space-y-3">
-                  {activePromotions.length === 0 ? (
+                  {currentPromotions.length === 0 ? (
                     <div className="alert bg-base-100">
                       <span>目前沒有啟用中的促銷。</span>
                     </div>
                   ) : (
-                    activePromotions.map((promotion) => (
+                    currentPromotions.map((promotion) => (
                       <article
                         key={promotion.id}
                         className="card bg-base-100 shadow"
@@ -6421,6 +6744,36 @@ export default function App() {
                     ))
                   )}
                 </div>
+                <details className="collapse collapse-arrow mt-4 bg-base-100 shadow">
+                  <summary className="collapse-title text-xl font-bold">
+                    歷史促銷（{historicalPromotions.length}）
+                  </summary>
+                  <div className="collapse-content space-y-3">
+                    {historicalPromotions.length === 0 ? (
+                      <div className="text-sm opacity-60">
+                        目前沒有過期促銷。
+                      </div>
+                    ) : (
+                      historicalPromotions.map((promotion) => (
+                        <div
+                          key={`history-promotion-${promotion.id}`}
+                          className="rounded-lg border border-base-300 bg-base-200 p-3"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <div className="font-bold">{promotion.name}</div>
+                              <div className="text-xs opacity-70">
+                                {formatTaipeiDateTime(promotion.startsAt)} -{" "}
+                                {formatTaipeiDateTime(promotion.endsAt)}
+                              </div>
+                            </div>
+                            <span className="badge badge-ghost">已過期</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </details>
               </section>
 
               <section className={isAdminCouponsPage ? "" : "hidden"}>
@@ -6691,8 +7044,9 @@ export default function App() {
                     </div>
                   </div>
                   <div className="bg-base-100 rounded-lg shadow p-4">
+                    <h3 className="mb-3 text-lg font-bold">目前優惠券</h3>
                     <ul className="space-y-2">
-                      {coupons.map((coupon) => (
+                      {currentCoupons.map((coupon) => (
                         <li
                           key={coupon.code}
                           className="flex flex-col gap-3 border-b border-base-300 pb-3 sm:flex-row sm:items-start sm:justify-between"
@@ -6742,6 +7096,44 @@ export default function App() {
                         </li>
                       ))}
                     </ul>
+                    {currentCoupons.length === 0 ? (
+                      <div className="text-sm opacity-60">
+                        目前沒有可使用優惠券。
+                      </div>
+                    ) : null}
+                    <details className="collapse collapse-arrow mt-4 bg-base-200">
+                      <summary className="collapse-title font-bold">
+                        歷史優惠券（{historicalCoupons.length}）
+                      </summary>
+                      <div className="collapse-content space-y-2">
+                        {historicalCoupons.length === 0 ? (
+                          <div className="text-sm opacity-60">
+                            目前沒有過期或停用優惠券。
+                          </div>
+                        ) : (
+                          historicalCoupons.map((coupon) => (
+                            <div
+                              key={`history-coupon-${coupon.code}`}
+                              className="rounded-lg border border-base-300 bg-base-100 p-3"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <div className="font-semibold">
+                                    {coupon.code} - {coupon.name}
+                                  </div>
+                                  <div className="text-xs opacity-70">
+                                    {coupon.expiresAt
+                                      ? `到期 ${formatTaipeiDateTime(coupon.expiresAt)}`
+                                      : "已停用"}
+                                  </div>
+                                </div>
+                                <span className="badge badge-ghost">歷史</span>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </details>
                   </div>
                 </div>
               </section>
@@ -6811,7 +7203,7 @@ export default function App() {
                   className="select select-bordered w-full"
                   value={orderStoreCode}
                   onChange={(event) => {
-                    setOrderStoreCode(event.currentTarget.value);
+                    changeOrderStoreCode(event.currentTarget.value);
                   }}
                 >
                   <option value="">請選擇門市</option>
@@ -6924,7 +7316,7 @@ export default function App() {
           </div>
         ) : null}
 
-        {promotionalItems.length > 0 ? (
+        {user && promotionalItems.length > 0 ? (
           <section className="mb-8 border-l-4 border-warning bg-warning/10 px-4 py-3">
             <h2 className="font-bold text-lg">{text.promotionNoticeTitle}</h2>
             <p className="text-sm opacity-70">
@@ -6956,7 +7348,7 @@ export default function App() {
           </section>
         ) : null}
 
-        {items.length === 0 ? (
+        {!user ? null : items.length === 0 ? (
           <div className="alert alert-info">
             <span>目前沒有菜單資料</span>
           </div>
@@ -7138,6 +7530,13 @@ export default function App() {
                           <p className="text-xs opacity-60">
                             {text.pickupNumber} #
                             {order.dailySequence ?? order.id}
+                          </p>
+                          <p className="text-xs opacity-60">
+                            訂單 ID #{order.id} · 門市：
+                            {storeNameMapping[order.storeCode ?? ""] ??
+                              order.storeCode ??
+                              "-"}
+                            {order.storeCode ? "分店" : ""}
                           </p>
                         </div>
                         <span

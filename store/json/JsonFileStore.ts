@@ -1053,6 +1053,18 @@ export class JsonFileStore implements Store {
     return order;
   }
 
+  async reopenOrder(orderId: number): Promise<Order | null> {
+    const order = this.orders.find((targetOrder) => targetOrder.id === orderId);
+    if (!order || order.status !== "completed") {
+      return null;
+    }
+
+    order.status = "submitted";
+    order.completedAt = undefined;
+    await this.persist();
+    return order;
+  }
+
   async pickUpOrder(orderId: number): Promise<Order | null> {
     const order = this.orders.find((targetOrder) => targetOrder.id === orderId);
     if (!order || order.status !== "completed") {

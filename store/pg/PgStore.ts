@@ -691,6 +691,27 @@ export class PgStore implements Store {
     return order;
   }
 
+  async reopenOrder(orderId: number): Promise<Order | null> {
+    const [updated] = await db
+      .update(ordersTable)
+      .set({ status: "submitted", completedAt: null })
+      .where(
+        and(eq(ordersTable.id, orderId), eq(ordersTable.status, "completed")),
+      )
+      .returning();
+
+    if (!updated) return null;
+
+    const order = this.orders.find((o) => o.id === orderId);
+    if (!order) {
+      await this.reloadFromDatabase();
+      return this.orders.find((o) => o.id === orderId) ?? null;
+    }
+    order.status = "submitted";
+    order.completedAt = undefined;
+    return order;
+  }
+
   async pickUpOrder(orderId: number): Promise<Order | null> {
     const pickedUpAt = new Date().toISOString();
     const [updated] = await db

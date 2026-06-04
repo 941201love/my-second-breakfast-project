@@ -1003,6 +1003,44 @@ app.patch(
 );
 
 app.patch(
+  "/api/orders/:id/reopen",
+  async ({ params, request, set }) => {
+    requireAdmin(request);
+    const orderId = parseInt(params.id, 10);
+    const existingOrder = store.getOrderById(orderId);
+    if (!existingOrder) {
+      set.status = 404;
+      return { error: "Order not found or cannot be reopened" };
+    }
+    if (!canAdminAccessOrder(request, existingOrder)) {
+      set.status = 403;
+      return { error: "Forbidden" };
+    }
+    const order = await store.reopenOrder(orderId);
+
+    if (!order) {
+      set.status = 404;
+      return { error: "Order not found or cannot be reopened" };
+    }
+
+    return { data: toOrderResponse(order) };
+  },
+  {
+    params: updateOrderParamsSchema,
+    detail: {
+      tags: ["orders"],
+      summary: "Reopen order",
+      description: "Move a completed order back to submitted for rework.",
+    },
+    response: {
+      200: orderResponseEnvelopeSchema,
+      403: apiErrorResponseSchema,
+      404: apiErrorResponseSchema,
+    },
+  },
+);
+
+app.patch(
   "/api/orders/:id/pick-up",
   async ({ params, request, set }) => {
     requireAdmin(request);

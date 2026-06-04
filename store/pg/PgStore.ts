@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import type {
   AddonSettings,
+  Employee,
   MenuItem,
   Order,
   OrderItem,
@@ -37,14 +38,13 @@ if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schemaName)) {
 }
 
 function calculateTotal(items: ReadonlyArray<OrderItem>): number {
-  return items.reduce(
-    (sum, item) => sum + item.menuItemPrice * item.qty,
-    0,
-  );
+  return items.reduce((sum, item) => sum + item.menuItemPrice * item.qty, 0);
 }
 
 function toIsoString(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+  return value instanceof Date
+    ? value.toISOString()
+    : new Date(value).toISOString();
 }
 
 function logicalIdFromSeedId(id: string | number | undefined, index: number) {
@@ -82,11 +82,43 @@ function sameOrderItemOptions(
   );
 }
 
+const defaultEmployees: Employee[] = [
+  {
+    employeeId: "TPE001",
+    name: "小明",
+    storeCode: "taipei",
+    title: "正職人員",
+    isActive: true,
+  },
+  {
+    employeeId: "TPE002",
+    name: "小美",
+    storeCode: "taipei",
+    title: "早班人員",
+    isActive: true,
+  },
+  {
+    employeeId: "TNN001",
+    name: "阿哲",
+    storeCode: "tainan",
+    title: "店員",
+    isActive: true,
+  },
+  {
+    employeeId: "KHH001",
+    name: "怡君",
+    storeCode: "kaohsiung",
+    title: "店員",
+    isActive: true,
+  },
+];
+
 export class PgStore implements Store {
   private readonly dataFilePath: string;
   private menu: MenuItem[] = [];
   private orders: Order[] = [];
   private coupons: Coupon[] = [];
+  private employees: Employee[] = [...defaultEmployees];
   private addonSettings: AddonSettings = {
     eggPrice: 10,
     cheesePrice: 10,
@@ -132,7 +164,12 @@ export class PgStore implements Store {
       .insert(productAddonSettingsTable)
       .values([
         { key: "egg", name: "加蛋", price: input.eggPrice, isActive: true },
-        { key: "cheese", name: "加起司", price: input.cheesePrice, isActive: true },
+        {
+          key: "cheese",
+          name: "加起司",
+          price: input.cheesePrice,
+          isActive: true,
+        },
         ...(input.items ?? [])
           .filter((item) => item.key !== "egg" && item.key !== "cheese")
           .map((item) => ({ ...item })),
@@ -271,7 +308,10 @@ export class PgStore implements Store {
     return this.orders.find((o) => o.id === orderId);
   }
 
-  async createOrder(input: { userId: string; storeCode?: string }): Promise<Order> {
+  async createOrder(input: {
+    userId: string;
+    storeCode?: string;
+  }): Promise<Order> {
     const existingOrder = this.getCurrentOrderByUserId(input.userId);
     if (existingOrder) return existingOrder;
 
@@ -362,8 +402,9 @@ export class PgStore implements Store {
     );
     input = {
       ...input,
-      eggQty: menuItem.eggPrice === undefined ? 0 : input.eggQty ?? 0,
-      cheeseQty: menuItem.cheesePrice === undefined ? 0 : input.cheeseQty ?? 0,
+      eggQty: menuItem.eggPrice === undefined ? 0 : (input.eggQty ?? 0),
+      cheeseQty:
+        menuItem.cheesePrice === undefined ? 0 : (input.cheeseQty ?? 0),
       addons,
     };
     const baseMenuItemPrice =
@@ -448,19 +489,22 @@ export class PgStore implements Store {
         }
       }
     } else if (input.qty > 0) {
-      const [insertedItem] = await db.insert(orderItemsTable).values({
-        orderId,
-        menuItemId: menuItem.id,
-        qty: input.qty,
-        sugarLevel: input.sugarLevel,
-        iceLevel: input.iceLevel,
-        note: input.note,
-        size: input.size,
-        eggQty: input.eggQty ?? 0,
-        cheeseQty: input.cheeseQty ?? 0,
-        addons,
-        unitPrice,
-      }).returning();
+      const [insertedItem] = await db
+        .insert(orderItemsTable)
+        .values({
+          orderId,
+          menuItemId: menuItem.id,
+          qty: input.qty,
+          sugarLevel: input.sugarLevel,
+          iceLevel: input.iceLevel,
+          note: input.note,
+          size: input.size,
+          eggQty: input.eggQty ?? 0,
+          cheeseQty: input.cheeseQty ?? 0,
+          addons,
+          unitPrice,
+        })
+        .returning();
       order.items.push({
         id: insertedItem?.id,
         menuItemId: menuItem.id,
@@ -576,9 +620,7 @@ export class PgStore implements Store {
     const dailySequence = this.nextDailySequence(storeCode);
     const coupon = input.couponCode
       ? this.coupons.find(
-          (item) =>
-            item.code === input.couponCode &&
-            item.isActive,
+          (item) => item.code === input.couponCode && item.isActive,
         )
       : undefined;
     if (input.couponCode && !this.canUseCoupon(coupon, order, input.userId)) {
@@ -634,10 +676,7 @@ export class PgStore implements Store {
       .update(ordersTable)
       .set({ status: "completed", completedAt: new Date(completedAt) })
       .where(
-        and(
-          eq(ordersTable.id, orderId),
-          eq(ordersTable.status, "submitted"),
-        ),
+        and(eq(ordersTable.id, orderId), eq(ordersTable.status, "submitted")),
       )
       .returning();
     if (!updated) return null;
@@ -658,10 +697,7 @@ export class PgStore implements Store {
       .update(ordersTable)
       .set({ status: "picked_up", pickedUpAt: new Date(pickedUpAt) })
       .where(
-        and(
-          eq(ordersTable.id, orderId),
-          eq(ordersTable.status, "completed"),
-        ),
+        and(eq(ordersTable.id, orderId), eq(ordersTable.status, "completed")),
       )
       .returning();
     if (!updated) return null;
@@ -733,6 +769,29 @@ export class PgStore implements Store {
     await db.delete(couponsTable).where(eq(couponsTable.code, code));
     await this.reloadCoupons();
     return coupon;
+  }
+
+  getEmployees(): ReadonlyArray<Employee> {
+    return this.employees;
+  }
+
+  async upsertEmployee(input: Employee): Promise<Employee> {
+    const employee: Employee = {
+      employeeId: input.employeeId.trim().toUpperCase(),
+      name: input.name.trim(),
+      storeCode: input.storeCode.trim(),
+      title: input.title.trim() || "店員",
+      isActive: input.isActive,
+    };
+    const index = this.employees.findIndex(
+      (item) => item.employeeId === employee.employeeId,
+    );
+    if (index === -1) {
+      this.employees.push(employee);
+    } else {
+      this.employees[index] = employee;
+    }
+    return employee;
   }
 
   private async seedFromJsonIfEmpty(): Promise<void> {
@@ -830,10 +889,10 @@ export class PgStore implements Store {
         row.status === "picked_up"
           ? "picked_up"
           : row.status === "completed"
-          ? "completed"
-          : row.status === "submitted"
-            ? "submitted"
-            : "pending",
+            ? "completed"
+            : row.status === "submitted"
+              ? "submitted"
+              : "pending",
       dailySequence: row.dailySequence ?? undefined,
       paymentMethod:
         row.paymentMethod === "card" || row.paymentMethod === "cash"
@@ -879,7 +938,9 @@ export class PgStore implements Store {
       );
     });
 
-    return Math.max(0, ...todayOrders.map((order) => order.dailySequence ?? 0)) + 1;
+    return (
+      Math.max(0, ...todayOrders.map((order) => order.dailySequence ?? 0)) + 1
+    );
   }
 
   private async reloadCoupons(): Promise<void> {
@@ -1059,9 +1120,7 @@ export class PgStore implements Store {
       return false;
     }
     const totalUsedCount = this.orders.filter(
-      (item) =>
-        item.status !== "pending" &&
-        item.couponCode === coupon.code,
+      (item) => item.status !== "pending" && item.couponCode === coupon.code,
     ).length;
     const usageLimitTotal = coupon.usageLimitTotal ?? 0;
     if (usageLimitTotal > 0 && totalUsedCount >= usageLimitTotal) {

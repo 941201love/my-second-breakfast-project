@@ -5,6 +5,7 @@ import type {
   ActivePromotion,
   AddonSettings,
   Coupon,
+  Employee,
   MenuItem,
   MenuItemVersionHistory,
   Order,
@@ -96,7 +97,9 @@ function parseWholeNumber(value: string, fallback = 0) {
   return Number(digits);
 }
 
-function normalizeAddonSettings(value?: Partial<AddonSettings> | null): AddonSettings {
+function normalizeAddonSettings(
+  value?: Partial<AddonSettings> | null,
+): AddonSettings {
   return {
     eggPrice: value?.eggPrice ?? 10,
     cheesePrice: value?.cheesePrice ?? 10,
@@ -199,7 +202,11 @@ function buildOrderStats(orders: Order[], date: string) {
   };
 }
 
-function buildOrderRangeStats(orders: Order[], startDate: string, endDate: string) {
+function buildOrderRangeStats(
+  orders: Order[],
+  startDate: string,
+  endDate: string,
+) {
   const from = startDate || endDate;
   const to = endDate || startDate;
   const submittedOrders = orders.filter((order) => {
@@ -244,12 +251,26 @@ type CartDetail = {
 
 type KitchenClockRecord = {
   employee: string;
+  employeeId?: string;
+  employeeName?: string;
   storeCode: string;
   date: string;
   timeIn: string;
   timeOut: string | null;
   durationMinutes: number | null;
 };
+
+const storeNameMapping: Record<string, string> = {
+  taipei: "台北",
+  tainan: "台南",
+  kaohsiung: "高雄",
+};
+
+const branchStoreOptions = [
+  { code: "taipei", name: "台北分店" },
+  { code: "tainan", name: "台南分店" },
+  { code: "kaohsiung", name: "高雄分店" },
+];
 
 const sugarOptions = ["正常糖", "少糖", "半糖", "微糖", "無糖"];
 const iceOptions = ["正常冰", "少冰", "微冰", "去冰", "熱飲"];
@@ -286,7 +307,10 @@ const sugarOptionLabels: Record<
     無糖: "무가당",
   },
 };
-const iceOptionLabels: Record<UserProfile["language"], Record<string, string>> = {
+const iceOptionLabels: Record<
+  UserProfile["language"],
+  Record<string, string>
+> = {
   "zh-TW": {
     正常冰: "正常冰",
     少冰: "少冰",
@@ -316,7 +340,10 @@ const iceOptionLabels: Record<UserProfile["language"], Record<string, string>> =
     熱飲: "따뜻하게",
   },
 };
-const categoryLabels: Record<UserProfile["language"], Record<string, string>> = {
+const categoryLabels: Record<
+  UserProfile["language"],
+  Record<string, string>
+> = {
   "zh-TW": {
     飲料: "飲料",
     餐點: "餐點",
@@ -397,15 +424,18 @@ const builtInMenuTranslations: Record<
     },
     en: {
       name: "Ham Egg Toast",
-      description: "Pan-fried egg with ham and lettuce on lightly toasted white bread.",
+      description:
+        "Pan-fried egg with ham and lettuce on lightly toasted white bread.",
     },
     ja: {
       name: "ハムエッグトースト",
-      description: "焼き卵、ハム、レタスを軽く焼いた白トーストで挟んだ朝食定番。",
+      description:
+        "焼き卵、ハム、レタスを軽く焼いた白トーストで挟んだ朝食定番。",
     },
     ko: {
       name: "햄 에그 토스트",
-      description: "구운 달걀, 햄, 양상추를 살짝 구운 식빵에 넣은 아침 메뉴입니다.",
+      description:
+        "구운 달걀, 햄, 양상추를 살짝 구운 식빵에 넣은 아침 메뉴입니다.",
     },
   },
   起司豬排堡: {
@@ -415,11 +445,13 @@ const builtInMenuTranslations: Record<
     },
     en: {
       name: "Cheese Pork Cutlet Burger",
-      description: "Thick pork cutlet with cheese and lettuce, crisp outside and juicy inside.",
+      description:
+        "Thick pork cutlet with cheese and lettuce, crisp outside and juicy inside.",
     },
     ja: {
       name: "チーズポークカツバーガー",
-      description: "厚切りポークカツにチーズとレタスを合わせた食べ応えのあるバーガー。",
+      description:
+        "厚切りポークカツにチーズとレタスを合わせた食べ応えのあるバーガー。",
     },
     ko: {
       name: "치즈 돈가스 버거",
@@ -433,15 +465,18 @@ const builtInMenuTranslations: Record<
     },
     en: {
       name: "Tuna Egg Toast",
-      description: "House tuna salad with fried egg and lettuce, rich but not too salty.",
+      description:
+        "House tuna salad with fried egg and lettuce, rich but not too salty.",
     },
     ja: {
       name: "ツナエッグトースト",
-      description: "自家製ツナサラダに卵とレタスを合わせた、濃厚で食べやすいトースト。",
+      description:
+        "自家製ツナサラダに卵とレタスを合わせた、濃厚で食べやすいトースト。",
     },
     ko: {
       name: "참치 에그 토스트",
-      description: "직접 만든 참치 샐러드에 달걀과 양상추를 더한 고소한 토스트입니다.",
+      description:
+        "직접 만든 참치 샐러드에 달걀과 양상추를 더한 고소한 토스트입니다.",
     },
   },
   培根蛋餅: {
@@ -451,25 +486,30 @@ const builtInMenuTranslations: Record<
     },
     en: {
       name: "Bacon Egg Pancake Roll",
-      description: "Crisp Taiwanese egg pancake filled with smoked bacon and egg.",
+      description:
+        "Crisp Taiwanese egg pancake filled with smoked bacon and egg.",
     },
     ja: {
       name: "ベーコン蛋餅",
-      description: "香ばしく焼いた台湾風蛋餅にスモークベーコンと卵を包みました。",
+      description:
+        "香ばしく焼いた台湾風蛋餅にスモークベーコンと卵を包みました。",
     },
     ko: {
       name: "베이컨 단빙",
-      description: "바삭하게 구운 대만식 달걀 전병에 훈제 베이컨과 달걀을 넣었습니다.",
+      description:
+        "바삭하게 구운 대만식 달걀 전병에 훈제 베이컨과 달걀을 넣었습니다.",
     },
   },
   起司蔬菜蛋餅: {
     "zh-TW": {
       name: "起司蔬菜蛋餅",
-      description: "加入起司與高麗菜絲，口感滑順、起司香氣濃郁，適合想吃清爽一點的客人。",
+      description:
+        "加入起司與高麗菜絲，口感滑順、起司香氣濃郁，適合想吃清爽一點的客人。",
     },
     en: {
       name: "Cheese Vegetable Egg Pancake Roll",
-      description: "Cheese and shredded cabbage in a soft egg pancake roll with a lighter taste.",
+      description:
+        "Cheese and shredded cabbage in a soft egg pancake roll with a lighter taste.",
     },
     ja: {
       name: "チーズ野菜蛋餅",
@@ -477,7 +517,8 @@ const builtInMenuTranslations: Record<
     },
     ko: {
       name: "치즈 야채 단빙",
-      description: "치즈와 양배추를 넣어 부드럽고 산뜻한 대만식 달걀 전병입니다.",
+      description:
+        "치즈와 양배추를 넣어 부드럽고 산뜻한 대만식 달걀 전병입니다.",
     },
   },
   蘿蔔糕加蛋: {
@@ -487,7 +528,8 @@ const builtInMenuTranslations: Record<
     },
     en: {
       name: "Radish Cake with Egg",
-      description: "Golden pan-fried radish cake served with egg and house soy paste.",
+      description:
+        "Golden pan-fried radish cake served with egg and house soy paste.",
     },
     ja: {
       name: "大根餅 卵付き",
@@ -505,7 +547,8 @@ const builtInMenuTranslations: Record<
     },
     en: {
       name: "Black Tea",
-      description: "Classic Taiwanese black tea; light sugar and light ice are recommended.",
+      description:
+        "Classic Taiwanese black tea; light sugar and light ice are recommended.",
     },
     ja: {
       name: "紅茶",
@@ -527,7 +570,8 @@ const builtInMenuTranslations: Record<
     },
     ja: {
       name: "ミルクティー",
-      description: "紅茶とクリーマーを合わせた、香り高く飲みやすい定番ドリンク。",
+      description:
+        "紅茶とクリーマーを合わせた、香り高く飲みやすい定番ドリンク。",
     },
     ko: {
       name: "밀크티",
@@ -537,11 +581,13 @@ const builtInMenuTranslations: Record<
   豆漿: {
     "zh-TW": {
       name: "豆漿",
-      description: "每日現煮黃豆漿，口感濃郁不稀薄，提供無糖與微糖兩種甜度選擇。",
+      description:
+        "每日現煮黃豆漿，口感濃郁不稀薄，提供無糖與微糖兩種甜度選擇。",
     },
     en: {
       name: "Soy Milk",
-      description: "Freshly cooked soy milk, rich and smooth, available unsweetened or lightly sweet.",
+      description:
+        "Freshly cooked soy milk, rich and smooth, available unsweetened or lightly sweet.",
     },
     ja: {
       name: "豆乳",
@@ -549,7 +595,8 @@ const builtInMenuTranslations: Record<
     },
     ko: {
       name: "두유",
-      description: "매일 끓이는 진한 두유입니다. 무가당과 약간 달게를 선택할 수 있습니다.",
+      description:
+        "매일 끓이는 진한 두유입니다. 무가당과 약간 달게를 선택할 수 있습니다.",
     },
   },
   鮮奶茶: {
@@ -563,11 +610,13 @@ const builtInMenuTranslations: Record<
     },
     ja: {
       name: "フレッシュミルクティー",
-      description: "クリーマーではなく牛乳を使った、茶とミルクのバランスが良い一杯。",
+      description:
+        "クリーマーではなく牛乳を使った、茶とミルクのバランスが良い一杯。",
     },
     ko: {
       name: "생우유 밀크티",
-      description: "크리머 대신 우유를 넣어 차와 우유의 균형이 좋은 음료입니다.",
+      description:
+        "크리머 대신 우유를 넣어 차와 우유의 균형이 좋은 음료입니다.",
     },
   },
   冰美式咖啡: {
@@ -577,33 +626,40 @@ const builtInMenuTranslations: Record<
     },
     en: {
       name: "Iced Americano",
-      description: "Freshly brewed medium-roast coffee with nutty aroma and light acidity.",
+      description:
+        "Freshly brewed medium-roast coffee with nutty aroma and light acidity.",
     },
     ja: {
       name: "アイスアメリカーノ",
-      description: "中煎り豆を使った、ナッツの香りと軽い酸味のすっきりしたコーヒー。",
+      description:
+        "中煎り豆を使った、ナッツの香りと軽い酸味のすっきりしたコーヒー。",
     },
     ko: {
       name: "아이스 아메리카노",
-      description: "중배전 원두로 추출해 고소한 향과 산뜻한 산미가 있는 커피입니다.",
+      description:
+        "중배전 원두로 추출해 고소한 향과 산뜻한 산미가 있는 커피입니다.",
     },
   },
   熱拿鐵咖啡: {
     "zh-TW": {
       name: "熱拿鐵咖啡",
-      description: "義式濃縮搭配蒸煮鮮奶，奶泡綿密，適合作為慢慢享用的早晨飲品。",
+      description:
+        "義式濃縮搭配蒸煮鮮奶，奶泡綿密，適合作為慢慢享用的早晨飲品。",
     },
     en: {
       name: "Hot Latte",
-      description: "Espresso with steamed milk and soft foam for a slow morning drink.",
+      description:
+        "Espresso with steamed milk and soft foam for a slow morning drink.",
     },
     ja: {
       name: "ホットラテ",
-      description: "エスプレッソにスチームミルクを合わせた、朝にゆっくり楽しめる一杯。",
+      description:
+        "エスプレッソにスチームミルクを合わせた、朝にゆっくり楽しめる一杯。",
     },
     ko: {
       name: "핫 라떼",
-      description: "에스프레소와 스팀 우유, 부드러운 거품이 어우러진 따뜻한 라떼입니다.",
+      description:
+        "에스프레소와 스팀 우유, 부드러운 거품이 어우러진 따뜻한 라떼입니다.",
     },
   },
 };
@@ -839,7 +895,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     noRecommendedCoupons: "No recommended coupons available.",
     noCollectedCoupons: "You have not added any coupons yet.",
     promotionNoticeTitle: "Limited-time offers",
-    promotionNoticeDescription: "Select an item to enjoy its promotional price.",
+    promotionNoticeDescription:
+      "Select an item to enjoy its promotional price.",
     clearing: "Clearing...",
     clearCart: "Clear cart",
     submitting: "Checking out...",
@@ -853,7 +910,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     waitingPickup: "調理中",
     pickupStatus: "受取状況",
     pickupReadyNoticeTitle: "商品を受け取れます",
-    pickupReadyNoticeMessage: "受取番号 {numbers} の商品をカウンターでお受け取りください。",
+    pickupReadyNoticeMessage:
+      "受取番号 {numbers} の商品をカウンターでお受け取りください。",
     viewPickupStatus: "受取状況を見る",
     myPickupNumber: "自分の受取番号",
     noActiveOrder: "進行中の注文はありません",
@@ -952,7 +1010,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     noRecommendedCoupons: "おすすめクーポンはありません。",
     noCollectedCoupons: "追加済みクーポンはありません。",
     promotionNoticeTitle: "期間限定キャンペーン",
-    promotionNoticeDescription: "対象商品を選ぶとキャンペーン価格が適用されます。",
+    promotionNoticeDescription:
+      "対象商品を選ぶとキャンペーン価格が適用されます。",
     clearing: "削除中...",
     clearCart: "カートを空にする",
     submitting: "会計中...",
@@ -966,7 +1025,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     waitingPickup: "준비 중",
     pickupStatus: "픽업 현황",
     pickupReadyNoticeTitle: "주문을 픽업할 수 있습니다",
-    pickupReadyNoticeMessage: "픽업 번호 {numbers}의 주문을 카운터에서 받아 주세요.",
+    pickupReadyNoticeMessage:
+      "픽업 번호 {numbers}의 주문을 카운터에서 받아 주세요.",
     viewPickupStatus: "픽업 현황 보기",
     myPickupNumber: "내 픽업 번호",
     noActiveOrder: "진행 중인 주문이 없습니다",
@@ -1111,6 +1171,7 @@ export default function App() {
   const isAdminCouponsPage = currentPath === "/admin/coupons";
   const isAdminReportsPage = currentPath === "/admin/reports";
   const isAdminClockPage = currentPath === "/admin/clock";
+  const isAdminEmployeesPage = currentPath === "/admin/employees";
   const isAdminAddProductPage = currentPath === "/admin/add-product";
   const isAdminEditProductPage = currentPath.startsWith("/admin/edit-product/");
   const adminEditProductLogicalId = isAdminEditProductPage
@@ -1177,9 +1238,9 @@ export default function App() {
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminAuthed, setAdminAuthed] = useState(false);
   const [isAdminMenuFormOpen, setIsAdminMenuFormOpen] = useState(false);
-  const [adminLoginMode, setAdminLoginMode] = useState<"branch" | "headquarter">(
-    "branch",
-  );
+  const [adminLoginMode, setAdminLoginMode] = useState<
+    "branch" | "headquarter"
+  >("branch");
   const [adminLogin, setAdminLogin] = useState({
     username: "",
     password: "",
@@ -1190,7 +1251,15 @@ export default function App() {
   const [adminError, setAdminError] = useState("");
   const [kitchenPage, setKitchenPage] = useState(1);
   const [kitchenLoading, setKitchenLoading] = useState(false);
-  const [kitchenStaffName, setKitchenStaffName] = useState("");
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employeeDraft, setEmployeeDraft] = useState<Employee>({
+    employeeId: "",
+    name: "",
+    storeCode: "taipei",
+    title: "",
+    isActive: true,
+  });
   const [clockRecords, setClockRecords] = useState<KitchenClockRecord[]>([]);
   const [activePromotions, setActivePromotions] = useState<ActivePromotion[]>(
     [],
@@ -1218,7 +1287,9 @@ export default function App() {
     name: "",
     price: "",
   });
-  const [editingCouponCode, setEditingCouponCode] = useState<string | null>(null);
+  const [editingCouponCode, setEditingCouponCode] = useState<string | null>(
+    null,
+  );
   const [newCoupon, setNewCoupon] = useState<CouponFormState>({
     code: "",
     name: "",
@@ -1258,7 +1329,9 @@ export default function App() {
   const [checkoutNotice, setCheckoutNotice] = useState("");
   const [profileNotice, setProfileNotice] = useState("");
   const [couponWalletNotice, setCouponWalletNotice] = useState("");
-  const [collectedCouponCodes, setCollectedCouponCodes] = useState<string[]>([]);
+  const [collectedCouponCodes, setCollectedCouponCodes] = useState<string[]>(
+    [],
+  );
   const [adminMenuNotice, setAdminMenuNotice] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [adminOrders, setAdminOrders] = useState<Order[]>([]);
@@ -1267,15 +1340,13 @@ export default function App() {
   );
   const [adminHistoryDate, setAdminHistoryDate] = useState(todayTaipeiDate());
   const [adminStatsDate, setAdminStatsDate] = useState(todayTaipeiDate());
-  const [adminRevenueStartDate, setAdminRevenueStartDate] = useState(
-    todayTaipeiDate(),
-  );
-  const [adminRevenueEndDate, setAdminRevenueEndDate] = useState(
-    todayTaipeiDate(),
-  );
-  const [checkedPosItems, setCheckedPosItems] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [adminRevenueStartDate, setAdminRevenueStartDate] =
+    useState(todayTaipeiDate());
+  const [adminRevenueEndDate, setAdminRevenueEndDate] =
+    useState(todayTaipeiDate());
+  const [checkedPosItems, setCheckedPosItems] = useState<
+    Record<string, boolean>
+  >({});
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [cartView, setCartView] = useState<"items" | "checkout">("items");
   const [isClearingCart, setIsClearingCart] = useState(false);
@@ -1296,10 +1367,13 @@ export default function App() {
   const text = uiText[profile.language] ?? uiText["zh-TW"];
   const routeItem =
     itemPageId && items.length > 0
-      ? items.find((item) => item.id === itemPageId || item.logicalId === itemPageId) ??
-        null
+      ? (items.find(
+          (item) => item.id === itemPageId || item.logicalId === itemPageId,
+        ) ?? null)
       : null;
-  const activeCustomizingItem = isItemPage ? (routeItem ?? customizingItem) : null;
+  const activeCustomizingItem = isItemPage
+    ? (routeItem ?? customizingItem)
+    : null;
 
   function navigate(path: string): void {
     if (window.location.pathname !== path) {
@@ -1373,13 +1447,12 @@ export default function App() {
       addonKeys: item.addonKeys ?? [],
       category: item.category,
       imageUrl: item.imageUrl,
-      translations:
-        item.translations ?? {
-          "zh-TW": { name: item.name, description: item.description },
-          en: { name: item.name, description: item.description },
-          ja: { name: item.name, description: item.description },
-          ko: { name: item.name, description: item.description },
-        },
+      translations: item.translations ?? {
+        "zh-TW": { name: item.name, description: item.description },
+        en: { name: item.name, description: item.description },
+        ja: { name: item.name, description: item.description },
+        ko: { name: item.name, description: item.description },
+      },
     });
     setAdminMenuNotice("");
     navigate(`/admin/edit-product/${encodeURIComponent(item.logicalId)}`);
@@ -1422,16 +1495,24 @@ export default function App() {
     );
   const orderItemIsDrink = (detail: OrderItem) => {
     const currentItem = orderItemMenuItem(detail);
-    return currentItem ? isDrink(currentItem) : Boolean(detail.sugarLevel || detail.iceLevel);
+    return currentItem
+      ? isDrink(currentItem)
+      : Boolean(detail.sugarLevel || detail.iceLevel);
   };
   const categoryLabel = (category: string) =>
     categoryLabels[profile.language]?.[category] ?? category;
   const normalizeSugarOption = (option: string) =>
-    option === "預設糖" || option === "Default sugar" || option === "標準の甘さ" || option === "기본 당도"
+    option === "預設糖" ||
+    option === "Default sugar" ||
+    option === "標準の甘さ" ||
+    option === "기본 당도"
       ? "正常糖"
       : option;
   const normalizeIceOption = (option: string) =>
-    option === "預設冰" || option === "Default ice" || option === "標準の氷" || option === "기본 얼음"
+    option === "預設冰" ||
+    option === "Default ice" ||
+    option === "標準の氷" ||
+    option === "기본 얼음"
       ? "正常冰"
       : option;
   const sugarLabel = (option: string) =>
@@ -1461,7 +1542,8 @@ export default function App() {
   };
   const couponCanApply = appliedCoupon ? isCouponUsable(appliedCoupon) : false;
   const couponDiscountTotal = useMemo(
-    () => calculateCouponDiscount(couponCanApply ? appliedCoupon : null, cartTotal),
+    () =>
+      calculateCouponDiscount(couponCanApply ? appliedCoupon : null, cartTotal),
     [appliedCoupon, cartTotal, couponCanApply],
   );
   const checkoutTotal = Math.max(0, cartTotal - couponDiscountTotal);
@@ -1510,11 +1592,11 @@ export default function App() {
       ) +
       (activeCustomizingItem.eggPrice === undefined
         ? 0
-        : addonSettings.eggPrice * cartDraft.eggQty)
-      + (activeCustomizingItem.cheesePrice === undefined
+        : addonSettings.eggPrice * cartDraft.eggQty) +
+      (activeCustomizingItem.cheesePrice === undefined
         ? 0
-        : addonSettings.cheesePrice * cartDraft.cheeseQty)
-      + (cartDraft.addons ?? []).reduce(
+        : addonSettings.cheesePrice * cartDraft.cheeseQty) +
+      (cartDraft.addons ?? []).reduce(
         (sum, addon) => sum + addon.price * addon.qty,
         0,
       )
@@ -1531,8 +1613,12 @@ export default function App() {
     );
     const nextOrderItemById = order.items.reduce(
       (acc, orderItem) => {
-        acc[String(orderItem.id ?? `${orderItem.menuItemId}-${Object.keys(acc).length}`)] =
-          orderItem;
+        acc[
+          String(
+            orderItem.id ??
+              `${orderItem.menuItemId}-${Object.keys(acc).length}`,
+          )
+        ] = orderItem;
         return acc;
       },
       {} as Record<string, OrderItem>,
@@ -1543,7 +1629,10 @@ export default function App() {
     setCartTotal(order.total);
     if (!adminStoreCode && order.storeCode && order.storeCode !== "default") {
       setOrderStoreCode(order.storeCode);
-      window.localStorage.setItem("breakfast-order-store-code", order.storeCode);
+      window.localStorage.setItem(
+        "breakfast-order-store-code",
+        order.storeCode,
+      );
     }
   }
 
@@ -1637,7 +1726,9 @@ export default function App() {
     }
   }
 
-  async function loadOrderProgress(storeCode = adminStoreCode || orderStoreCode): Promise<void> {
+  async function loadOrderProgress(
+    storeCode = adminStoreCode || orderStoreCode,
+  ): Promise<void> {
     const query = storeCode
       ? `?storeCode=${encodeURIComponent(storeCode)}`
       : "";
@@ -1723,7 +1814,15 @@ export default function App() {
       setIsProfileOpen(false);
       setIsCartOpen(false);
       setCollectedCouponCodes([]);
-      if (["/cart", "/orders", "/profile", "/coupons", "/checkout-coupons"].includes(currentPath)) {
+      if (
+        [
+          "/cart",
+          "/orders",
+          "/profile",
+          "/coupons",
+          "/checkout-coupons",
+        ].includes(currentPath)
+      ) {
         navigate("/");
       }
       resetCartState();
@@ -1987,7 +2086,9 @@ export default function App() {
   useEffect(() => {
     if (!user || !(isCartOpen || isCartPage) || cartView !== "checkout") return;
 
-    setCustomerName((current) => current.trim() || profile.nickname || user.name);
+    setCustomerName(
+      (current) => current.trim() || profile.nickname || user.name,
+    );
     setCustomerPhone((current) => current.trim() || profile.phone);
   }, [cartView, isCartOpen, isCartPage, profile.nickname, profile.phone, user]);
 
@@ -2047,10 +2148,7 @@ export default function App() {
     );
     if (adminStoreCode) {
       setOrderStoreCode(adminStoreCode);
-      window.localStorage.setItem(
-        "breakfast-order-store-code",
-        adminStoreCode,
-      );
+      window.localStorage.setItem("breakfast-order-store-code", adminStoreCode);
       return;
     }
     if (storedOrderStoreCode) {
@@ -2060,10 +2158,7 @@ export default function App() {
 
   useEffect(() => {
     if (!adminStoreCode && orderStoreCode) {
-      window.localStorage.setItem(
-        "breakfast-order-store-code",
-        orderStoreCode,
-      );
+      window.localStorage.setItem("breakfast-order-store-code", orderStoreCode);
     }
   }, [adminStoreCode, orderStoreCode]);
 
@@ -2125,15 +2220,13 @@ export default function App() {
     >();
 
     for (const detail of cartDetails) {
-      const group =
-        groupByItemId.get(detail.itemId) ??
-        {
-          itemId: detail.itemId,
-          item: detail.item,
-          lines: [],
-          qty: 0,
-          subtotal: 0,
-        };
+      const group = groupByItemId.get(detail.itemId) ?? {
+        itemId: detail.itemId,
+        item: detail.item,
+        lines: [],
+        qty: 0,
+        subtotal: 0,
+      };
 
       group.lines.push(detail);
       group.qty += detail.qty;
@@ -2209,16 +2302,44 @@ export default function App() {
     [adminOrders],
   );
 
-  const kitchenPageCount = Math.max(
-    1,
-    Math.ceil(kitchenOrders.length / 8),
-  );
+  const kitchenPageCount = Math.max(1, Math.ceil(kitchenOrders.length / 8));
 
   const kitchenPageOrders = useMemo(
-    () =>
-      kitchenOrders.slice((kitchenPage - 1) * 8, kitchenPage * 8),
+    () => kitchenOrders.slice((kitchenPage - 1) * 8, kitchenPage * 8),
     [kitchenOrders, kitchenPage],
   );
+
+  const branchEmployees = useMemo(
+    () =>
+      employees
+        .filter(
+          (employee) =>
+            employee.isActive &&
+            Boolean(adminStoreCode) &&
+            employee.storeCode === adminStoreCode,
+        )
+        .sort((a, b) => a.employeeId.localeCompare(b.employeeId)),
+    [employees, adminStoreCode],
+  );
+
+  const selectedClockEmployee = useMemo(
+    () =>
+      branchEmployees.find(
+        (employee) => employee.employeeId === selectedEmployeeId,
+      ) ?? null,
+    [branchEmployees, selectedEmployeeId],
+  );
+
+  const selectedEmployeeOpenShift = useMemo(() => {
+    if (!selectedClockEmployee) return null;
+    return (
+      clockRecords.find(
+        (record) =>
+          (record.employeeId ?? record.employee) ===
+            selectedClockEmployee.employeeId && record.timeOut === null,
+      ) ?? null
+    );
+  }, [clockRecords, selectedClockEmployee]);
 
   const kitchenEmployeeSummaries = useMemo(() => {
     const today = todayTaipeiDate();
@@ -2226,6 +2347,8 @@ export default function App() {
     const summary = new Map<
       string,
       {
+        employeeId: string;
+        employeeName: string;
         todayMinutes: number;
         monthMinutes: number;
         openShift: KitchenClockRecord | null;
@@ -2233,7 +2356,11 @@ export default function App() {
     >();
 
     for (const record of clockRecords) {
-      const current = summary.get(record.employee) ?? {
+      const employeeId = record.employeeId ?? record.employee;
+      const employeeName = record.employeeName ?? record.employee;
+      const current = summary.get(employeeId) ?? {
+        employeeId,
+        employeeName,
         todayMinutes: 0,
         monthMinutes: 0,
         openShift: null,
@@ -2248,23 +2375,21 @@ export default function App() {
         }
       }
 
-      if (record.date === today && record.timeOut === null) {
+      if (record.timeOut === null) {
         current.openShift = record;
       }
 
-      summary.set(record.employee, current);
+      summary.set(employeeId, current);
     }
 
-    return Array.from(summary.entries()).map(([employee, stats]) => ({
-      employee,
-      ...stats,
-    }));
+    return Array.from(summary.values()).sort((a, b) =>
+      a.employeeId.localeCompare(b.employeeId),
+    );
   }, [clockRecords]);
 
   function couponUsedCount(coupon: Coupon) {
     return adminOrders.filter(
-      (order) =>
-        order.status !== "pending" && order.couponCode === coupon.code,
+      (order) => order.status !== "pending" && order.couponCode === coupon.code,
     ).length;
   }
 
@@ -2394,8 +2519,9 @@ export default function App() {
         throw new Error(`Load menu history failed: HTTP ${response.status}`);
       }
 
-      const payload =
-        (await response.json()) as ApiDataResponse<MenuItemVersionHistory[]>;
+      const payload = (await response.json()) as ApiDataResponse<
+        MenuItemVersionHistory[]
+      >;
       const histories = Array.isArray(payload?.data) ? payload.data : [];
       setVersionHistoryByLogicalId((current) => ({
         ...current,
@@ -2437,32 +2563,41 @@ export default function App() {
           }),
         ]);
       } else {
-        [promotionsResponse, ordersResponse, couponsResponse] = await Promise.all([
-          fetch(buildApiUrl("/api/promotions"), {
-            credentials: "include",
-          }),
-          fetch(buildApiUrl("/api/orders"), {
-            credentials: "include",
-          }),
-          fetch(buildApiUrl("/api/coupons"), {
-            credentials: "include",
-          }),
-        ]);
+        [promotionsResponse, ordersResponse, couponsResponse] =
+          await Promise.all([
+            fetch(buildApiUrl("/api/promotions"), {
+              credentials: "include",
+            }),
+            fetch(buildApiUrl("/api/orders"), {
+              credentials: "include",
+            }),
+            fetch(buildApiUrl("/api/coupons"), {
+              credentials: "include",
+            }),
+          ]);
       }
 
       const failedEndpoints: string[] = [];
       if (!isBranchAdmin && promotionsResponse && !promotionsResponse.ok) {
-        failedEndpoints.push(`/api/promotions (HTTP ${promotionsResponse.status})`);
+        failedEndpoints.push(
+          `/api/promotions (HTTP ${promotionsResponse.status})`,
+        );
       }
-      if (!ordersResponse.ok) failedEndpoints.push(`/api/orders (HTTP ${ordersResponse.status})`);
-      if (!couponsResponse.ok) failedEndpoints.push(`/api/coupons (HTTP ${couponsResponse.status})`);
+      if (!ordersResponse.ok)
+        failedEndpoints.push(`/api/orders (HTTP ${ordersResponse.status})`);
+      if (!couponsResponse.ok)
+        failedEndpoints.push(`/api/coupons (HTTP ${couponsResponse.status})`);
 
       if (failedEndpoints.length > 0) {
         if (ordersResponse.status === 401) {
           setAdminAuthed(false);
         }
         const msg = `Admin API 讀取失敗：${failedEndpoints.join(", ")}`;
-        console.error(msg, { promotionsResponse, ordersResponse, couponsResponse });
+        console.error(msg, {
+          promotionsResponse,
+          ordersResponse,
+          couponsResponse,
+        });
         throw new Error(msg);
       }
 
@@ -2473,22 +2608,26 @@ export default function App() {
             ActivePromotion[]
           >;
       }
-      const ordersPayload =
-        (await ordersResponse.json()) as ApiDataResponse<Order[]>;
-      const couponsPayload =
-        (await couponsResponse.json()) as ApiDataResponse<Coupon[]>;
+      const ordersPayload = (await ordersResponse.json()) as ApiDataResponse<
+        Order[]
+      >;
+      const couponsPayload = (await couponsResponse.json()) as ApiDataResponse<
+        Coupon[]
+      >;
 
       setActivePromotions(
         isBranchAdmin
           ? []
           : Array.isArray(promotionsPayload?.data)
-          ? promotionsPayload.data
-          : [],
+            ? promotionsPayload.data
+            : [],
       );
       setAdminOrders(
         Array.isArray(ordersPayload?.data) ? ordersPayload.data : [],
       );
-      setCoupons(Array.isArray(couponsPayload?.data) ? couponsPayload.data : []);
+      setCoupons(
+        Array.isArray(couponsPayload?.data) ? couponsPayload.data : [],
+      );
     } catch (adminDataError) {
       setAdminError("管理資料讀取失敗，請稍後再試。");
       console.error(adminDataError);
@@ -2579,6 +2718,108 @@ export default function App() {
 
   const kitchenClockStorageKey = "breakfast-kitchen-clock-records";
 
+  async function loadEmployeesData(): Promise<void> {
+    try {
+      const query = adminStoreCode
+        ? `?storeCode=${encodeURIComponent(adminStoreCode)}`
+        : "";
+      const response = await fetch(buildApiUrl(`/api/employees${query}`), {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to load employees");
+      }
+      const payload = (await response.json()) as ApiDataResponse<Employee[]>;
+      setEmployees(payload.data);
+    } catch (employeeError) {
+      console.error(employeeError);
+      setEmployees([]);
+      setAdminError("員工資料讀取失敗，請稍後再試。");
+    }
+  }
+
+  function resetEmployeeDraft(): void {
+    setEmployeeDraft({
+      employeeId: "",
+      name: "",
+      storeCode: "taipei",
+      title: "",
+      isActive: true,
+    });
+  }
+
+  async function upsertEmployee(): Promise<void> {
+    const employeeId = employeeDraft.employeeId.trim().toUpperCase();
+    const name = employeeDraft.name.trim();
+    const storeCode = employeeDraft.storeCode.trim();
+    const title = employeeDraft.title.trim();
+
+    if (!employeeId || !name || !storeCode) {
+      setAdminError("請輸入員工編號、姓名與所屬門市。");
+      return;
+    }
+
+    const nextEmployee: Employee = {
+      employeeId,
+      name,
+      storeCode,
+      title: title || "店員",
+      isActive: employeeDraft.isActive,
+    };
+    const exists = employees.some(
+      (employee) => employee.employeeId === employeeId,
+    );
+
+    try {
+      const response = await fetch(buildApiUrl("/api/employees"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nextEmployee),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to save employee");
+      }
+      await loadEmployeesData();
+      resetEmployeeDraft();
+      setAdminError(
+        exists
+          ? `已更新員工資料：${employeeId} ${name}`
+          : `已新增員工資料：${employeeId} ${name}`,
+      );
+    } catch (employeeError) {
+      console.error(employeeError);
+      setAdminError("儲存員工資料失敗，請確認總部權限後再試。");
+    }
+  }
+
+  function editEmployee(employee: Employee): void {
+    setEmployeeDraft(employee);
+    setAdminError(`正在編輯員工：${employee.employeeId} ${employee.name}`);
+  }
+
+  async function toggleEmployeeActive(employeeId: string): Promise<void> {
+    const target = employees.find(
+      (employee) => employee.employeeId === employeeId,
+    );
+    if (!target) return;
+    try {
+      const response = await fetch(buildApiUrl("/api/employees"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...target, isActive: !target.isActive }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update employee status");
+      }
+      await loadEmployeesData();
+    } catch (employeeError) {
+      console.error(employeeError);
+      setAdminError("更新員工狀態失敗，請稍後再試。");
+    }
+  }
+
   function loadKitchenClockRecords(storeCode: string): KitchenClockRecord[] {
     const stored = window.localStorage.getItem(kitchenClockStorageKey);
     if (!stored) return [];
@@ -2611,20 +2852,21 @@ export default function App() {
     }
 
     allData[storeCode] = records;
-    window.localStorage.setItem(kitchenClockStorageKey, JSON.stringify(allData));
+    window.localStorage.setItem(
+      kitchenClockStorageKey,
+      JSON.stringify(allData),
+    );
   }
 
   function handleKitchenClockToggle(): void {
-    const employee = kitchenStaffName.trim();
     const storeCode = adminStoreCode?.trim();
-    if (!employee || !storeCode) return;
+    if (!selectedClockEmployee || !storeCode) return;
 
     const today = todayTaipeiDate();
     const activeShift = clockRecords.find(
       (record) =>
-        record.employee === employee &&
-        record.date === today &&
-        record.timeOut === null,
+        (record.employeeId ?? record.employee) ===
+          selectedClockEmployee.employeeId && record.timeOut === null,
     );
 
     let nextRecords = [...clockRecords];
@@ -2636,16 +2878,18 @@ export default function App() {
       nextRecords = nextRecords.map((record) =>
         record === activeShift
           ? {
-            ...record,
-            timeOut,
-            durationMinutes: minutes,
-          }
+              ...record,
+              timeOut,
+              durationMinutes: minutes,
+            }
           : record,
       );
     } else {
       nextRecords = [
         {
-          employee,
+          employee: `${selectedClockEmployee.employeeId} ${selectedClockEmployee.name}`,
+          employeeId: selectedClockEmployee.employeeId,
+          employeeName: selectedClockEmployee.name,
           storeCode,
           date: today,
           timeIn: new Date().toISOString(),
@@ -2658,8 +2902,18 @@ export default function App() {
 
     setClockRecords(nextRecords);
     saveKitchenClockRecords(storeCode, nextRecords);
-    setKitchenStaffName("");
+    if (activeShift) {
+      setSelectedEmployeeId("");
+    }
   }
+
+  useEffect(() => {
+    if (!adminAuthed) {
+      setEmployees([]);
+      return;
+    }
+    void loadEmployeesData();
+  }, [adminAuthed, adminStoreCode]);
 
   useEffect(() => {
     if (!isKitchenPage && !isAdminClockPage) return;
@@ -2667,28 +2921,48 @@ export default function App() {
       navigate("/admin");
       return;
     }
-    if (isKitchenPage && adminStoreCode && kitchenBranchCode !== adminStoreCode) {
+    if (
+      isKitchenPage &&
+      adminStoreCode &&
+      kitchenBranchCode !== adminStoreCode
+    ) {
       navigate(`/${adminStoreCode}/kitchen`);
       return;
     }
     const records = loadKitchenClockRecords(adminStoreCode);
     setClockRecords(records);
+    setSelectedEmployeeId("");
     if (isKitchenPage) {
       void loadKitchenData();
     }
-  }, [isKitchenPage, isAdminClockPage, adminAuthed, adminStoreCode, kitchenBranchCode]);
+  }, [
+    isKitchenPage,
+    isAdminClockPage,
+    adminAuthed,
+    adminStoreCode,
+    kitchenBranchCode,
+  ]);
 
   useEffect(() => {
     if (!adminAuthed || !adminStoreCode) return;
     if (
       isAdminMenuPage ||
       isAdminCouponsPage ||
+      isAdminEmployeesPage ||
       isAdminAddProductPage ||
       isAdminEditProductPage
     ) {
       navigate("/admin");
     }
-  }, [adminAuthed, adminStoreCode, isAdminMenuPage, isAdminCouponsPage, isAdminAddProductPage, isAdminEditProductPage]);
+  }, [
+    adminAuthed,
+    adminStoreCode,
+    isAdminMenuPage,
+    isAdminCouponsPage,
+    isAdminEmployeesPage,
+    isAdminAddProductPage,
+    isAdminEditProductPage,
+  ]);
 
   useEffect(() => {
     if (!isKitchenPage) return;
@@ -2785,14 +3059,15 @@ export default function App() {
       setAdminError("優惠碼已存在，請從右側已創優惠券按「編輯」。");
       return;
     }
-    if (
-      editingCouponCode &&
-      editingCouponCode !== code
-    ) {
+    if (editingCouponCode && editingCouponCode !== code) {
       setAdminError("編輯優惠券時不能更改優惠碼，請重新新增一張。");
       return;
     }
-    if (!(await requestConfirm(`確定要${editingCouponCode ? "更新" : "新增"}優惠券「${code}」嗎？`))) {
+    if (
+      !(await requestConfirm(
+        `確定要${editingCouponCode ? "更新" : "新增"}優惠券「${code}」嗎？`,
+      ))
+    ) {
       return;
     }
 
@@ -2908,7 +3183,11 @@ export default function App() {
     }
     const eggPrice = parseWholeNumber(addonSettingsDraft.eggPrice);
     const cheesePrice = parseWholeNumber(addonSettingsDraft.cheesePrice);
-    if (!(await requestConfirm("確定要更新共用加料價格嗎？新加入購物車的品項會套用新價格。"))) {
+    if (
+      !(await requestConfirm(
+        "確定要更新共用加料價格嗎？新加入購物車的品項會套用新價格。",
+      ))
+    ) {
       return;
     }
 
@@ -2992,10 +3271,10 @@ export default function App() {
               newMenuItem.largePrice === ""
                 ? null
                 : Number(newMenuItem.largePrice),
-            eggPrice:
-              !newMenuItem.allowEgg ? null : addonSettings.eggPrice,
-            cheesePrice:
-              !newMenuItem.allowCheese ? null : addonSettings.cheesePrice,
+            eggPrice: !newMenuItem.allowEgg ? null : addonSettings.eggPrice,
+            cheesePrice: !newMenuItem.allowCheese
+              ? null
+              : addonSettings.cheesePrice,
             addonKeys: newMenuItem.addonKeys,
             category: newMenuItem.category,
             imageUrl: newMenuItem.imageUrl,
@@ -3010,10 +3289,10 @@ export default function App() {
             newMenuItem.largePrice === ""
               ? undefined
               : Number(newMenuItem.largePrice),
-          eggPrice:
-            !newMenuItem.allowEgg ? undefined : addonSettings.eggPrice,
-          cheesePrice:
-            !newMenuItem.allowCheese ? undefined : addonSettings.cheesePrice,
+          eggPrice: !newMenuItem.allowEgg ? undefined : addonSettings.eggPrice,
+          cheesePrice: !newMenuItem.allowCheese
+            ? undefined
+            : addonSettings.cheesePrice,
           addonKeys: newMenuItem.addonKeys,
           category: newMenuItem.category,
           imageUrl: newMenuItem.imageUrl,
@@ -3029,9 +3308,7 @@ export default function App() {
     try {
       response = await fetch(
         buildApiUrl(
-          targetLogicalId
-            ? `/api/menu/${targetLogicalId}`
-            : "/api/menu",
+          targetLogicalId ? `/api/menu/${targetLogicalId}` : "/api/menu",
         ),
         {
           method: isEditing ? "PATCH" : "POST",
@@ -3070,7 +3347,11 @@ export default function App() {
       return;
     }
 
-    if (!(await requestConfirm(`確定要把「${item.name}」改成 ${formatMoney(price)} 嗎？`))) {
+    if (
+      !(await requestConfirm(
+        `確定要把「${item.name}」改成 ${formatMoney(price)} 嗎？`,
+      ))
+    ) {
       return;
     }
 
@@ -3121,10 +3402,13 @@ export default function App() {
     setAdminOrderActionId(orderId);
     setAdminError("正在更新訂單狀態...");
     try {
-      const response = await fetch(buildApiUrl(`/api/orders/${orderId}/complete`), {
-        method: "PATCH",
-        credentials: "include",
-      });
+      const response = await fetch(
+        buildApiUrl(`/api/orders/${orderId}/complete`),
+        {
+          method: "PATCH",
+          credentials: "include",
+        },
+      );
 
       if (!response.ok) {
         setAdminError("完成訂單失敗，請重新整理後再試。");
@@ -3135,10 +3419,15 @@ export default function App() {
       const completedOrder = payload.data;
       // Immediately remove the completed order from the kitchen view so it disappears
       // after staff marks it complete. We still refresh admin data in background.
-      setAdminOrders((current) => current.filter((order) => order.id !== orderId));
+      setAdminOrders((current) =>
+        current.filter((order) => order.id !== orderId),
+      );
       const dailySequence = completedOrder.dailySequence ?? orderId;
       setAdminError(`今日單號 #${dailySequence} 已完成，等待顧客取貨。`);
-      void Promise.all([loadAdminData({ clearNotice: false }), loadOrderProgress()]).catch((error) => console.error(error));
+      void Promise.all([
+        loadAdminData({ clearNotice: false }),
+        loadOrderProgress(),
+      ]).catch((error) => console.error(error));
     } catch (error) {
       console.error(error);
       setAdminError("完成訂單失敗，請檢查網路後再試。");
@@ -3151,10 +3440,13 @@ export default function App() {
     setAdminOrderActionId(orderId);
     setAdminError("正在更新取貨狀態...");
     try {
-      const response = await fetch(buildApiUrl(`/api/orders/${orderId}/pick-up`), {
-        method: "PATCH",
-        credentials: "include",
-      });
+      const response = await fetch(
+        buildApiUrl(`/api/orders/${orderId}/pick-up`),
+        {
+          method: "PATCH",
+          credentials: "include",
+        },
+      );
 
       if (!response.ok) {
         setAdminError("更新取貨狀態失敗，請重新整理後再試。");
@@ -3326,23 +3618,26 @@ export default function App() {
       let latestOrder: Order | null = null;
 
       for (const orderItem of order.items) {
-        const response = await fetch(buildApiUrl(`/api/orders/${targetOrderId}`), {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            itemId: orderItem.menuItemId,
-            qty: orderItem.qty,
-            sugarLevel: orderItem.sugarLevel,
-            iceLevel: orderItem.iceLevel,
-            note: orderItem.note,
-            size: orderItem.size,
-            eggQty: orderItem.eggQty,
-            cheeseQty: orderItem.cheeseQty,
-            addons: orderItem.addons,
-            forceNew: true,
-          }),
-        });
+        const response = await fetch(
+          buildApiUrl(`/api/orders/${targetOrderId}`),
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              itemId: orderItem.menuItemId,
+              qty: orderItem.qty,
+              sugarLevel: orderItem.sugarLevel,
+              iceLevel: orderItem.iceLevel,
+              note: orderItem.note,
+              size: orderItem.size,
+              eggQty: orderItem.eggQty,
+              cheeseQty: orderItem.cheeseQty,
+              addons: orderItem.addons,
+              forceNew: true,
+            }),
+          },
+        );
 
         if (!response.ok) {
           throw new Error(`Buy again failed: HTTP ${response.status}`);
@@ -3459,10 +3754,13 @@ export default function App() {
     setIsClearingCart(true);
 
     try {
-      const response = await fetch(buildApiUrl(`/api/orders/${orderId}/items`), {
-        method: "DELETE",
-        credentials: "include",
-      });
+      const response = await fetch(
+        buildApiUrl(`/api/orders/${orderId}/items`),
+        {
+          method: "DELETE",
+          credentials: "include",
+        },
+      );
 
       if (!response.ok) {
         throw new Error(`Clear cart failed: HTTP ${response.status}`);
@@ -3495,9 +3793,8 @@ export default function App() {
     }
 
     const coupon =
-      coupons.find(
-        (item) => item.code === code && item.isActive !== false,
-      ) ?? null;
+      coupons.find((item) => item.code === code && item.isActive !== false) ??
+      null;
 
     if (!coupon) {
       setAppliedCoupon(null);
@@ -3544,9 +3841,8 @@ export default function App() {
     }
 
     const coupon =
-      coupons.find(
-        (item) => item.code === code && item.isActive !== false,
-      ) ?? null;
+      coupons.find((item) => item.code === code && item.isActive !== false) ??
+      null;
 
     if (!coupon || !isCouponCollectable(coupon)) {
       setCouponWalletNotice(
@@ -3649,7 +3945,9 @@ export default function App() {
           ) === today && activeStatuses.has(order.status),
       )
       .map((order) => order.dailySequence ?? order.id)
-      .filter((number) => activeNumbers.size === 0 || activeNumbers.has(number));
+      .filter(
+        (number) => activeNumbers.size === 0 || activeNumbers.has(number),
+      );
 
     if (lastSubmittedOrder) {
       const lastNumber =
@@ -3687,9 +3985,7 @@ export default function App() {
     }
 
     const totalUsedCount = historyOrders.filter(
-      (order) =>
-        order.status !== "pending" &&
-        order.couponCode === coupon.code,
+      (order) => order.status !== "pending" && order.couponCode === coupon.code,
     ).length;
     const totalUsageLimit = coupon.usageLimitTotal ?? 0;
     if (totalUsageLimit > 0 && totalUsedCount >= totalUsageLimit) {
@@ -3701,9 +3997,7 @@ export default function App() {
 
   function hasUsedCoupon(coupon: Coupon): boolean {
     const usedCount = historyOrders.filter(
-      (order) =>
-        order.status !== "pending" &&
-        order.couponCode === coupon.code,
+      (order) => order.status !== "pending" && order.couponCode === coupon.code,
     ).length;
     return usedCount >= (coupon.usageLimitPerUser ?? 1);
   }
@@ -3894,7 +4188,10 @@ export default function App() {
                     inputMode="numeric"
                     value={newMenuItem.largePrice}
                     onChange={(event) => {
-                      const largePrice = event.currentTarget.value.replace(/\D/g, "");
+                      const largePrice = event.currentTarget.value.replace(
+                        /\D/g,
+                        "",
+                      );
                       setNewMenuItem((current) => ({ ...current, largePrice }));
                     }}
                     placeholder="例如 70"
@@ -3905,77 +4202,98 @@ export default function App() {
                 <span className="label-text mb-1 block">可選加料</span>
                 <details className="dropdown w-full">
                   <summary className="btn btn-outline w-full justify-between">
-                    {[newMenuItem.allowEgg ? "加蛋" : "", newMenuItem.allowCheese ? "加起司" : "", ...(addonSettings.items ?? [])
-                      .filter((addon) => newMenuItem.addonKeys.includes(addon.key))
-                      .map((addon) => addon.name)]
+                    {[
+                      newMenuItem.allowEgg ? "加蛋" : "",
+                      newMenuItem.allowCheese ? "加起司" : "",
+                      ...(addonSettings.items ?? [])
+                        .filter((addon) =>
+                          newMenuItem.addonKeys.includes(addon.key),
+                        )
+                        .map((addon) => addon.name),
+                    ]
                       .filter(Boolean)
                       .join("、") || "請選擇加料"}
                     <span>⌄</span>
                   </summary>
                   <div className="dropdown-content z-40 mt-2 w-full space-y-3 rounded-lg border border-base-300 bg-base-100 p-4 shadow">
-                  <label className="flex cursor-pointer items-center justify-between gap-3">
-                    <span className="flex items-center gap-3">
-                    <input
-                      className="checkbox checkbox-primary"
-                      type="checkbox"
-                      checked={newMenuItem.allowEgg}
-                      onChange={(event) => {
-                        const allowEgg = event.currentTarget.checked;
-                        setNewMenuItem((current) => ({ ...current, allowEgg }));
-                      }}
-                    />
-                    <span className="font-semibold">允許加蛋</span>
-                    </span>
-                    <span className="text-sm opacity-70">
-                      {formatMoney(addonSettings.eggPrice)}
-                    </span>
-                  </label>
-                  <label className="flex cursor-pointer items-center justify-between gap-3">
-                    <span className="flex items-center gap-3">
-                    <input
-                      className="checkbox checkbox-primary"
-                      type="checkbox"
-                      checked={newMenuItem.allowCheese}
-                      onChange={(event) => {
-                        const allowCheese = event.currentTarget.checked;
-                        setNewMenuItem((current) => ({ ...current, allowCheese }));
-                      }}
-                    />
-                    <span className="font-semibold">允許加起司</span>
-                    </span>
-                    <span className="text-sm opacity-70">
-                      {formatMoney(addonSettings.cheesePrice)}
-                    </span>
-                  </label>
-                  {(addonSettings.items ?? [])
-                    .filter((addon) => addon.key !== "egg" && addon.key !== "cheese" && addon.isActive)
-                    .map((addon) => (
-                      <label
-                        key={addon.key}
-                        className="flex cursor-pointer items-center justify-between gap-3"
-                      >
-                        <span className="flex items-center gap-3">
-                          <input
-                            className="checkbox checkbox-primary"
-                            type="checkbox"
-                            checked={newMenuItem.addonKeys.includes(addon.key)}
-                            onChange={(event) => {
-                              const checked = event.currentTarget.checked;
-                              setNewMenuItem((current) => ({
-                                ...current,
-                                addonKeys: checked
-                                  ? [...current.addonKeys, addon.key]
-                                  : current.addonKeys.filter((key) => key !== addon.key),
-                              }));
-                            }}
-                          />
-                          <span className="font-semibold">{addon.name}</span>
-                        </span>
-                        <span className="text-sm opacity-70">
-                          {formatMoney(addon.price)}
-                        </span>
-                      </label>
-                    ))}
+                    <label className="flex cursor-pointer items-center justify-between gap-3">
+                      <span className="flex items-center gap-3">
+                        <input
+                          className="checkbox checkbox-primary"
+                          type="checkbox"
+                          checked={newMenuItem.allowEgg}
+                          onChange={(event) => {
+                            const allowEgg = event.currentTarget.checked;
+                            setNewMenuItem((current) => ({
+                              ...current,
+                              allowEgg,
+                            }));
+                          }}
+                        />
+                        <span className="font-semibold">允許加蛋</span>
+                      </span>
+                      <span className="text-sm opacity-70">
+                        {formatMoney(addonSettings.eggPrice)}
+                      </span>
+                    </label>
+                    <label className="flex cursor-pointer items-center justify-between gap-3">
+                      <span className="flex items-center gap-3">
+                        <input
+                          className="checkbox checkbox-primary"
+                          type="checkbox"
+                          checked={newMenuItem.allowCheese}
+                          onChange={(event) => {
+                            const allowCheese = event.currentTarget.checked;
+                            setNewMenuItem((current) => ({
+                              ...current,
+                              allowCheese,
+                            }));
+                          }}
+                        />
+                        <span className="font-semibold">允許加起司</span>
+                      </span>
+                      <span className="text-sm opacity-70">
+                        {formatMoney(addonSettings.cheesePrice)}
+                      </span>
+                    </label>
+                    {(addonSettings.items ?? [])
+                      .filter(
+                        (addon) =>
+                          addon.key !== "egg" &&
+                          addon.key !== "cheese" &&
+                          addon.isActive,
+                      )
+                      .map((addon) => (
+                        <label
+                          key={addon.key}
+                          className="flex cursor-pointer items-center justify-between gap-3"
+                        >
+                          <span className="flex items-center gap-3">
+                            <input
+                              className="checkbox checkbox-primary"
+                              type="checkbox"
+                              checked={newMenuItem.addonKeys.includes(
+                                addon.key,
+                              )}
+                              onChange={(event) => {
+                                const checked = event.currentTarget.checked;
+                                setNewMenuItem((current) => ({
+                                  ...current,
+                                  addonKeys: checked
+                                    ? [...current.addonKeys, addon.key]
+                                    : current.addonKeys.filter(
+                                        (key) => key !== addon.key,
+                                      ),
+                                }));
+                              }}
+                            />
+                            <span className="font-semibold">{addon.name}</span>
+                          </span>
+                          <span className="text-sm opacity-70">
+                            {formatMoney(addon.price)}
+                          </span>
+                        </label>
+                      ))}
                   </div>
                 </details>
               </div>
@@ -4030,7 +4348,9 @@ export default function App() {
                       />
                       <textarea
                         className="textarea textarea-bordered w-full min-h-28"
-                        value={newMenuItem.translations[option.value].description}
+                        value={
+                          newMenuItem.translations[option.value].description
+                        }
                         onChange={(event) => {
                           const description = event.currentTarget.value;
                           setNewMenuItem((current) => ({
@@ -4060,7 +4380,9 @@ export default function App() {
                     alt={previewName}
                     className="h-80 w-full object-cover bg-white"
                     onError={() => {
-                      setAdminMenuNotice("圖片載入失敗，請重新選擇圖片或貼正確網址。");
+                      setAdminMenuNotice(
+                        "圖片載入失敗，請重新選擇圖片或貼正確網址。",
+                      );
                     }}
                   />
                 ) : (
@@ -4075,7 +4397,9 @@ export default function App() {
                     <span className="text-2xl font-black text-success">
                       {formatMoney(newMenuItem.price)}
                     </span>
-                    <button className="btn btn-primary btn-sm">加入購物車</button>
+                    <button className="btn btn-primary btn-sm">
+                      加入購物車
+                    </button>
                   </div>
                 </div>
               </article>
@@ -4100,12 +4424,6 @@ export default function App() {
   }
 
   if (isAdminPage) {
-    const storeNameMapping: Record<string, string> = {
-      taipei: "台北",
-      tainan: "台南",
-      kaohsiung: "高雄",
-    };
-
     const adminTitle = adminStoreCode
       ? `${storeNameMapping[adminStoreCode] ?? adminStoreCode}分店管理後台`
       : "博翔早餐店管理後台";
@@ -4137,6 +4455,11 @@ export default function App() {
               path: "/admin/menu",
               title: "菜單與加料",
               description: "商品、圖片、售價與共用加料",
+            },
+            {
+              path: "/admin/employees",
+              title: "員工資料",
+              description: "員工編號、所屬門市與在職狀態",
             },
           ]),
       ...(adminStoreCode
@@ -4336,1567 +4659,580 @@ export default function App() {
 
           {adminAuthed ? (
             <>
-          {!isAdminDashboardPage ? (
-            <section className="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 pb-4">
-              <h1 className="text-3xl font-bold">
-                {isAdminOrdersPage
-                  ? "訂單與營收"
-                  : isAdminMenuPage
-                    ? "菜單與加料"
-                    : isAdminCouponsPage
-                      ? "促銷與優惠券"
-                      : "銷售統計"}
-              </h1>
-              <button
-                className="btn btn-sm btn-outline"
-                onClick={() => navigate("/admin")}
-              >
-                返回後台
-              </button>
-            </section>
-          ) : null}
-          <section className={`${isAdminDashboardPage ? "" : "hidden "}grid grid-cols-1 md:grid-cols-4 gap-3`}>
-            <div className="stats shadow bg-base-100">
-              <div className="stat">
-                <div className="stat-title">今日單量</div>
-                <div className="stat-value text-primary text-3xl md:text-4xl">
-                  {todayAdminStats.submittedToday.length}
-                </div>
-              </div>
-            </div>
-            <div className="stats shadow bg-base-100">
-              <div className="stat">
-                <div className="stat-title">今日營業額</div>
-                <div className="stat-value text-secondary text-3xl md:text-4xl">
-                  {formatMoney(todayAdminStats.revenue)}
-                </div>
-              </div>
-            </div>
-            <div className="stats shadow bg-base-100">
-              <div className="stat">
-                <div className="stat-title">待完成</div>
-                <div className="stat-value text-accent text-3xl md:text-4xl">
-                  {todayAdminStats.pendingCount}
-                </div>
-              </div>
-            </div>
-            <div className="stats shadow bg-base-100">
-              <div className="stat">
-                <div className="stat-title">已完成</div>
-                <div className="stat-value text-success text-3xl md:text-4xl">
-                  {todayAdminStats.completedCount}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className={`${isAdminDashboardPage ? "" : "hidden "}grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4`}>
-            {modules.map((module) => (
-              <button
-                key={module.path}
-                className="rounded-lg border border-base-300 bg-base-100 p-4 text-left shadow transition hover:border-primary"
-                onClick={() => navigate(module.path)}
-              >
-                <div className="font-bold">{module.title}</div>
-                <div className="mt-1 text-sm opacity-60">{module.description}</div>
-              </button>
-            ))}
-          </section>
-
-          <section className={`${isKitchenPage ? "" : "hidden "}space-y-5`}>
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">後廚 POS</h1>
-                <p className="text-sm opacity-60">
-                  只顯示訂單號、製作時間、品項與完成操作，協助後廚快速處理待製作訂單。
-                </p>
-              </div>
-              <button
-                className="btn btn-sm btn-outline"
-                onClick={() => navigate("/admin")}
-              >
-                返回後台
-              </button>
-            </div>
-
-            <div className="space-y-4">
-                {kitchenLoading ? (
-                  <div className="rounded-lg border border-base-300 bg-base-100 p-6 text-center">
-                    讀取中...
-                  </div>
-                ) : kitchenPageOrders.length === 0 ? (
-                  <div className="rounded-lg border border-base-300 bg-base-100 p-6 text-center">
-                    目前沒有待製作訂單。
-                  </div>
-                ) : (
-                  kitchenPageOrders.map((order) => {
-                    const waitMinutes = orderWaitMinutes(order);
-                    return (
-                      <article
-                        key={order.id}
-                        className={`rounded-xl border p-4 shadow transition ${
-                          order.status === "submitted"
-                            ? "bg-base-100"
-                            : "bg-success/10"
-                        }`}
-                      >
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm opacity-70">單號</p>
-                            <p className="text-2xl font-bold">
-                              #{order.dailySequence ?? order.id}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm opacity-70">製作時間</p>
-                            <p className="text-xl font-semibold">
-                              {waitMinutes} 分鐘
-                            </p>
-                          </div>
-                        </div>
-                        <div className="mb-3 border-t border-base-300 pt-3 text-sm text-slate-800">
-                          <div className="mb-2 text-xs opacity-70">下單時間</div>
-                          <div>{formatTaipeiDateTime(order.submittedAt)}</div>
-                        </div>
-                        <div className="mb-4 space-y-2 text-sm">
-                          {order.items.map((item, index) => (
-                            <div
-                              key={`${order.id}-${item.id ?? item.menuItemId}-${index}`}
-                              className="rounded-lg border border-base-300 bg-base-200 p-3"
-                            >
-                              <div className="font-semibold">
-                                {item.menuItemName} x {item.qty}
-                              </div>
-                              {orderItemIsDrink(item) ? (
-                                <div className="text-xs opacity-70">
-                                  {item.sugarLevel ? sugarLabel(item.sugarLevel) : "正常糖"} / {item.iceLevel ? iceLabel(item.iceLevel) : "正常冰"}
-                                </div>
-                              ) : null}
-                              {item.note ? (
-                                <div className="text-xs opacity-70">備註：{item.note}</div>
-                              ) : null}
-                            </div>
-                          ))}
-                        </div>
-                        <button
-                          className="btn btn-block btn-primary"
-                          disabled={adminOrderActionId !== null}
-                          onClick={() => {
-                            void completeAdminOrder(order.id);
-                          }}
-                        >
-                          {adminOrderActionId === order.id ? "處理中..." : "標記完成"}
-                        </button>
-                      </article>
-                    );
-                  })
-                )}
-
-                <div className="flex items-center justify-between gap-2">
+              {!isAdminDashboardPage ? (
+                <section className="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 pb-4">
+                  <h1 className="text-3xl font-bold">
+                    {isAdminOrdersPage
+                      ? "訂單與營收"
+                      : isAdminMenuPage
+                        ? "菜單與加料"
+                        : isAdminCouponsPage
+                          ? "促銷與優惠券"
+                          : isAdminEmployeesPage
+                            ? "員工資料"
+                            : isAdminClockPage
+                              ? "上下班打卡"
+                              : "銷售統計"}
+                  </h1>
                   <button
-                    className="btn btn-sm"
-                    disabled={kitchenPage <= 1}
-                    onClick={() => setKitchenPage((current) => Math.max(1, current - 1))}
+                    className="btn btn-sm btn-outline"
+                    onClick={() => navigate("/admin")}
                   >
-                    上一頁
+                    返回後台
                   </button>
-                  <span className="text-sm opacity-70">
-                    第 {kitchenPage} / {kitchenPageCount} 頁
-                  </span>
-                  <button
-                    className="btn btn-sm"
-                    disabled={kitchenPage >= kitchenPageCount}
-                    onClick={() => setKitchenPage((current) => Math.min(kitchenPageCount, current + 1))}
-                  >
-                    下一頁
-                  </button>
-                </div>
-            </div>
-          </section>
-
-          <section className={`${isAdminClockPage ? "" : "hidden "}mx-auto max-w-xl rounded-xl border border-base-300 bg-base-100 p-5 shadow`}>
-            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="text-lg font-bold">打卡紀錄</h2>
-                <p className="text-sm opacity-60">
-                  {adminStoreCode
-                    ? "輸入姓名後，按上班打卡或下班打卡，會保存門市工時。"
-                    : "分店登入後，才能使用打卡與工時統計。"}
-                </p>
-              </div>
-              <button
-                className="btn btn-sm btn-outline"
-                onClick={() => navigate("/admin")}
+                </section>
+              ) : null}
+              <section
+                className={`${isAdminDashboardPage ? "" : "hidden "}grid grid-cols-1 md:grid-cols-4 gap-3`}
               >
-                返回後台
-              </button>
-            </div>
-                <label className="form-control">
-                  <span className="label-text">員工姓名</span>
-                  <input
-                    className="input input-bordered"
-                    value={kitchenStaffName}
-                    onChange={(event) => setKitchenStaffName(event.currentTarget.value)}
-                    placeholder="例如：小明"
-                    disabled={!adminStoreCode}
-                  />
-                </label>
-                <button
-                  className="btn btn-primary mt-3 w-full"
-                  onClick={handleKitchenClockToggle}
-                  disabled={!adminStoreCode || !kitchenStaffName.trim()}
-                >
-                  {adminStoreCode && clockRecords.some(
-                    (record) =>
-                      record.employee === kitchenStaffName.trim() &&
-                      record.date === todayTaipeiDate() &&
-                      record.timeOut === null,
-                  )
-                    ? "下班打卡"
-                    : "上班打卡"}
-                </button>
-
-                {adminStoreCode ? (
-                  <div className="mt-6 space-y-4">
-                    {kitchenEmployeeSummaries.length === 0 ? (
-                      <div className="text-sm opacity-60">
-                        目前尚未有員工完成任何時數紀錄。
-                      </div>
-                    ) : (
-                      kitchenEmployeeSummaries.map((summary) => (
-                        <div
-                          key={summary.employee}
-                          className="rounded-lg border border-base-300 bg-base-200 p-3"
-                        >
-                          <div className="font-semibold">
-                            {summary.employee}
-                          </div>
-                          <div className="text-xs opacity-70">
-                            今日：{Math.floor(summary.todayMinutes / 60)}h {summary.todayMinutes % 60}m
-                          </div>
-                          <div className="text-xs opacity-70">
-                            本月：{Math.floor(summary.monthMinutes / 60)}h {summary.monthMinutes % 60}m
-                          </div>
-                          {summary.openShift ? (
-                            <div className="text-xs text-warning">
-                              正在上班中，{formatTaipeiTime(summary.openShift.timeIn)} 開始
-                            </div>
-                          ) : null}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                ) : null}
-          </section>
-
-          <section className={`${isAdminOrdersPage ? "" : "hidden "}rounded-lg bg-base-100 p-5 shadow`}>
-            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-bold">營收查詢</h2>
-                <p className="text-sm opacity-60">
-                  選擇日期區間查看單量、營業額與客單價。
-                </p>
-              </div>
-              <div className="grid w-full grid-cols-1 gap-3 sm:w-auto sm:grid-cols-2">
-                <label className="form-control">
-                  <span className="label-text mb-1">開始日期</span>
-                  <input
-                    className="input input-bordered"
-                    type="date"
-                    value={adminRevenueStartDate}
-                    onChange={(event) => {
-                      setAdminRevenueStartDate(event.currentTarget.value);
-                    }}
-                  />
-                </label>
-                <label className="form-control">
-                  <span className="label-text mb-1">結束日期</span>
-                  <input
-                    className="input input-bordered"
-                    type="date"
-                    value={adminRevenueEndDate}
-                    onChange={(event) => {
-                      setAdminRevenueEndDate(event.currentTarget.value);
-                    }}
-                  />
-                </label>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-              <div className="rounded-lg bg-base-200 p-4">
-                <div className="text-sm opacity-60">區間單量</div>
-                <div className="text-3xl font-bold text-primary">
-                  {adminRevenueRangeStats.submittedOrders.length}
-                </div>
-              </div>
-              <div className="rounded-lg bg-base-200 p-4">
-                <div className="text-sm opacity-60">區間營業額</div>
-                <div className="text-3xl font-bold text-secondary">
-                  {formatMoney(adminRevenueRangeStats.revenue)}
-                </div>
-              </div>
-              <div className="rounded-lg bg-base-200 p-4">
-                <div className="text-sm opacity-60">售出品項數</div>
-                <div className="text-3xl font-bold text-accent">
-                  {adminRevenueRangeStats.itemQty}
-                </div>
-              </div>
-              <div className="rounded-lg bg-base-200 p-4">
-                <div className="text-sm opacity-60">平均客單價</div>
-                <div className="text-3xl font-bold text-success">
-                  {formatMoney(adminRevenueRangeStats.averageTicket)}
-                </div>
-              </div>
-            </div>
-          </section>
-            </>
-          ) : null}
-
-          {adminAuthed ? (
-            <>
-          <section className={`${isAdminMenuPage ? "" : "hidden "}rounded-lg bg-base-100 p-5 shadow`}>
-            <div className="mb-4">
-              <h2 className="text-2xl font-bold">共用加料價格</h2>
-              <p className="mt-1 text-sm opacity-60">
-                修改一次後，所有允許該加料的商品會套用新價格；既有訂單保留原成交價。
-              </p>
-            </div>
-            <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-[1fr_1fr_auto]">
-              <label className="form-control">
-                <span className="label-text mb-1">加蛋單價（NT）</span>
-                <input
-                  className="input input-bordered"
-                  inputMode="numeric"
-                  value={addonSettingsDraft.eggPrice}
-                  onChange={(event) => {
-                    const eggPrice = event.currentTarget.value.replace(/\D/g, "");
-                    setAddonSettingsDraft((current) => ({ ...current, eggPrice }));
-                  }}
-                />
-              </label>
-              <label className="form-control">
-                <span className="label-text mb-1">加起司單價（NT）</span>
-                <input
-                  className="input input-bordered"
-                  inputMode="numeric"
-                  value={addonSettingsDraft.cheesePrice}
-                  onChange={(event) => {
-                    const cheesePrice = event.currentTarget.value.replace(/\D/g, "");
-                    setAddonSettingsDraft((current) => ({ ...current, cheesePrice }));
-                  }}
-                />
-              </label>
-              <button
-                className="btn btn-primary"
-                onClick={() => {
-                  void saveAddonSettings();
-                }}
-              >
-                更新加料價格
-              </button>
-            </div>
-            <div className="mt-5 border-t border-base-300 pt-5">
-              <h3 className="font-bold">其他加料</h3>
-              <p className="mt-1 text-sm opacity-60">
-                可以新增早餐店需要的其他加料，儲存後會保留獨立價格。
-              </p>
-              <div className="mt-3 space-y-2">
-                {(addonSettingsDraft.items ?? [])
-                  .filter((item) => item.key !== "egg" && item.key !== "cheese")
-                  .map((item) => (
-                    <div
-                      key={item.key}
-                      className="grid grid-cols-1 items-center gap-2 rounded-lg border border-base-300 p-3 sm:grid-cols-[1fr_160px_auto]"
-                    >
-                      <input
-                        className="input input-bordered"
-                        value={item.name}
-                        onChange={(event) => {
-                          const name = event.currentTarget.value;
-                          setAddonSettingsDraft((current) => ({
-                            ...current,
-                            items: (current.items ?? []).map((candidate) =>
-                              candidate.key === item.key
-                                ? { ...candidate, name }
-                                : candidate,
-                            ),
-                          }));
-                        }}
-                      />
-                      <input
-                        className="input input-bordered"
-                        inputMode="numeric"
-                        value={item.price}
-                        onChange={(event) => {
-                          const price = parseWholeNumber(event.currentTarget.value);
-                          setAddonSettingsDraft((current) => ({
-                            ...current,
-                            items: (current.items ?? []).map((candidate) =>
-                              candidate.key === item.key
-                                ? { ...candidate, price }
-                                : candidate,
-                            ),
-                          }));
-                        }}
-                      />
-                      <button
-                        className="btn btn-error btn-outline"
-                        onClick={() => {
-                          setAddonSettingsDraft((current) => ({
-                            ...current,
-                            items: (current.items ?? []).filter(
-                              (candidate) => candidate.key !== item.key,
-                            ),
-                          }));
-                        }}
-                      >
-                        刪除
-                      </button>
+                <div className="stats shadow bg-base-100">
+                  <div className="stat">
+                    <div className="stat-title">今日單量</div>
+                    <div className="stat-value text-primary text-3xl md:text-4xl">
+                      {todayAdminStats.submittedToday.length}
                     </div>
-                  ))}
-              </div>
-              <div className="mt-3 grid grid-cols-1 items-end gap-2 sm:grid-cols-[1fr_160px_auto]">
-                <label className="form-control">
-                  <span className="label-text mb-1">新增加料名稱</span>
-                  <input
-                    className="input input-bordered"
-                    value={newAddonDraft.name}
-                    onChange={(event) => {
-                      const name = event.currentTarget.value;
-                      setNewAddonDraft((current) => ({
-                        ...current,
-                        name,
-                      }));
-                    }}
-                    placeholder="例如 培根"
-                  />
-                </label>
-                <label className="form-control">
-                  <span className="label-text mb-1">單價（NT）</span>
-                  <input
-                    className="input input-bordered"
-                    inputMode="numeric"
-                    value={newAddonDraft.price}
-                    onChange={(event) => {
-                      const price = event.currentTarget.value.replace(/\D/g, "");
-                      setNewAddonDraft((current) => ({
-                        ...current,
-                        price,
-                      }));
-                    }}
-                    placeholder="例如 15"
-                  />
-                </label>
-                <button className="btn btn-outline" onClick={addAddonDraft}>
-                  新增加料
-                </button>
-              </div>
-            </div>
-          </section>
+                  </div>
+                </div>
+                <div className="stats shadow bg-base-100">
+                  <div className="stat">
+                    <div className="stat-title">今日營業額</div>
+                    <div className="stat-value text-secondary text-3xl md:text-4xl">
+                      {formatMoney(todayAdminStats.revenue)}
+                    </div>
+                  </div>
+                </div>
+                <div className="stats shadow bg-base-100">
+                  <div className="stat">
+                    <div className="stat-title">待完成</div>
+                    <div className="stat-value text-accent text-3xl md:text-4xl">
+                      {todayAdminStats.pendingCount}
+                    </div>
+                  </div>
+                </div>
+                <div className="stats shadow bg-base-100">
+                  <div className="stat">
+                    <div className="stat-title">已完成</div>
+                    <div className="stat-value text-success text-3xl md:text-4xl">
+                      {todayAdminStats.completedCount}
+                    </div>
+                  </div>
+                </div>
+              </section>
 
-          <section className={isAdminMenuPage ? "" : "hidden"}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-2xl font-bold">菜單商品</h2>
-              <button
-                className="btn btn-primary"
-                onClick={() => {
-                  setAdminMenuNotice("");
-                  resetNewMenuItemForm();
-                  navigate("/admin/add-product");
-                }}
+              <section
+                className={`${isAdminDashboardPage ? "" : "hidden "}grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4`}
               >
-                新增商品
-              </button>
-            </div>
-          </section>
+                {modules.map((module) => (
+                  <button
+                    key={module.path}
+                    className="rounded-lg border border-base-300 bg-base-100 p-4 text-left shadow transition hover:border-primary"
+                    onClick={() => navigate(module.path)}
+                  >
+                    <div className="font-bold">{module.title}</div>
+                    <div className="mt-1 text-sm opacity-60">
+                      {module.description}
+                    </div>
+                  </button>
+                ))}
+              </section>
 
-          {isAdminMenuFormOpen ? (
-            <>
-              <section className="fixed inset-0 z-[9999] h-[100dvh] w-screen overflow-hidden bg-base-100 flex flex-col isolate">
-                <div className="px-6 py-4 border-b border-base-300 flex items-center justify-between">
+              <section className={`${isKitchenPage ? "" : "hidden "}space-y-5`}>
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <h2 className="text-2xl font-bold">新增商品</h2>
+                    <h1 className="text-3xl font-bold">後廚 POS</h1>
                     <p className="text-sm opacity-60">
-                      填寫商品資料後，右側會即時顯示前台效果。
+                      只顯示訂單號、製作時間、品項與完成操作，協助後廚快速處理待製作訂單。
                     </p>
                   </div>
                   <button
-                    className="btn btn-sm btn-ghost"
-                    onClick={() => {
-                      setAdminMenuNotice("");
-                      setIsAdminMenuFormOpen(false);
-                      navigate("/admin/menu");
-                    }}
+                    className="btn btn-sm btn-outline"
+                    onClick={() => navigate("/admin")}
                   >
-                    關閉
+                    返回後台
                   </button>
                 </div>
-                {adminMenuNotice ? (
-                  <div className="fixed left-1/2 top-20 z-[2147483647] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 pointer-events-none">
-                    <div className="alert alert-warning shadow-lg justify-center">
-                      <span>{adminMenuNotice}</span>
-                    </div>
-                  </div>
-                ) : null}
-                <div className="p-6 flex-1 overflow-auto">
-                  <div className="space-y-4">
-                  <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-3">
-                    <label className="form-control">
-                      <span className="label-text mb-1">價格（NT）</span>
-                      <input
-                        className="input input-bordered"
-                        inputMode="numeric"
-                        value={newMenuItem.price}
-                        onChange={(event) => {
-                          const price = parseWholeNumber(event.currentTarget.value);
-                          setNewMenuItem((current) => ({
-                            ...current,
-                            price,
-                          }));
-                        }}
-                        placeholder="例如 50"
-                      />
-                    </label>
-                    <div>
-                      <span className="label-text mb-1 block">分類</span>
-                      <details className="dropdown w-full">
-                        <summary className="btn btn-outline w-full justify-between">
-                          {newMenuItem.category}
-                          <span>⌄</span>
-                        </summary>
-                        <ul className="menu dropdown-content z-[60] mt-2 w-full rounded-lg bg-base-100 p-2 shadow border border-base-300">
-                          {breakfastCategoryOptions.map((category) => (
-                            <li key={category}>
-                              <button
-                                onClick={() =>
-                                  setNewMenuItem((current) => ({
-                                    ...current,
-                                    category,
-                                  }))
-                                }
-                              >
-                                {category}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      </details>
-                    </div>
-                    <div className="space-y-2 lg:col-span-2">
-                      <span className="label-text block">照片</span>
-                      <input
-                        className="file-input file-input-bordered w-full"
-                        type="file"
-                        accept="image/*"
-                        onChange={(event) => {
-                          loadMenuImageFile(event.currentTarget.files?.[0] ?? null);
-                        }}
-                      />
-                      <input
-                        className="input input-bordered w-full"
-                        value={newMenuItem.imageUrl}
-                        onChange={(event) => {
-                          const imageUrl = event.currentTarget.value;
-                          setNewMenuItem((current) => ({
-                            ...current,
-                            imageUrl,
-                          }));
-                        }}
-                        placeholder="或貼圖片網址"
-                      />
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-base-300 bg-base-200 p-4">
-                    <div className="mb-3 font-semibold">前台預覽</div>
-                    <article className="max-w-xl overflow-hidden rounded-lg bg-base-100 shadow">
-                      {newMenuItem.imageUrl ? (
-                        <img
-                          src={newMenuItem.imageUrl}
-                          alt="前台商品預覽"
-                          className="h-80 w-full object-cover bg-white"
-                        />
-                      ) : (
-                        <div className="h-80 bg-base-300 flex items-center justify-center text-sm opacity-60">
-                          選擇圖片後會顯示在這裡
-                        </div>
-                      )}
-                      <div className="p-4 space-y-2">
-                        <h3 className="text-xl font-bold">
-                          {newMenuItem.translations["zh-TW"].name || "商品名稱"}
-                        </h3>
-                        <p className="text-sm opacity-70 line-clamp-2">
-                          {newMenuItem.translations["zh-TW"].description ||
-                            "商品介紹會顯示在這裡"}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-2xl font-bold text-success">
-                            {formatMoney(newMenuItem.price)}
-                          </span>
-                          <button className="btn btn-primary btn-sm">
-                            加入購物車
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                  </div>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {menuLanguageOptions.map((option) => (
-                      <div
-                        key={option.value}
-                        className="rounded-lg border border-base-300 p-3 space-y-2"
-                      >
-                        <div className="font-semibold">{option.label}</div>
-                        <input
-                          className="input input-bordered w-full"
-                          value={newMenuItem.translations[option.value].name}
-                          onChange={(event) => {
-                            const name = event.currentTarget.value;
-                            setNewMenuItem((current) => ({
-                              ...current,
-                              translations: {
-                                ...current.translations,
-                                [option.value]: {
-                                  ...current.translations[option.value],
-                                  name,
-                                },
-                              },
-                            }));
-                          }}
-                          placeholder={`${option.label} 商品名稱`}
-                        />
-                        <textarea
-                          className="textarea textarea-bordered w-full min-h-28"
-                          value={
-                            newMenuItem.translations[option.value].description
-                          }
-                          onChange={(event) => {
-                            const description = event.currentTarget.value;
-                            setNewMenuItem((current) => ({
-                              ...current,
-                              translations: {
-                                ...current.translations,
-                                [option.value]: {
-                                  ...current.translations[option.value],
-                                  description,
-                                },
-                              },
-                            }));
-                          }}
-                          placeholder={`${option.label} 商品介紹`}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  </div>
-                </div>
-                <div className="p-4 border-t border-base-300 bg-base-100">
-                  <button
-                    className="btn btn-primary w-full"
-                    onClick={() => {
-                      void saveAdminMenuItem();
-                    }}
-                  >
-                    新增商品
-                  </button>
-                </div>
-              </section>
-            </>
-          ) : null}
 
-          <section className={isAdminDashboardPage ? "" : "hidden"}>
-            <h2 className="text-2xl font-bold mb-3">POS 訂單看板</h2>
-            <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
-              <table className="table table-zebra min-w-[1120px]">
-                <thead>
-                  <tr>
-                    <th>單號</th>
-                    <th>狀態</th>
-                    <th>付款</th>
-                    <th>品項</th>
-                    <th>備註</th>
-                    <th>金額</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {adminOrders
-                    .filter(
-                      (order) =>
-                        order.status === "submitted" ||
-                        order.status === "completed",
-                    )
-                    .slice(0, 20)
-                    .map((order) => {
+                <div className="space-y-4">
+                  {kitchenLoading ? (
+                    <div className="rounded-lg border border-base-300 bg-base-100 p-6 text-center">
+                      讀取中...
+                    </div>
+                  ) : kitchenPageOrders.length === 0 ? (
+                    <div className="rounded-lg border border-base-300 bg-base-100 p-6 text-center">
+                      目前沒有待製作訂單。
+                    </div>
+                  ) : (
+                    kitchenPageOrders.map((order) => {
                       const waitMinutes = orderWaitMinutes(order);
                       return (
-                      <tr
-                        key={order.id}
-                        className={orderWaitClass(waitMinutes)}
-                      >
-                        <td className="font-bold">
-                          #{order.dailySequence ?? order.id}
-                        </td>
-                        <td className="w-28">
-                          <span
-                            className={`badge min-w-[4rem] whitespace-nowrap justify-center ${orderStatusBadgeClass(order.status)}`}
-                          >
-                            {orderStatusLabel(order.status)}
-                          </span>
-                          <div className="mt-1 text-xs opacity-70">
-                            {order.status === "completed"
-                              ? "待顧客取貨"
-                              : `等待 ${waitMinutes} 分鐘`}
-                          </div>
-                        </td>
-                        <td className="whitespace-nowrap">
-                          {order.paymentMethod === "card" ? "刷卡" : "現金"}
-                        </td>
-                        <td>
-                          <ul className="space-y-1 text-sm">
-                            {order.items.map((item, index) => {
-                              const checkboxId = `${order.id}-${item.id ?? item.menuItemId}-${index}`;
-                              return (
-                                <li
-                                  key={checkboxId}
-                                  className="flex items-start gap-2"
-                                >
-                                  <input
-                                    className="checkbox checkbox-xs mt-1"
-                                    type="checkbox"
-                                    checked={Boolean(checkedPosItems[checkboxId])}
-                                    onChange={(event) => {
-                                      const checked = event.currentTarget.checked;
-                                      setCheckedPosItems((current) => ({
-                                        ...current,
-                                        [checkboxId]: checked,
-                                      }));
-                                    }}
-                                  />
-                                  <span
-                                    className={
-                                      checkedPosItems[checkboxId]
-                                        ? "line-through opacity-50"
-                                        : ""
-                                    }
-                                  >
-                                    {item.menuItemName} x {item.qty}
-                                    {orderItemIsDrink(item) ? (
-                                      <span className="opacity-60">
-                                        {" "}
-                                        ({item.sugarLevel ? sugarLabel(item.sugarLevel) : "正常糖"} /{" "}
-                                        {item.iceLevel ? iceLabel(item.iceLevel) : "正常冰"})
-                                      </span>
-                                    ) : null}
-                                    {orderItemSpecification(item) ? (
-                                      <span className="opacity-60">
-                                        {" "}
-                                        ({orderItemSpecification(item)})
-                                      </span>
-                                    ) : null}
-                                    {item.note ? (
-                                      <span className="opacity-60">
-                                        {" "}
-                                        - {item.note}
-                                      </span>
-                                    ) : null}
-                                  </span>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        </td>
-                        <td className="text-sm">
-                          <div>{order.note || "-"}</div>
-                          <div className="opacity-70">
-                            訂購人：{order.customerName || "-"}
-                          </div>
-                          <div className="opacity-70">
-                            電話：{order.customerPhone || "-"}
-                          </div>
-                          <div className="opacity-70">
-                            取餐：{order.pickupTime || "-"}
-                          </div>
-                          <div className="opacity-60">
-                            下單：{formatTaipeiDateTime(order.submittedAt)}
-                          </div>
-                          {order.completedAt ? (
-                            <div className="opacity-60">
-                              完成：{formatTaipeiDateTime(order.completedAt)}
-                            </div>
-                          ) : null}
-                        </td>
-                        <td className="font-semibold">
-                          {formatMoney(order.total)}
-                        </td>
-                        <td>
-                          {order.status === "submitted" ? (
-                            <button
-                              className="btn btn-xs btn-success min-w-12 whitespace-nowrap"
-                              disabled={
-                                adminOrderActionId !== null &&
-                                adminOrderActionId !== order.id
-                              }
-                              onClick={() => {
-                                void completeAdminOrder(order.id);
-                              }}
-                            >
-                              {adminOrderActionId === order.id
-                                ? "處理中..."
-                                : "完成"}
-                            </button>
-                          ) : order.status === "completed" ? (
-                            <button
-                              className="btn btn-xs btn-primary min-w-16 whitespace-nowrap"
-                              disabled={
-                                adminOrderActionId !== null &&
-                                adminOrderActionId !== order.id
-                              }
-                              onClick={() => {
-                                void pickUpAdminOrder(order.id);
-                              }}
-                            >
-                              {adminOrderActionId === order.id
-                                ? "處理中..."
-                                : "已取貨"}
-                            </button>
-                          ) : (
-                            <span className="text-xs opacity-50">已歸檔</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                    })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className={isAdminOrdersPage ? "" : "hidden"}>
-            <details className="collapse collapse-arrow bg-base-100 shadow h-fit">
-              <summary className="collapse-title text-2xl font-bold">
-                單日歷史訂單
-              </summary>
-              <div className="collapse-content space-y-4">
-                <label className="form-control w-full max-w-xs">
-                  <span className="label-text mb-1">查詢日期</span>
-                  <input
-                    className="input input-bordered"
-                    type="date"
-                    value={adminHistoryDate}
-                    onChange={(event) => {
-                      setAdminHistoryDate(event.currentTarget.value);
-                    }}
-                  />
-                </label>
-                <div className="overflow-x-auto rounded-lg border border-base-300">
-              <table className="table table-zebra min-w-[1080px]">
-                <thead>
-                  <tr>
-                    <th>單號</th>
-                    <th>狀態</th>
-                    <th>訂購人</th>
-                    <th>品項</th>
-                    <th>優惠券</th>
-                    <th>付款</th>
-                    <th>時間</th>
-                    <th>金額</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {adminHistoryOrders.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="opacity-60">
-                        這天目前沒有歷史訂單。
-                      </td>
-                    </tr>
-                  ) : (
-                    adminHistoryOrders.map((order) => (
-                      <tr key={`history-${order.id}`}>
-                        <td className="font-bold">
-                          #{order.dailySequence ?? order.id}
-                        </td>
-                        <td>
-                          <span
-                            className={`badge min-w-[4rem] whitespace-nowrap justify-center ${orderStatusBadgeClass(order.status)}`}
-                          >
-                            {orderStatusLabel(order.status)}
-                          </span>
-                        </td>
-                        <td className="text-sm">
-                          <div>{order.customerName || "-"}</div>
-                          <div className="opacity-70">{order.customerPhone || "-"}</div>
-                        </td>
-                        <td>
-                          <ul className="space-y-1 text-sm">
-                            {order.items.map((item) => (
-                              <li key={`history-${order.id}-${item.id ?? item.menuItemId}`}>
-                                {item.menuItemName} x {item.qty}
-                                {orderItemIsDrink(item) ? (
-                                  <span className="opacity-60">
-                                    {" "}
-                                    ({item.sugarLevel ? sugarLabel(item.sugarLevel) : "正常糖"} /{" "}
-                                    {item.iceLevel ? iceLabel(item.iceLevel) : "正常冰"})
-                                  </span>
-                                ) : null}
-                                {orderItemSpecification(item) ? (
-                                  <span className="opacity-60">
-                                    {" "}
-                                    ({orderItemSpecification(item)})
-                                  </span>
-                                ) : null}
-                              </li>
-                            ))}
-                          </ul>
-                        </td>
-                        <td>
-                          {order.couponCode ? (
-                            <div className="text-sm">
-                              <span className="badge badge-accent badge-sm">
-                                {order.couponCode}
-                              </span>
-                              <div className="opacity-70">
-                                折抵 {formatMoney(order.discountTotal ?? 0)}
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="opacity-50">無</span>
-                          )}
-                        </td>
-                        <td>{order.paymentMethod === "card" ? "刷卡" : "現金"}</td>
-                        <td className="text-sm">
-                          <div>下單：{formatTaipeiDateTime(order.submittedAt)}</div>
-                          {order.completedAt ? (
-                            <div className="opacity-70">
-                              完成：{formatTaipeiDateTime(order.completedAt)}
-                            </div>
-                          ) : null}
-                          {order.pickedUpAt ? (
-                            <div className="opacity-70">
-                              取貨：{formatTaipeiDateTime(order.pickedUpAt)}
-                            </div>
-                          ) : null}
-                        </td>
-                        <td className="font-semibold">{formatMoney(order.total)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-                </div>
-              </div>
-            </details>
-          </section>
-
-          <section className={isAdminReportsPage ? "" : "hidden"}>
-            <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-              <h2 className="text-2xl font-bold">銷售統計</h2>
-              <label className="form-control w-full max-w-xs">
-                <span className="label-text mb-1">查詢日期</span>
-                <input
-                  className="input input-bordered"
-                  type="date"
-                  value={adminStatsDate}
-                  onChange={(event) => {
-                    setAdminStatsDate(event.currentTarget.value);
-                  }}
-                />
-              </label>
-            </div>
-            <h3 className="mb-3 text-2xl font-bold">每日品項銷售排行</h3>
-            <div className="bg-base-100 rounded-lg shadow p-4">
-              {selectedAdminStats.itemRanking.length === 0 ? (
-                <p className="opacity-60">這天目前沒有銷售資料。</p>
-              ) : (
-                <ol className="space-y-2">
-                  {selectedAdminStats.itemRanking.slice(0, 4).map((item, index) => (
-                    <li
-                      key={item.name}
-                      className="flex items-center justify-between border-b border-base-300 pb-2"
-                    >
-                      <span>
-                        {index + 1}. {item.name}
-                      </span>
-                      <span className="badge badge-primary">{item.qty} 份</span>
-                    </li>
-                  ))}
-                </ol>
-              )}
-              {selectedAdminStats.itemRanking.length > 4 ? (
-                <details className="collapse collapse-arrow mt-3 bg-base-200">
-                  <summary className="collapse-title font-bold">
-                    查看全部品項
-                  </summary>
-                  <ol className="collapse-content space-y-2">
-                    {selectedAdminStats.itemRanking.slice(4).map((item, index) => (
-                      <li
-                        key={`extra-${item.name}`}
-                        className="flex items-center justify-between border-b border-base-300 pb-2"
-                      >
-                        <span>
-                          {index + 5}. {item.name}
-                        </span>
-                        <span className="badge badge-primary">{item.qty} 份</span>
-                      </li>
-                    ))}
-                  </ol>
-                </details>
-              ) : null}
-            </div>
-          </section>
-
-          <section className={isAdminReportsPage ? "" : "hidden"}>
-            <h2 className="mb-3 text-2xl font-bold">下單時段統計</h2>
-            <div className="bg-base-100 rounded-lg shadow p-4">
-                {selectedAdminStats.hourlyRanking.length === 0 ? (
-                  <p className="opacity-60">這天目前沒有時段資料。</p>
-                ) : (
-                  <div className="space-y-2">
-                    {selectedAdminStats.hourlyRanking.map((row) => (
-                      <div
-                        key={row.hour}
-                        className="flex items-center justify-between"
-                      >
-                        <span>{String(row.hour).padStart(2, "0")}:00</span>
-                        <progress
-                          className="progress progress-primary mx-3 flex-1"
-                          value={row.count}
-                          max={Math.max(
-                            ...selectedAdminStats.hourlyRanking.map(
-                              (item) => item.count,
-                            ),
-                          )}
-                        />
-                        <span className="w-12 text-right">{row.count} 單</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-            </div>
-          </section>
-
-          <section className={isAdminMenuPage ? "" : "hidden"}>
-            <details className="collapse collapse-arrow bg-base-100 shadow h-fit">
-              <summary className="collapse-title text-2xl font-bold">
-                菜單商品管理
-              </summary>
-              <div className="collapse-content">
-                <div className="overflow-x-auto rounded-lg border border-base-300">
-                  <table className="table min-w-[1080px]">
-                    <thead>
-                      <tr className="bg-base-200/80">
-                        <th className="px-5">品項</th>
-                        <th className="px-5">分類</th>
-                        <th className="px-5">上架／更新</th>
-                        <th className="px-5">目前價格</th>
-                        <th className="text-center">改價紀錄</th>
-                        <th className="px-5 text-right">操作</th>
-                      </tr>
-                    </thead>
-                    {Array.from(
-                      new Set(items.map((item) => item.category)),
-                    ).map((category) => (
-                    <tbody key={category}>
-                      <tr className="bg-base-300">
-                        <td colSpan={6} className="px-5 py-3 text-base font-bold">
-                          {category}
-                        </td>
-                      </tr>
-                      {items.filter((item) => item.category === category).map((item) => {
-                        const histories =
-                          versionHistoryByLogicalId[item.logicalId] ?? [];
-                        return (
-                          <tr
-                            key={item.id}
-                            className="border-b border-base-300/70 bg-base-100/40 hover:bg-base-200/60"
-                          >
-                            <td className="px-5 py-4">
-                              <div className="font-semibold">{item.name}</div>
-                              <div className="text-xs opacity-60">
-                                商品代碼：{item.logicalId}
-                              </div>
-                            </td>
-                            <td className="px-5 py-4">
-                              <span className="badge badge-outline">
-                                {item.category}
-                              </span>
-                            </td>
-                            <td className="px-5 py-4 text-sm">
-                              <div>
-                                {histories[0]?.createdAt
-                                  ? formatTaipeiDateTime(histories[0].createdAt)
-                                  : "按查看紀錄載入"}
-                              </div>
-                              {item.isRecentlyUpdated ? (
-                                <span className="badge badge-accent badge-sm">
-                                  新品展示中
-                                </span>
-                              ) : null}
-                            </td>
-                            <td className="px-5 py-4">
-                              <span className="font-semibold">
-                                {formatMoney(item.price)}
-                              </span>
-                            </td>
-                            <td className="px-5 py-4 text-center">
-                              <button
-                                className="btn btn-xs btn-outline"
-                                disabled={loadingHistoryId === item.logicalId}
-                                onClick={() => {
-                                  void loadVersionHistory(item.logicalId).then(
-                                    (loadedHistories) => {
-                                      const priceHistories =
-                                        loadedHistories.filter(
-                                          (history, index) =>
-                                            index === loadedHistories.length - 1 ||
-                                            history.price !==
-                                              loadedHistories[index + 1]?.price,
-                                        );
-                                  setAdminPriceHistoryModal({
-                                    itemName: item.name,
-                                    histories: priceHistories,
-                                  });
-                                    },
-                                  );
-                                }}
-                              >
-                                {loadingHistoryId === item.logicalId
-                                  ? "載入中..."
-                                  : "查看紀錄"}
-                              </button>
-                            </td>
-                            <td className="px-5 py-4">
-                              <div className="flex justify-end gap-2">
-                                <button
-                                  className="btn btn-xs btn-outline"
-                                  onClick={() => {
-                                    openEditAdminMenuItem(item);
-                                  }}
-                                >
-                                  編輯
-                                </button>
-                                <button
-                          className="btn btn-xs btn-outline"
-                          onClick={() => {
-                            openPriceAdjust(item);
-                          }}
+                        <article
+                          key={order.id}
+                          className={`rounded-xl border p-4 shadow transition ${
+                            order.status === "submitted"
+                              ? "bg-base-100"
+                              : "bg-success/10"
+                          }`}
                         >
-                                  調價
-                                </button>
-                                <button
-                                  className="btn btn-xs btn-error btn-outline"
-                                  onClick={() => {
-                                    void deleteAdminMenuItem(item);
-                                  }}
-                                >
-                                  刪除
-                                </button>
+                          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm opacity-70">單號</p>
+                              <p className="text-2xl font-bold">
+                                #{order.dailySequence ?? order.id}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm opacity-70">製作時間</p>
+                              <p className="text-xl font-semibold">
+                                {waitMinutes} 分鐘
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mb-3 border-t border-base-300 pt-3 text-sm text-slate-800">
+                            <div className="mb-2 text-xs opacity-70">
+                              下單時間
+                            </div>
+                            <div>{formatTaipeiDateTime(order.submittedAt)}</div>
+                          </div>
+                          <div className="mb-4 space-y-2 text-sm">
+                            {order.items.map((item, index) => (
+                              <div
+                                key={`${order.id}-${item.id ?? item.menuItemId}-${index}`}
+                                className="rounded-lg border border-base-300 bg-base-200 p-3"
+                              >
+                                <div className="font-semibold">
+                                  {item.menuItemName} x {item.qty}
+                                </div>
+                                {orderItemIsDrink(item) ? (
+                                  <div className="text-xs opacity-70">
+                                    {item.sugarLevel
+                                      ? sugarLabel(item.sugarLevel)
+                                      : "正常糖"}{" "}
+                                    /{" "}
+                                    {item.iceLevel
+                                      ? iceLabel(item.iceLevel)
+                                      : "正常冰"}
+                                  </div>
+                                ) : null}
+                                {item.note ? (
+                                  <div className="text-xs opacity-70">
+                                    備註：{item.note}
+                                  </div>
+                                ) : null}
                               </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    ))}
-                  </table>
-                </div>
-              </div>
-            </details>
-          </section>
-
-          <section className={isAdminCouponsPage ? "" : "hidden"}>
-            {adminStoreCode ? (
-              <div className="alert bg-base-100">
-                <span>注意：促銷管理僅限總部帳號，分店無法建立或刪除促銷。</span>
-              </div>
-            ) : null}
-            <h2 className="text-2xl font-bold mb-3">目前促銷</h2>
-            <div className="mb-4 rounded-lg bg-base-100 p-4 shadow">
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                <label className="form-control">
-                  <span className="label-text mb-1">活動名稱</span>
-                  <input
-                    className="input input-bordered"
-                    value={newPromotion.name}
-                    onChange={(event) => {
-                      const name = event.currentTarget.value;
-                      setNewPromotion((current) => ({
-                        ...current,
-                        name,
-                      }));
-                    }}
-                    placeholder="例如 飯糰新品折 10 元"
-                  />
-                </label>
-                <label className="form-control">
-                  <span className="label-text mb-1">適用商品</span>
-                  <details className="dropdown w-full">
-                    <summary className="btn btn-outline w-full justify-between">
-                      {newPromotion.menuItemLogicalIds.length === 0
-                        ? "請選擇商品"
-                        : newPromotion.menuItemLogicalIds.length === 1
-                          ? items.find(
-                              (item) =>
-                                item.logicalId ===
-                                newPromotion.menuItemLogicalIds[0],
-                            )?.name
-                          : `已選擇 ${newPromotion.menuItemLogicalIds.length} 個商品`}
-                      <span>⌄</span>
-                    </summary>
-                    <ul className="menu dropdown-content z-40 mt-2 max-h-72 w-full overflow-y-auto rounded-lg border border-base-300 bg-base-100 p-2 shadow">
-                      {items.map((item) => (
-                        <li key={item.logicalId}>
+                            ))}
+                          </div>
                           <button
+                            className="btn btn-block btn-primary"
+                            disabled={adminOrderActionId !== null}
                             onClick={() => {
-                              setNewPromotion((current) => ({
-                                ...current,
-                                menuItemLogicalIds:
-                                  current.menuItemLogicalIds.includes(
-                                    item.logicalId,
-                                  )
-                                    ? current.menuItemLogicalIds.filter(
-                                        (logicalId) =>
-                                          logicalId !== item.logicalId,
-                                      )
-                                    : [
-                                        ...current.menuItemLogicalIds,
-                                        item.logicalId,
-                                      ],
-                              }));
+                              void completeAdminOrder(order.id);
                             }}
                           >
-                            <input
-                              className="checkbox checkbox-sm"
-                              type="checkbox"
-                              checked={newPromotion.menuItemLogicalIds.includes(
-                                item.logicalId,
-                              )}
-                              readOnly
-                            />
-                            {item.name}（{item.logicalId}）
+                            {adminOrderActionId === order.id
+                              ? "處理中..."
+                              : "標記完成"}
                           </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                </label>
-              </div>
-              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_180px_1fr_1fr]">
-                <div className="join">
-                  <button
-                    className={`btn join-item flex-1 ${newPromotion.discountType === "amount" ? "btn-primary" : "btn-outline"}`}
-                    onClick={() =>
-                      setNewPromotion((current) => ({
-                        ...current,
-                        discountType: "amount",
-                      }))
-                    }
-                  >
-                    金額 NT
-                  </button>
-                  <button
-                    className={`btn join-item flex-1 ${newPromotion.discountType === "percent" ? "btn-primary" : "btn-outline"}`}
-                    onClick={() =>
-                      setNewPromotion((current) => ({
-                        ...current,
-                        discountType: "percent",
-                      }))
-                    }
-                  >
-                    百分比 %
-                  </button>
-                </div>
-                <input
-                  className="input input-bordered"
-                  inputMode="numeric"
-                  value={newPromotion.discountValue}
-                  onChange={(event) => {
-                    const discountValue = onlyDigits(event.currentTarget.value);
-                    setNewPromotion((current) => ({
-                      ...current,
-                      discountValue,
-                    }));
-                  }}
-                  placeholder={newPromotion.discountType === "amount" ? "折抵金額" : "實付比例"}
-                />
-                <input
-                  className="input input-bordered"
-                  type="date"
-                  value={newPromotion.startsDate}
-                  onChange={(event) => {
-                    const startsDate = event.currentTarget.value;
-                    setNewPromotion((current) => ({
-                      ...current,
-                      startsDate,
-                    }));
-                  }}
-                />
-                <input
-                  className="input input-bordered"
-                  type="date"
-                  value={newPromotion.endsDate}
-                  onChange={(event) => {
-                    const endsDate = event.currentTarget.value;
-                    setNewPromotion((current) => ({
-                      ...current,
-                      endsDate,
-                    }));
-                  }}
-                />
-              </div>
-              <button
-                className="btn btn-primary mt-3 w-full"
-                onClick={() => void createAdminPromotion()}
-                disabled={Boolean(adminStoreCode)}
-              >
-                新增促銷
-              </button>
-            </div>
-            <div className="space-y-3">
-              {activePromotions.length === 0 ? (
-                <div className="alert bg-base-100">
-                  <span>目前沒有啟用中的促銷。</span>
-                </div>
-              ) : (
-                activePromotions.map((promotion) => (
-                  <article
-                    key={promotion.id}
-                    className="card bg-base-100 shadow"
-                  >
-                    <div className="card-body p-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <h3 className="font-bold">{promotion.name}</h3>
-                        <span className="badge badge-accent">
-                          {promotion.discountType === "percent"
-                            ? `${promotion.discountValue}%`
-                            : formatMoney(promotion.discountValue)}
-                        </span>
-                      </div>
-                      <p className="text-sm opacity-70">
-                        適用品項：{promotion.menuItemLogicalId}
-                      </p>
-                      <p className="text-xs opacity-60">
-                        {formatTaipeiDateTime(promotion.startsAt)} -{" "}
-                        {formatTaipeiDateTime(promotion.endsAt)}
-                      </p>
-                      <button
-                        className="btn btn-xs btn-error btn-outline mt-2"
-                        onClick={() => void deleteAdminPromotion(promotion.id)}
-                      >
-                        刪除
-                      </button>
-                    </div>
-                  </article>
-                ))
-              )}
-            </div>
-          </section>
+                        </article>
+                      );
+                    })
+                  )}
 
-          <section className={isAdminCouponsPage ? "" : "hidden"}>
-            {adminStoreCode ? (
-              <div className="alert bg-base-100">
-                <span>注意：優惠券管理僅限總部帳號，分店無法建立或刪除優惠券。</span>
-              </div>
-            ) : null}
-            <h2 className="text-2xl font-bold mb-3">優惠券管理</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="card bg-base-100 shadow">
-                <div className="card-body space-y-4">
-                  <div>
-                    <h3 className="text-lg font-bold">
-                      {editingCouponCode ? "編輯優惠券" : "新增優惠券"}
-                    </h3>
-                    {editingCouponCode ? (
-                      <p className="text-sm opacity-60">
-                        正在編輯 {editingCouponCode}，優惠碼本身不可更改。
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <label className="form-control">
-                      <span className="label-text mb-1">優惠碼</span>
-                      <input
-                        className="input input-bordered"
-                        value={newCoupon.code}
-                        disabled={Boolean(editingCouponCode)}
-                        onChange={(event) => {
-                          const code = event.currentTarget.value;
-                          setNewCoupon((current) => ({
-                            ...current,
-                            code,
-                          }));
-                        }}
-                        placeholder="例如 BREAKFAST10"
-                      />
-                    </label>
-                    <label className="form-control">
-                      <span className="label-text mb-1">優惠券名稱</span>
-                      <input
-                        className="input input-bordered"
-                        value={newCoupon.name}
-                        onChange={(event) => {
-                          const name = event.currentTarget.value;
-                          setNewCoupon((current) => ({
-                            ...current,
-                            name,
-                          }));
-                        }}
-                        placeholder="例如 早餐折 10 元"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-3">
-                    <div>
-                      <span className="label-text mb-1 block">優惠類型</span>
-                      <div className="join w-full">
-                      <button
-                        className={`btn join-item flex-1 ${
-                          newCoupon.discountType === "amount"
-                            ? "btn-primary"
-                            : "btn-outline"
-                        }`}
-                        onClick={() =>
-                          setNewCoupon((current) => ({
-                            ...current,
-                            discountType: "amount",
-                          }))
-                        }
-                      >
-                        金額 NT
-                      </button>
-                      <button
-                        className={`btn join-item flex-1 ${
-                          newCoupon.discountType === "percent"
-                            ? "btn-primary"
-                            : "btn-outline"
-                        }`}
-                        onClick={() =>
-                        setNewCoupon((current) => ({
-                          ...current,
-                          discountType: "percent",
-                        }))
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      className="btn btn-sm"
+                      disabled={kitchenPage <= 1}
+                      onClick={() =>
+                        setKitchenPage((current) => Math.max(1, current - 1))
                       }
-                      >
-                        百分比 %
-                      </button>
+                    >
+                      上一頁
+                    </button>
+                    <span className="text-sm opacity-70">
+                      第 {kitchenPage} / {kitchenPageCount} 頁
+                    </span>
+                    <button
+                      className="btn btn-sm"
+                      disabled={kitchenPage >= kitchenPageCount}
+                      onClick={() =>
+                        setKitchenPage((current) =>
+                          Math.min(kitchenPageCount, current + 1),
+                        )
+                      }
+                    >
+                      下一頁
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <section
+                className={`${isAdminEmployeesPage ? "" : "hidden "}space-y-5`}
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold">員工資料</h2>
+                    <p className="text-sm opacity-60">
+                      總部建立員工主檔後，分店打卡會依所屬門市同步顯示。
+                    </p>
+                  </div>
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={() => navigate("/admin")}
+                  >
+                    返回後台
+                  </button>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
+                  <section className="rounded-lg border border-base-300 bg-base-100 p-5 shadow">
+                    <h3 className="mb-4 text-lg font-bold">員工主檔</h3>
+                    <div className="space-y-3">
+                      <label className="form-control">
+                        <span className="label-text">員工編號</span>
+                        <input
+                          className="input input-bordered"
+                          value={employeeDraft.employeeId}
+                          onChange={(event) =>
+                            setEmployeeDraft((current) => ({
+                              ...current,
+                              employeeId:
+                                event.currentTarget.value.toUpperCase(),
+                            }))
+                          }
+                          placeholder="例如：TPE003"
+                        />
+                      </label>
+                      <label className="form-control">
+                        <span className="label-text">員工姓名</span>
+                        <input
+                          className="input input-bordered"
+                          value={employeeDraft.name}
+                          onChange={(event) =>
+                            setEmployeeDraft((current) => ({
+                              ...current,
+                              name: event.currentTarget.value,
+                            }))
+                          }
+                          placeholder="例如：小明"
+                        />
+                      </label>
+                      <label className="form-control">
+                        <span className="label-text">所屬門市</span>
+                        <select
+                          className="select select-bordered"
+                          value={employeeDraft.storeCode}
+                          onChange={(event) =>
+                            setEmployeeDraft((current) => ({
+                              ...current,
+                              storeCode: event.currentTarget.value,
+                            }))
+                          }
+                        >
+                          {branchStoreOptions.map((store) => (
+                            <option key={store.code} value={store.code}>
+                              {store.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="form-control">
+                        <span className="label-text">職稱</span>
+                        <input
+                          className="input input-bordered"
+                          value={employeeDraft.title}
+                          onChange={(event) =>
+                            setEmployeeDraft((current) => ({
+                              ...current,
+                              title: event.currentTarget.value,
+                            }))
+                          }
+                          placeholder="例如：早班人員"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between rounded-lg border border-base-300 px-4 py-3">
+                        <span className="font-semibold">在職中</span>
+                        <input
+                          type="checkbox"
+                          className="toggle toggle-primary"
+                          checked={employeeDraft.isActive}
+                          onChange={(event) =>
+                            setEmployeeDraft((current) => ({
+                              ...current,
+                              isActive: event.currentTarget.checked,
+                            }))
+                          }
+                        />
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => {
+                            void upsertEmployee();
+                          }}
+                        >
+                          儲存員工
+                        </button>
+                        <button
+                          className="btn btn-outline"
+                          onClick={resetEmployeeDraft}
+                        >
+                          清空
+                        </button>
                       </div>
                     </div>
-                    <label className="form-control">
-                      <span className="label-text mb-1">
-                        {newCoupon.discountType === "amount"
-                          ? "折抵金額（NT）"
-                          : "實付比例（%）"}
+                  </section>
+
+                  <section className="rounded-lg border border-base-300 bg-base-100 p-5 shadow">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                      <h3 className="text-lg font-bold">員工清單</h3>
+                      <span className="badge badge-outline">
+                        共 {employees.length} 位
                       </span>
-                      <input
-                        className="input input-bordered"
-                        inputMode="numeric"
-                        value={newCoupon.discountValue}
-                        onChange={(event) => {
-                          const discountValue = onlyDigits(
-                            event.currentTarget.value,
-                          );
-                          setNewCoupon((current) => ({
-                            ...current,
-                            discountValue,
-                          }));
-                        }}
-                        placeholder={
-                          newCoupon.discountType === "amount" ? "10" : "80"
-                        }
-                      />
-                    </label>
-                  </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th>員工編號</th>
+                            <th>姓名</th>
+                            <th>門市</th>
+                            <th>職稱</th>
+                            <th>狀態</th>
+                            <th>操作</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {employees
+                            .slice()
+                            .sort((a, b) =>
+                              a.storeCode === b.storeCode
+                                ? a.employeeId.localeCompare(b.employeeId)
+                                : a.storeCode.localeCompare(b.storeCode),
+                            )
+                            .map((employee) => (
+                              <tr key={employee.employeeId}>
+                                <td className="font-mono font-semibold">
+                                  {employee.employeeId}
+                                </td>
+                                <td>{employee.name}</td>
+                                <td>
+                                  {storeNameMapping[employee.storeCode] ??
+                                    employee.storeCode}
+                                  分店
+                                </td>
+                                <td>{employee.title || "店員"}</td>
+                                <td>
+                                  <span
+                                    className={`badge ${
+                                      employee.isActive
+                                        ? "badge-success"
+                                        : "badge-ghost"
+                                    }`}
+                                  >
+                                    {employee.isActive ? "在職" : "停用"}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      className="btn btn-xs btn-outline"
+                                      onClick={() => editEmployee(employee)}
+                                    >
+                                      編輯
+                                    </button>
+                                    <button
+                                      className="btn btn-xs btn-outline"
+                                      onClick={() =>
+                                        void toggleEmployeeActive(
+                                          employee.employeeId,
+                                        )
+                                      }
+                                    >
+                                      {employee.isActive ? "停用" : "啟用"}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                </div>
+              </section>
 
-                  <div className="rounded-lg bg-base-200 p-3 text-sm opacity-80">
-                    金額 NT 是直接折抵；百分比是「實付比例」，例如 80% 代表打八折。
+              <section
+                className={`${isAdminClockPage ? "" : "hidden "}mx-auto max-w-3xl rounded-xl border border-base-300 bg-base-100 p-5 shadow`}
+              >
+                <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold">上下班打卡</h2>
+                    <p className="text-sm opacity-60">
+                      {adminStoreCode
+                        ? "從員工資料選擇人員後打卡，已上班者只能執行下班打卡。"
+                        : "分店登入後，才能使用打卡與工時統計。"}
+                    </p>
                   </div>
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={() => navigate("/admin")}
+                  >
+                    返回後台
+                  </button>
+                </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <label className="form-control">
-                      <span className="label-text mb-1">最低消費（NT）</span>
-                      <input
-                        className="input input-bordered"
-                        inputMode="numeric"
-                        value={newCoupon.minSpend}
-                        onChange={(event) => {
-                          const minSpend = onlyDigits(event.currentTarget.value);
-                          setNewCoupon((current) => ({
-                            ...current,
-                            minSpend,
-                          }));
-                        }}
-                        placeholder="0 代表無門檻"
-                      />
-                    </label>
-                    <label className="form-control">
-                      <span className="label-text mb-1">最多折抵（NT）</span>
-                      <input
-                        className="input input-bordered"
-                        inputMode="numeric"
-                        value={newCoupon.maxDiscount}
-                        onChange={(event) => {
-                          const maxDiscount = onlyDigits(
-                            event.currentTarget.value,
-                          );
-                          setNewCoupon((current) => ({
-                            ...current,
-                            maxDiscount,
-                          }));
-                        }}
-                        placeholder="0 代表不限"
-                      />
-                    </label>
-                    <label className="form-control">
-                      <span className="label-text mb-1">每個帳號可用次數</span>
-                      <input
-                        className="input input-bordered"
-                        inputMode="numeric"
-                        value={newCoupon.usageLimitPerUser}
-                        onChange={(event) => {
-                          const usageLimitPerUser = onlyDigits(
-                            event.currentTarget.value,
-                          );
-                          setNewCoupon((current) => ({
-                            ...current,
-                            usageLimitPerUser,
-                          }));
-                        }}
-                        placeholder="例如 1"
-                      />
-                    </label>
-                    <label className="form-control">
-                      <span className="label-text mb-1">總發放張數</span>
-                      <input
-                        className="input input-bordered"
-                        inputMode="numeric"
-                        value={newCoupon.usageLimitTotal}
-                        onChange={(event) => {
-                          const usageLimitTotal = onlyDigits(
-                            event.currentTarget.value,
-                          );
-                          setNewCoupon((current) => ({
-                            ...current,
-                            usageLimitTotal,
-                          }));
-                        }}
-                        placeholder="0 代表不限量"
-                      />
-                    </label>
+                {adminStoreCode ? (
+                  <>
+                    <div className="grid gap-4 md:grid-cols-[1fr_220px]">
+                      <label className="form-control">
+                        <span className="label-text">選擇員工</span>
+                        <select
+                          className="select select-bordered"
+                          value={selectedEmployeeId}
+                          onChange={(event) =>
+                            setSelectedEmployeeId(event.currentTarget.value)
+                          }
+                          disabled={branchEmployees.length === 0}
+                        >
+                          <option value="">請選擇員工</option>
+                          {branchEmployees.map((employee) => (
+                            <option
+                              key={employee.employeeId}
+                              value={employee.employeeId}
+                            >
+                              {employee.employeeId} - {employee.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        className={`btn mt-0 md:mt-7 ${
+                          selectedEmployeeOpenShift
+                            ? "btn-warning"
+                            : "btn-primary"
+                        }`}
+                        onClick={handleKitchenClockToggle}
+                        disabled={!selectedClockEmployee}
+                      >
+                        {selectedEmployeeOpenShift ? "下班打卡" : "上班打卡"}
+                      </button>
+                    </div>
+
+                    {branchEmployees.length === 0 ? (
+                      <div className="mt-4 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
+                        此門市尚未建立員工資料，請由總部新增員工後再打卡。
+                      </div>
+                    ) : null}
+
+                    {selectedClockEmployee ? (
+                      <div className="mt-4 rounded-lg border border-base-300 bg-base-200 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <div className="font-mono text-sm opacity-70">
+                              {selectedClockEmployee.employeeId}
+                            </div>
+                            <div className="text-xl font-bold">
+                              {selectedClockEmployee.name}
+                            </div>
+                            <div className="text-sm opacity-60">
+                              {selectedClockEmployee.title || "店員"}
+                            </div>
+                          </div>
+                          <span
+                            className={`badge badge-lg ${
+                              selectedEmployeeOpenShift
+                                ? "badge-warning"
+                                : "badge-ghost"
+                            }`}
+                          >
+                            {selectedEmployeeOpenShift ? "上班中" : "尚未上班"}
+                          </span>
+                        </div>
+                        {selectedEmployeeOpenShift ? (
+                          <div className="mt-3 text-sm text-warning">
+                            已於{" "}
+                            {formatTaipeiTime(selectedEmployeeOpenShift.timeIn)}{" "}
+                            上班，請完成下班打卡後才會結束本次班次。
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <div className="mt-6 space-y-4">
+                      {kitchenEmployeeSummaries.length === 0 ? (
+                        <div className="rounded-lg border border-base-300 bg-base-200 p-4 text-sm opacity-70">
+                          目前尚未有員工完成任何時數紀錄。
+                        </div>
+                      ) : (
+                        kitchenEmployeeSummaries.map((summary) => (
+                          <div
+                            key={summary.employeeId}
+                            className="rounded-lg border border-base-300 bg-base-200 p-4"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <div className="font-mono text-xs opacity-60">
+                                  {summary.employeeId}
+                                </div>
+                                <div className="font-semibold">
+                                  {summary.employeeName}
+                                </div>
+                              </div>
+                              {summary.openShift ? (
+                                <span className="badge badge-warning">
+                                  上班中
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                              <div className="rounded-md bg-base-100 p-3">
+                                <div className="opacity-60">今日工時</div>
+                                <div className="font-bold">
+                                  {Math.floor(summary.todayMinutes / 60)}h{" "}
+                                  {summary.todayMinutes % 60}m
+                                </div>
+                              </div>
+                              <div className="rounded-md bg-base-100 p-3">
+                                <div className="opacity-60">本月工時</div>
+                                <div className="font-bold">
+                                  {Math.floor(summary.monthMinutes / 60)}h{" "}
+                                  {summary.monthMinutes % 60}m
+                                </div>
+                              </div>
+                            </div>
+                            {summary.openShift ? (
+                              <div className="mt-3 text-xs text-warning">
+                                {formatTaipeiTime(summary.openShift.timeIn)}{" "}
+                                開始上班
+                              </div>
+                            ) : null}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </>
+                ) : null}
+              </section>
+
+              <section
+                className={`${isAdminOrdersPage ? "" : "hidden "}rounded-lg bg-base-100 p-5 shadow`}
+              >
+                <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h2 className="text-2xl font-bold">營收查詢</h2>
+                    <p className="text-sm opacity-60">
+                      選擇日期區間查看單量、營業額與客單價。
+                    </p>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid w-full grid-cols-1 gap-3 sm:w-auto sm:grid-cols-2">
                     <label className="form-control">
                       <span className="label-text mb-1">開始日期</span>
                       <input
                         className="input input-bordered"
                         type="date"
-                        value={newCoupon.startsDate}
+                        value={adminRevenueStartDate}
                         onChange={(event) => {
-                          const startsDate = event.currentTarget.value;
-                          setNewCoupon((current) => ({
-                            ...current,
-                            startsDate,
-                          }));
+                          setAdminRevenueStartDate(event.currentTarget.value);
                         }}
                       />
                     </label>
@@ -5905,101 +5241,1510 @@ export default function App() {
                       <input
                         className="input input-bordered"
                         type="date"
-                        value={newCoupon.endsDate}
+                        value={adminRevenueEndDate}
                         onChange={(event) => {
-                          const endsDate = event.currentTarget.value;
-                          setNewCoupon((current) => ({
-                            ...current,
-                            endsDate,
-                          }));
+                          setAdminRevenueEndDate(event.currentTarget.value);
                         }}
                       />
                     </label>
                   </div>
-                  <p className="text-xs opacity-60">
-                    使用期間：
-                    {newCoupon.startsDate
-                      ? `${newCoupon.startsDate} 00:00:00`
-                      : "請選開始日"}{" "}
-                    -{" "}
-                    {newCoupon.endsDate
-                      ? `${newCoupon.endsDate} 23:59:59`
-                      : "請選結束日"}
+                </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                  <div className="rounded-lg bg-base-200 p-4">
+                    <div className="text-sm opacity-60">區間單量</div>
+                    <div className="text-3xl font-bold text-primary">
+                      {adminRevenueRangeStats.submittedOrders.length}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-base-200 p-4">
+                    <div className="text-sm opacity-60">區間營業額</div>
+                    <div className="text-3xl font-bold text-secondary">
+                      {formatMoney(adminRevenueRangeStats.revenue)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-base-200 p-4">
+                    <div className="text-sm opacity-60">售出品項數</div>
+                    <div className="text-3xl font-bold text-accent">
+                      {adminRevenueRangeStats.itemQty}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-base-200 p-4">
+                    <div className="text-sm opacity-60">平均客單價</div>
+                    <div className="text-3xl font-bold text-success">
+                      {formatMoney(adminRevenueRangeStats.averageTicket)}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </>
+          ) : null}
+
+          {adminAuthed ? (
+            <>
+              <section
+                className={`${isAdminMenuPage ? "" : "hidden "}rounded-lg bg-base-100 p-5 shadow`}
+              >
+                <div className="mb-4">
+                  <h2 className="text-2xl font-bold">共用加料價格</h2>
+                  <p className="mt-1 text-sm opacity-60">
+                    修改一次後，所有允許該加料的商品會套用新價格；既有訂單保留原成交價。
                   </p>
+                </div>
+                <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-[1fr_1fr_auto]">
+                  <label className="form-control">
+                    <span className="label-text mb-1">加蛋單價（NT）</span>
+                    <input
+                      className="input input-bordered"
+                      inputMode="numeric"
+                      value={addonSettingsDraft.eggPrice}
+                      onChange={(event) => {
+                        const eggPrice = event.currentTarget.value.replace(
+                          /\D/g,
+                          "",
+                        );
+                        setAddonSettingsDraft((current) => ({
+                          ...current,
+                          eggPrice,
+                        }));
+                      }}
+                    />
+                  </label>
+                  <label className="form-control">
+                    <span className="label-text mb-1">加起司單價（NT）</span>
+                    <input
+                      className="input input-bordered"
+                      inputMode="numeric"
+                      value={addonSettingsDraft.cheesePrice}
+                      onChange={(event) => {
+                        const cheesePrice = event.currentTarget.value.replace(
+                          /\D/g,
+                          "",
+                        );
+                        setAddonSettingsDraft((current) => ({
+                          ...current,
+                          cheesePrice,
+                        }));
+                      }}
+                    />
+                  </label>
                   <button
                     className="btn btn-primary"
                     onClick={() => {
-                      void createAdminCoupon();
+                      void saveAddonSettings();
                     }}
-                    disabled={Boolean(adminStoreCode)}
                   >
-                    {editingCouponCode ? "更新優惠券" : "新增優惠券"}
+                    更新加料價格
                   </button>
-                  {editingCouponCode ? (
-                    <button
-                      className="btn btn-outline"
-                      onClick={resetCouponForm}
-                    >
-                      取消編輯
+                </div>
+                <div className="mt-5 border-t border-base-300 pt-5">
+                  <h3 className="font-bold">其他加料</h3>
+                  <p className="mt-1 text-sm opacity-60">
+                    可以新增早餐店需要的其他加料，儲存後會保留獨立價格。
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {(addonSettingsDraft.items ?? [])
+                      .filter(
+                        (item) => item.key !== "egg" && item.key !== "cheese",
+                      )
+                      .map((item) => (
+                        <div
+                          key={item.key}
+                          className="grid grid-cols-1 items-center gap-2 rounded-lg border border-base-300 p-3 sm:grid-cols-[1fr_160px_auto]"
+                        >
+                          <input
+                            className="input input-bordered"
+                            value={item.name}
+                            onChange={(event) => {
+                              const name = event.currentTarget.value;
+                              setAddonSettingsDraft((current) => ({
+                                ...current,
+                                items: (current.items ?? []).map((candidate) =>
+                                  candidate.key === item.key
+                                    ? { ...candidate, name }
+                                    : candidate,
+                                ),
+                              }));
+                            }}
+                          />
+                          <input
+                            className="input input-bordered"
+                            inputMode="numeric"
+                            value={item.price}
+                            onChange={(event) => {
+                              const price = parseWholeNumber(
+                                event.currentTarget.value,
+                              );
+                              setAddonSettingsDraft((current) => ({
+                                ...current,
+                                items: (current.items ?? []).map((candidate) =>
+                                  candidate.key === item.key
+                                    ? { ...candidate, price }
+                                    : candidate,
+                                ),
+                              }));
+                            }}
+                          />
+                          <button
+                            className="btn btn-error btn-outline"
+                            onClick={() => {
+                              setAddonSettingsDraft((current) => ({
+                                ...current,
+                                items: (current.items ?? []).filter(
+                                  (candidate) => candidate.key !== item.key,
+                                ),
+                              }));
+                            }}
+                          >
+                            刪除
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 items-end gap-2 sm:grid-cols-[1fr_160px_auto]">
+                    <label className="form-control">
+                      <span className="label-text mb-1">新增加料名稱</span>
+                      <input
+                        className="input input-bordered"
+                        value={newAddonDraft.name}
+                        onChange={(event) => {
+                          const name = event.currentTarget.value;
+                          setNewAddonDraft((current) => ({
+                            ...current,
+                            name,
+                          }));
+                        }}
+                        placeholder="例如 培根"
+                      />
+                    </label>
+                    <label className="form-control">
+                      <span className="label-text mb-1">單價（NT）</span>
+                      <input
+                        className="input input-bordered"
+                        inputMode="numeric"
+                        value={newAddonDraft.price}
+                        onChange={(event) => {
+                          const price = event.currentTarget.value.replace(
+                            /\D/g,
+                            "",
+                          );
+                          setNewAddonDraft((current) => ({
+                            ...current,
+                            price,
+                          }));
+                        }}
+                        placeholder="例如 15"
+                      />
+                    </label>
+                    <button className="btn btn-outline" onClick={addAddonDraft}>
+                      新增加料
                     </button>
+                  </div>
+                </div>
+              </section>
+
+              <section className={isAdminMenuPage ? "" : "hidden"}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-2xl font-bold">菜單商品</h2>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setAdminMenuNotice("");
+                      resetNewMenuItemForm();
+                      navigate("/admin/add-product");
+                    }}
+                  >
+                    新增商品
+                  </button>
+                </div>
+              </section>
+
+              {isAdminMenuFormOpen ? (
+                <>
+                  <section className="fixed inset-0 z-[9999] h-[100dvh] w-screen overflow-hidden bg-base-100 flex flex-col isolate">
+                    <div className="px-6 py-4 border-b border-base-300 flex items-center justify-between">
+                      <div>
+                        <h2 className="text-2xl font-bold">新增商品</h2>
+                        <p className="text-sm opacity-60">
+                          填寫商品資料後，右側會即時顯示前台效果。
+                        </p>
+                      </div>
+                      <button
+                        className="btn btn-sm btn-ghost"
+                        onClick={() => {
+                          setAdminMenuNotice("");
+                          setIsAdminMenuFormOpen(false);
+                          navigate("/admin/menu");
+                        }}
+                      >
+                        關閉
+                      </button>
+                    </div>
+                    {adminMenuNotice ? (
+                      <div className="fixed left-1/2 top-20 z-[2147483647] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 pointer-events-none">
+                        <div className="alert alert-warning shadow-lg justify-center">
+                          <span>{adminMenuNotice}</span>
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="p-6 flex-1 overflow-auto">
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-3">
+                          <label className="form-control">
+                            <span className="label-text mb-1">價格（NT）</span>
+                            <input
+                              className="input input-bordered"
+                              inputMode="numeric"
+                              value={newMenuItem.price}
+                              onChange={(event) => {
+                                const price = parseWholeNumber(
+                                  event.currentTarget.value,
+                                );
+                                setNewMenuItem((current) => ({
+                                  ...current,
+                                  price,
+                                }));
+                              }}
+                              placeholder="例如 50"
+                            />
+                          </label>
+                          <div>
+                            <span className="label-text mb-1 block">分類</span>
+                            <details className="dropdown w-full">
+                              <summary className="btn btn-outline w-full justify-between">
+                                {newMenuItem.category}
+                                <span>⌄</span>
+                              </summary>
+                              <ul className="menu dropdown-content z-[60] mt-2 w-full rounded-lg bg-base-100 p-2 shadow border border-base-300">
+                                {breakfastCategoryOptions.map((category) => (
+                                  <li key={category}>
+                                    <button
+                                      onClick={() =>
+                                        setNewMenuItem((current) => ({
+                                          ...current,
+                                          category,
+                                        }))
+                                      }
+                                    >
+                                      {category}
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            </details>
+                          </div>
+                          <div className="space-y-2 lg:col-span-2">
+                            <span className="label-text block">照片</span>
+                            <input
+                              className="file-input file-input-bordered w-full"
+                              type="file"
+                              accept="image/*"
+                              onChange={(event) => {
+                                loadMenuImageFile(
+                                  event.currentTarget.files?.[0] ?? null,
+                                );
+                              }}
+                            />
+                            <input
+                              className="input input-bordered w-full"
+                              value={newMenuItem.imageUrl}
+                              onChange={(event) => {
+                                const imageUrl = event.currentTarget.value;
+                                setNewMenuItem((current) => ({
+                                  ...current,
+                                  imageUrl,
+                                }));
+                              }}
+                              placeholder="或貼圖片網址"
+                            />
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-base-300 bg-base-200 p-4">
+                          <div className="mb-3 font-semibold">前台預覽</div>
+                          <article className="max-w-xl overflow-hidden rounded-lg bg-base-100 shadow">
+                            {newMenuItem.imageUrl ? (
+                              <img
+                                src={newMenuItem.imageUrl}
+                                alt="前台商品預覽"
+                                className="h-80 w-full object-cover bg-white"
+                              />
+                            ) : (
+                              <div className="h-80 bg-base-300 flex items-center justify-center text-sm opacity-60">
+                                選擇圖片後會顯示在這裡
+                              </div>
+                            )}
+                            <div className="p-4 space-y-2">
+                              <h3 className="text-xl font-bold">
+                                {newMenuItem.translations["zh-TW"].name ||
+                                  "商品名稱"}
+                              </h3>
+                              <p className="text-sm opacity-70 line-clamp-2">
+                                {newMenuItem.translations["zh-TW"]
+                                  .description || "商品介紹會顯示在這裡"}
+                              </p>
+                              <div className="flex items-center justify-between">
+                                <span className="text-2xl font-bold text-success">
+                                  {formatMoney(newMenuItem.price)}
+                                </span>
+                                <button className="btn btn-primary btn-sm">
+                                  加入購物車
+                                </button>
+                              </div>
+                            </div>
+                          </article>
+                        </div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {menuLanguageOptions.map((option) => (
+                            <div
+                              key={option.value}
+                              className="rounded-lg border border-base-300 p-3 space-y-2"
+                            >
+                              <div className="font-semibold">
+                                {option.label}
+                              </div>
+                              <input
+                                className="input input-bordered w-full"
+                                value={
+                                  newMenuItem.translations[option.value].name
+                                }
+                                onChange={(event) => {
+                                  const name = event.currentTarget.value;
+                                  setNewMenuItem((current) => ({
+                                    ...current,
+                                    translations: {
+                                      ...current.translations,
+                                      [option.value]: {
+                                        ...current.translations[option.value],
+                                        name,
+                                      },
+                                    },
+                                  }));
+                                }}
+                                placeholder={`${option.label} 商品名稱`}
+                              />
+                              <textarea
+                                className="textarea textarea-bordered w-full min-h-28"
+                                value={
+                                  newMenuItem.translations[option.value]
+                                    .description
+                                }
+                                onChange={(event) => {
+                                  const description = event.currentTarget.value;
+                                  setNewMenuItem((current) => ({
+                                    ...current,
+                                    translations: {
+                                      ...current.translations,
+                                      [option.value]: {
+                                        ...current.translations[option.value],
+                                        description,
+                                      },
+                                    },
+                                  }));
+                                }}
+                                placeholder={`${option.label} 商品介紹`}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 border-t border-base-300 bg-base-100">
+                      <button
+                        className="btn btn-primary w-full"
+                        onClick={() => {
+                          void saveAdminMenuItem();
+                        }}
+                      >
+                        新增商品
+                      </button>
+                    </div>
+                  </section>
+                </>
+              ) : null}
+
+              <section className={isAdminDashboardPage ? "" : "hidden"}>
+                <h2 className="text-2xl font-bold mb-3">POS 訂單看板</h2>
+                <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
+                  <table className="table table-zebra min-w-[1120px]">
+                    <thead>
+                      <tr>
+                        <th>單號</th>
+                        <th>狀態</th>
+                        <th>付款</th>
+                        <th>品項</th>
+                        <th>備註</th>
+                        <th>金額</th>
+                        <th>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminOrders
+                        .filter(
+                          (order) =>
+                            order.status === "submitted" ||
+                            order.status === "completed",
+                        )
+                        .slice(0, 20)
+                        .map((order) => {
+                          const waitMinutes = orderWaitMinutes(order);
+                          return (
+                            <tr
+                              key={order.id}
+                              className={orderWaitClass(waitMinutes)}
+                            >
+                              <td className="font-bold">
+                                #{order.dailySequence ?? order.id}
+                              </td>
+                              <td className="w-28">
+                                <span
+                                  className={`badge min-w-[4rem] whitespace-nowrap justify-center ${orderStatusBadgeClass(order.status)}`}
+                                >
+                                  {orderStatusLabel(order.status)}
+                                </span>
+                                <div className="mt-1 text-xs opacity-70">
+                                  {order.status === "completed"
+                                    ? "待顧客取貨"
+                                    : `等待 ${waitMinutes} 分鐘`}
+                                </div>
+                              </td>
+                              <td className="whitespace-nowrap">
+                                {order.paymentMethod === "card"
+                                  ? "刷卡"
+                                  : "現金"}
+                              </td>
+                              <td>
+                                <ul className="space-y-1 text-sm">
+                                  {order.items.map((item, index) => {
+                                    const checkboxId = `${order.id}-${item.id ?? item.menuItemId}-${index}`;
+                                    return (
+                                      <li
+                                        key={checkboxId}
+                                        className="flex items-start gap-2"
+                                      >
+                                        <input
+                                          className="checkbox checkbox-xs mt-1"
+                                          type="checkbox"
+                                          checked={Boolean(
+                                            checkedPosItems[checkboxId],
+                                          )}
+                                          onChange={(event) => {
+                                            const checked =
+                                              event.currentTarget.checked;
+                                            setCheckedPosItems((current) => ({
+                                              ...current,
+                                              [checkboxId]: checked,
+                                            }));
+                                          }}
+                                        />
+                                        <span
+                                          className={
+                                            checkedPosItems[checkboxId]
+                                              ? "line-through opacity-50"
+                                              : ""
+                                          }
+                                        >
+                                          {item.menuItemName} x {item.qty}
+                                          {orderItemIsDrink(item) ? (
+                                            <span className="opacity-60">
+                                              {" "}
+                                              (
+                                              {item.sugarLevel
+                                                ? sugarLabel(item.sugarLevel)
+                                                : "正常糖"}{" "}
+                                              /{" "}
+                                              {item.iceLevel
+                                                ? iceLabel(item.iceLevel)
+                                                : "正常冰"}
+                                              )
+                                            </span>
+                                          ) : null}
+                                          {orderItemSpecification(item) ? (
+                                            <span className="opacity-60">
+                                              {" "}
+                                              ({orderItemSpecification(item)})
+                                            </span>
+                                          ) : null}
+                                          {item.note ? (
+                                            <span className="opacity-60">
+                                              {" "}
+                                              - {item.note}
+                                            </span>
+                                          ) : null}
+                                        </span>
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              </td>
+                              <td className="text-sm">
+                                <div>{order.note || "-"}</div>
+                                <div className="opacity-70">
+                                  訂購人：{order.customerName || "-"}
+                                </div>
+                                <div className="opacity-70">
+                                  電話：{order.customerPhone || "-"}
+                                </div>
+                                <div className="opacity-70">
+                                  取餐：{order.pickupTime || "-"}
+                                </div>
+                                <div className="opacity-60">
+                                  下單：
+                                  {formatTaipeiDateTime(order.submittedAt)}
+                                </div>
+                                {order.completedAt ? (
+                                  <div className="opacity-60">
+                                    完成：
+                                    {formatTaipeiDateTime(order.completedAt)}
+                                  </div>
+                                ) : null}
+                              </td>
+                              <td className="font-semibold">
+                                {formatMoney(order.total)}
+                              </td>
+                              <td>
+                                {order.status === "submitted" ? (
+                                  <button
+                                    className="btn btn-xs btn-success min-w-12 whitespace-nowrap"
+                                    disabled={
+                                      adminOrderActionId !== null &&
+                                      adminOrderActionId !== order.id
+                                    }
+                                    onClick={() => {
+                                      void completeAdminOrder(order.id);
+                                    }}
+                                  >
+                                    {adminOrderActionId === order.id
+                                      ? "處理中..."
+                                      : "完成"}
+                                  </button>
+                                ) : order.status === "completed" ? (
+                                  <button
+                                    className="btn btn-xs btn-primary min-w-16 whitespace-nowrap"
+                                    disabled={
+                                      adminOrderActionId !== null &&
+                                      adminOrderActionId !== order.id
+                                    }
+                                    onClick={() => {
+                                      void pickUpAdminOrder(order.id);
+                                    }}
+                                  >
+                                    {adminOrderActionId === order.id
+                                      ? "處理中..."
+                                      : "已取貨"}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs opacity-50">
+                                    已歸檔
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section className={isAdminOrdersPage ? "" : "hidden"}>
+                <details className="collapse collapse-arrow bg-base-100 shadow h-fit">
+                  <summary className="collapse-title text-2xl font-bold">
+                    單日歷史訂單
+                  </summary>
+                  <div className="collapse-content space-y-4">
+                    <label className="form-control w-full max-w-xs">
+                      <span className="label-text mb-1">查詢日期</span>
+                      <input
+                        className="input input-bordered"
+                        type="date"
+                        value={adminHistoryDate}
+                        onChange={(event) => {
+                          setAdminHistoryDate(event.currentTarget.value);
+                        }}
+                      />
+                    </label>
+                    <div className="overflow-x-auto rounded-lg border border-base-300">
+                      <table className="table table-zebra min-w-[1080px]">
+                        <thead>
+                          <tr>
+                            <th>單號</th>
+                            <th>狀態</th>
+                            <th>訂購人</th>
+                            <th>品項</th>
+                            <th>優惠券</th>
+                            <th>付款</th>
+                            <th>時間</th>
+                            <th>金額</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {adminHistoryOrders.length === 0 ? (
+                            <tr>
+                              <td colSpan={8} className="opacity-60">
+                                這天目前沒有歷史訂單。
+                              </td>
+                            </tr>
+                          ) : (
+                            adminHistoryOrders.map((order) => (
+                              <tr key={`history-${order.id}`}>
+                                <td className="font-bold">
+                                  #{order.dailySequence ?? order.id}
+                                </td>
+                                <td>
+                                  <span
+                                    className={`badge min-w-[4rem] whitespace-nowrap justify-center ${orderStatusBadgeClass(order.status)}`}
+                                  >
+                                    {orderStatusLabel(order.status)}
+                                  </span>
+                                </td>
+                                <td className="text-sm">
+                                  <div>{order.customerName || "-"}</div>
+                                  <div className="opacity-70">
+                                    {order.customerPhone || "-"}
+                                  </div>
+                                </td>
+                                <td>
+                                  <ul className="space-y-1 text-sm">
+                                    {order.items.map((item) => (
+                                      <li
+                                        key={`history-${order.id}-${item.id ?? item.menuItemId}`}
+                                      >
+                                        {item.menuItemName} x {item.qty}
+                                        {orderItemIsDrink(item) ? (
+                                          <span className="opacity-60">
+                                            {" "}
+                                            (
+                                            {item.sugarLevel
+                                              ? sugarLabel(item.sugarLevel)
+                                              : "正常糖"}{" "}
+                                            /{" "}
+                                            {item.iceLevel
+                                              ? iceLabel(item.iceLevel)
+                                              : "正常冰"}
+                                            )
+                                          </span>
+                                        ) : null}
+                                        {orderItemSpecification(item) ? (
+                                          <span className="opacity-60">
+                                            {" "}
+                                            ({orderItemSpecification(item)})
+                                          </span>
+                                        ) : null}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </td>
+                                <td>
+                                  {order.couponCode ? (
+                                    <div className="text-sm">
+                                      <span className="badge badge-accent badge-sm">
+                                        {order.couponCode}
+                                      </span>
+                                      <div className="opacity-70">
+                                        折抵{" "}
+                                        {formatMoney(order.discountTotal ?? 0)}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span className="opacity-50">無</span>
+                                  )}
+                                </td>
+                                <td>
+                                  {order.paymentMethod === "card"
+                                    ? "刷卡"
+                                    : "現金"}
+                                </td>
+                                <td className="text-sm">
+                                  <div>
+                                    下單：
+                                    {formatTaipeiDateTime(order.submittedAt)}
+                                  </div>
+                                  {order.completedAt ? (
+                                    <div className="opacity-70">
+                                      完成：
+                                      {formatTaipeiDateTime(order.completedAt)}
+                                    </div>
+                                  ) : null}
+                                  {order.pickedUpAt ? (
+                                    <div className="opacity-70">
+                                      取貨：
+                                      {formatTaipeiDateTime(order.pickedUpAt)}
+                                    </div>
+                                  ) : null}
+                                </td>
+                                <td className="font-semibold">
+                                  {formatMoney(order.total)}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </details>
+              </section>
+
+              <section className={isAdminReportsPage ? "" : "hidden"}>
+                <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+                  <h2 className="text-2xl font-bold">銷售統計</h2>
+                  <label className="form-control w-full max-w-xs">
+                    <span className="label-text mb-1">查詢日期</span>
+                    <input
+                      className="input input-bordered"
+                      type="date"
+                      value={adminStatsDate}
+                      onChange={(event) => {
+                        setAdminStatsDate(event.currentTarget.value);
+                      }}
+                    />
+                  </label>
+                </div>
+                <h3 className="mb-3 text-2xl font-bold">每日品項銷售排行</h3>
+                <div className="bg-base-100 rounded-lg shadow p-4">
+                  {selectedAdminStats.itemRanking.length === 0 ? (
+                    <p className="opacity-60">這天目前沒有銷售資料。</p>
+                  ) : (
+                    <ol className="space-y-2">
+                      {selectedAdminStats.itemRanking
+                        .slice(0, 4)
+                        .map((item, index) => (
+                          <li
+                            key={item.name}
+                            className="flex items-center justify-between border-b border-base-300 pb-2"
+                          >
+                            <span>
+                              {index + 1}. {item.name}
+                            </span>
+                            <span className="badge badge-primary">
+                              {item.qty} 份
+                            </span>
+                          </li>
+                        ))}
+                    </ol>
+                  )}
+                  {selectedAdminStats.itemRanking.length > 4 ? (
+                    <details className="collapse collapse-arrow mt-3 bg-base-200">
+                      <summary className="collapse-title font-bold">
+                        查看全部品項
+                      </summary>
+                      <ol className="collapse-content space-y-2">
+                        {selectedAdminStats.itemRanking
+                          .slice(4)
+                          .map((item, index) => (
+                            <li
+                              key={`extra-${item.name}`}
+                              className="flex items-center justify-between border-b border-base-300 pb-2"
+                            >
+                              <span>
+                                {index + 5}. {item.name}
+                              </span>
+                              <span className="badge badge-primary">
+                                {item.qty} 份
+                              </span>
+                            </li>
+                          ))}
+                      </ol>
+                    </details>
                   ) : null}
                 </div>
-              </div>
-              <div className="bg-base-100 rounded-lg shadow p-4">
-                <ul className="space-y-2">
-                  {coupons.map((coupon) => (
-                    <li
-                      key={coupon.code}
-                      className="flex flex-col gap-3 border-b border-base-300 pb-3 sm:flex-row sm:items-start sm:justify-between"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-semibold">
-                          {coupon.code} - {coupon.name}
-                        </p>
-                        <p className="text-xs opacity-70">
-                          低消 {formatMoney(coupon.minSpend ?? 0)} · 每帳號{" "}
-                          {coupon.usageLimitPerUser ?? 1} 次
-                          {coupon.usageLimitTotal
-                            ? ` · 數量有限 · ${couponRemainingText(coupon)}`
-                            : " · 不限總張數"}
-                          {coupon.maxDiscount
-                            ? ` · 最高折 ${formatMoney(coupon.maxDiscount)}`
-                            : ""}
-                          {coupon.startsAt
-                            ? ` · 開始 ${formatTaipeiDateTime(coupon.startsAt)}`
-                            : ""}
-                          {coupon.expiresAt
-                            ? ` · 到期 ${formatTaipeiDateTime(coupon.expiresAt)}`
-                            : ""}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-                        <span className="badge badge-accent">
-                          {coupon.discountType === "percent"
-                            ? `${coupon.discountValue}%`
-                            : formatMoney(coupon.discountValue)}
-                        </span>
-                        <button
-                          className="btn btn-xs btn-outline"
-                          onClick={() => startEditCoupon(coupon)}
+              </section>
+
+              <section className={isAdminReportsPage ? "" : "hidden"}>
+                <h2 className="mb-3 text-2xl font-bold">下單時段統計</h2>
+                <div className="bg-base-100 rounded-lg shadow p-4">
+                  {selectedAdminStats.hourlyRanking.length === 0 ? (
+                    <p className="opacity-60">這天目前沒有時段資料。</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedAdminStats.hourlyRanking.map((row) => (
+                        <div
+                          key={row.hour}
+                          className="flex items-center justify-between"
                         >
-                          編輯
-                        </button>
-                        <button
-                          className="btn btn-xs btn-error btn-outline"
-                          onClick={() => {
-                            void deleteAdminCoupon(coupon.code);
-                          }}
-                        >
-                          刪除
-                        </button>
+                          <span>{String(row.hour).padStart(2, "0")}:00</span>
+                          <progress
+                            className="progress progress-primary mx-3 flex-1"
+                            value={row.count}
+                            max={Math.max(
+                              ...selectedAdminStats.hourlyRanking.map(
+                                (item) => item.count,
+                              ),
+                            )}
+                          />
+                          <span className="w-12 text-right">
+                            {row.count} 單
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className={isAdminMenuPage ? "" : "hidden"}>
+                <details className="collapse collapse-arrow bg-base-100 shadow h-fit">
+                  <summary className="collapse-title text-2xl font-bold">
+                    菜單商品管理
+                  </summary>
+                  <div className="collapse-content">
+                    <div className="overflow-x-auto rounded-lg border border-base-300">
+                      <table className="table min-w-[1080px]">
+                        <thead>
+                          <tr className="bg-base-200/80">
+                            <th className="px-5">品項</th>
+                            <th className="px-5">分類</th>
+                            <th className="px-5">上架／更新</th>
+                            <th className="px-5">目前價格</th>
+                            <th className="text-center">改價紀錄</th>
+                            <th className="px-5 text-right">操作</th>
+                          </tr>
+                        </thead>
+                        {Array.from(
+                          new Set(items.map((item) => item.category)),
+                        ).map((category) => (
+                          <tbody key={category}>
+                            <tr className="bg-base-300">
+                              <td
+                                colSpan={6}
+                                className="px-5 py-3 text-base font-bold"
+                              >
+                                {category}
+                              </td>
+                            </tr>
+                            {items
+                              .filter((item) => item.category === category)
+                              .map((item) => {
+                                const histories =
+                                  versionHistoryByLogicalId[item.logicalId] ??
+                                  [];
+                                return (
+                                  <tr
+                                    key={item.id}
+                                    className="border-b border-base-300/70 bg-base-100/40 hover:bg-base-200/60"
+                                  >
+                                    <td className="px-5 py-4">
+                                      <div className="font-semibold">
+                                        {item.name}
+                                      </div>
+                                      <div className="text-xs opacity-60">
+                                        商品代碼：{item.logicalId}
+                                      </div>
+                                    </td>
+                                    <td className="px-5 py-4">
+                                      <span className="badge badge-outline">
+                                        {item.category}
+                                      </span>
+                                    </td>
+                                    <td className="px-5 py-4 text-sm">
+                                      <div>
+                                        {histories[0]?.createdAt
+                                          ? formatTaipeiDateTime(
+                                              histories[0].createdAt,
+                                            )
+                                          : "按查看紀錄載入"}
+                                      </div>
+                                      {item.isRecentlyUpdated ? (
+                                        <span className="badge badge-accent badge-sm">
+                                          新品展示中
+                                        </span>
+                                      ) : null}
+                                    </td>
+                                    <td className="px-5 py-4">
+                                      <span className="font-semibold">
+                                        {formatMoney(item.price)}
+                                      </span>
+                                    </td>
+                                    <td className="px-5 py-4 text-center">
+                                      <button
+                                        className="btn btn-xs btn-outline"
+                                        disabled={
+                                          loadingHistoryId === item.logicalId
+                                        }
+                                        onClick={() => {
+                                          void loadVersionHistory(
+                                            item.logicalId,
+                                          ).then((loadedHistories) => {
+                                            const priceHistories =
+                                              loadedHistories.filter(
+                                                (history, index) =>
+                                                  index ===
+                                                    loadedHistories.length -
+                                                      1 ||
+                                                  history.price !==
+                                                    loadedHistories[index + 1]
+                                                      ?.price,
+                                              );
+                                            setAdminPriceHistoryModal({
+                                              itemName: item.name,
+                                              histories: priceHistories,
+                                            });
+                                          });
+                                        }}
+                                      >
+                                        {loadingHistoryId === item.logicalId
+                                          ? "載入中..."
+                                          : "查看紀錄"}
+                                      </button>
+                                    </td>
+                                    <td className="px-5 py-4">
+                                      <div className="flex justify-end gap-2">
+                                        <button
+                                          className="btn btn-xs btn-outline"
+                                          onClick={() => {
+                                            openEditAdminMenuItem(item);
+                                          }}
+                                        >
+                                          編輯
+                                        </button>
+                                        <button
+                                          className="btn btn-xs btn-outline"
+                                          onClick={() => {
+                                            openPriceAdjust(item);
+                                          }}
+                                        >
+                                          調價
+                                        </button>
+                                        <button
+                                          className="btn btn-xs btn-error btn-outline"
+                                          onClick={() => {
+                                            void deleteAdminMenuItem(item);
+                                          }}
+                                        >
+                                          刪除
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        ))}
+                      </table>
+                    </div>
+                  </div>
+                </details>
+              </section>
+
+              <section className={isAdminCouponsPage ? "" : "hidden"}>
+                {adminStoreCode ? (
+                  <div className="alert bg-base-100">
+                    <span>
+                      注意：促銷管理僅限總部帳號，分店無法建立或刪除促銷。
+                    </span>
+                  </div>
+                ) : null}
+                <h2 className="text-2xl font-bold mb-3">目前促銷</h2>
+                <div className="mb-4 rounded-lg bg-base-100 p-4 shadow">
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                    <label className="form-control">
+                      <span className="label-text mb-1">活動名稱</span>
+                      <input
+                        className="input input-bordered"
+                        value={newPromotion.name}
+                        onChange={(event) => {
+                          const name = event.currentTarget.value;
+                          setNewPromotion((current) => ({
+                            ...current,
+                            name,
+                          }));
+                        }}
+                        placeholder="例如 飯糰新品折 10 元"
+                      />
+                    </label>
+                    <label className="form-control">
+                      <span className="label-text mb-1">適用商品</span>
+                      <details className="dropdown w-full">
+                        <summary className="btn btn-outline w-full justify-between">
+                          {newPromotion.menuItemLogicalIds.length === 0
+                            ? "請選擇商品"
+                            : newPromotion.menuItemLogicalIds.length === 1
+                              ? items.find(
+                                  (item) =>
+                                    item.logicalId ===
+                                    newPromotion.menuItemLogicalIds[0],
+                                )?.name
+                              : `已選擇 ${newPromotion.menuItemLogicalIds.length} 個商品`}
+                          <span>⌄</span>
+                        </summary>
+                        <ul className="menu dropdown-content z-40 mt-2 max-h-72 w-full overflow-y-auto rounded-lg border border-base-300 bg-base-100 p-2 shadow">
+                          {items.map((item) => (
+                            <li key={item.logicalId}>
+                              <button
+                                onClick={() => {
+                                  setNewPromotion((current) => ({
+                                    ...current,
+                                    menuItemLogicalIds:
+                                      current.menuItemLogicalIds.includes(
+                                        item.logicalId,
+                                      )
+                                        ? current.menuItemLogicalIds.filter(
+                                            (logicalId) =>
+                                              logicalId !== item.logicalId,
+                                          )
+                                        : [
+                                            ...current.menuItemLogicalIds,
+                                            item.logicalId,
+                                          ],
+                                  }));
+                                }}
+                              >
+                                <input
+                                  className="checkbox checkbox-sm"
+                                  type="checkbox"
+                                  checked={newPromotion.menuItemLogicalIds.includes(
+                                    item.logicalId,
+                                  )}
+                                  readOnly
+                                />
+                                {item.name}（{item.logicalId}）
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    </label>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_180px_1fr_1fr]">
+                    <div className="join">
+                      <button
+                        className={`btn join-item flex-1 ${newPromotion.discountType === "amount" ? "btn-primary" : "btn-outline"}`}
+                        onClick={() =>
+                          setNewPromotion((current) => ({
+                            ...current,
+                            discountType: "amount",
+                          }))
+                        }
+                      >
+                        金額 NT
+                      </button>
+                      <button
+                        className={`btn join-item flex-1 ${newPromotion.discountType === "percent" ? "btn-primary" : "btn-outline"}`}
+                        onClick={() =>
+                          setNewPromotion((current) => ({
+                            ...current,
+                            discountType: "percent",
+                          }))
+                        }
+                      >
+                        百分比 %
+                      </button>
+                    </div>
+                    <input
+                      className="input input-bordered"
+                      inputMode="numeric"
+                      value={newPromotion.discountValue}
+                      onChange={(event) => {
+                        const discountValue = onlyDigits(
+                          event.currentTarget.value,
+                        );
+                        setNewPromotion((current) => ({
+                          ...current,
+                          discountValue,
+                        }));
+                      }}
+                      placeholder={
+                        newPromotion.discountType === "amount"
+                          ? "折抵金額"
+                          : "實付比例"
+                      }
+                    />
+                    <input
+                      className="input input-bordered"
+                      type="date"
+                      value={newPromotion.startsDate}
+                      onChange={(event) => {
+                        const startsDate = event.currentTarget.value;
+                        setNewPromotion((current) => ({
+                          ...current,
+                          startsDate,
+                        }));
+                      }}
+                    />
+                    <input
+                      className="input input-bordered"
+                      type="date"
+                      value={newPromotion.endsDate}
+                      onChange={(event) => {
+                        const endsDate = event.currentTarget.value;
+                        setNewPromotion((current) => ({
+                          ...current,
+                          endsDate,
+                        }));
+                      }}
+                    />
+                  </div>
+                  <button
+                    className="btn btn-primary mt-3 w-full"
+                    onClick={() => void createAdminPromotion()}
+                    disabled={Boolean(adminStoreCode)}
+                  >
+                    新增促銷
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {activePromotions.length === 0 ? (
+                    <div className="alert bg-base-100">
+                      <span>目前沒有啟用中的促銷。</span>
+                    </div>
+                  ) : (
+                    activePromotions.map((promotion) => (
+                      <article
+                        key={promotion.id}
+                        className="card bg-base-100 shadow"
+                      >
+                        <div className="card-body p-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className="font-bold">{promotion.name}</h3>
+                            <span className="badge badge-accent">
+                              {promotion.discountType === "percent"
+                                ? `${promotion.discountValue}%`
+                                : formatMoney(promotion.discountValue)}
+                            </span>
+                          </div>
+                          <p className="text-sm opacity-70">
+                            適用品項：{promotion.menuItemLogicalId}
+                          </p>
+                          <p className="text-xs opacity-60">
+                            {formatTaipeiDateTime(promotion.startsAt)} -{" "}
+                            {formatTaipeiDateTime(promotion.endsAt)}
+                          </p>
+                          <button
+                            className="btn btn-xs btn-error btn-outline mt-2"
+                            onClick={() =>
+                              void deleteAdminPromotion(promotion.id)
+                            }
+                          >
+                            刪除
+                          </button>
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              <section className={isAdminCouponsPage ? "" : "hidden"}>
+                {adminStoreCode ? (
+                  <div className="alert bg-base-100">
+                    <span>
+                      注意：優惠券管理僅限總部帳號，分店無法建立或刪除優惠券。
+                    </span>
+                  </div>
+                ) : null}
+                <h2 className="text-2xl font-bold mb-3">優惠券管理</h2>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="card bg-base-100 shadow">
+                    <div className="card-body space-y-4">
+                      <div>
+                        <h3 className="text-lg font-bold">
+                          {editingCouponCode ? "編輯優惠券" : "新增優惠券"}
+                        </h3>
+                        {editingCouponCode ? (
+                          <p className="text-sm opacity-60">
+                            正在編輯 {editingCouponCode}，優惠碼本身不可更改。
+                          </p>
+                        ) : null}
                       </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </section>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <label className="form-control">
+                          <span className="label-text mb-1">優惠碼</span>
+                          <input
+                            className="input input-bordered"
+                            value={newCoupon.code}
+                            disabled={Boolean(editingCouponCode)}
+                            onChange={(event) => {
+                              const code = event.currentTarget.value;
+                              setNewCoupon((current) => ({
+                                ...current,
+                                code,
+                              }));
+                            }}
+                            placeholder="例如 BREAKFAST10"
+                          />
+                        </label>
+                        <label className="form-control">
+                          <span className="label-text mb-1">優惠券名稱</span>
+                          <input
+                            className="input input-bordered"
+                            value={newCoupon.name}
+                            onChange={(event) => {
+                              const name = event.currentTarget.value;
+                              setNewCoupon((current) => ({
+                                ...current,
+                                name,
+                              }));
+                            }}
+                            placeholder="例如 早餐折 10 元"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-3">
+                        <div>
+                          <span className="label-text mb-1 block">
+                            優惠類型
+                          </span>
+                          <div className="join w-full">
+                            <button
+                              className={`btn join-item flex-1 ${
+                                newCoupon.discountType === "amount"
+                                  ? "btn-primary"
+                                  : "btn-outline"
+                              }`}
+                              onClick={() =>
+                                setNewCoupon((current) => ({
+                                  ...current,
+                                  discountType: "amount",
+                                }))
+                              }
+                            >
+                              金額 NT
+                            </button>
+                            <button
+                              className={`btn join-item flex-1 ${
+                                newCoupon.discountType === "percent"
+                                  ? "btn-primary"
+                                  : "btn-outline"
+                              }`}
+                              onClick={() =>
+                                setNewCoupon((current) => ({
+                                  ...current,
+                                  discountType: "percent",
+                                }))
+                              }
+                            >
+                              百分比 %
+                            </button>
+                          </div>
+                        </div>
+                        <label className="form-control">
+                          <span className="label-text mb-1">
+                            {newCoupon.discountType === "amount"
+                              ? "折抵金額（NT）"
+                              : "實付比例（%）"}
+                          </span>
+                          <input
+                            className="input input-bordered"
+                            inputMode="numeric"
+                            value={newCoupon.discountValue}
+                            onChange={(event) => {
+                              const discountValue = onlyDigits(
+                                event.currentTarget.value,
+                              );
+                              setNewCoupon((current) => ({
+                                ...current,
+                                discountValue,
+                              }));
+                            }}
+                            placeholder={
+                              newCoupon.discountType === "amount" ? "10" : "80"
+                            }
+                          />
+                        </label>
+                      </div>
+
+                      <div className="rounded-lg bg-base-200 p-3 text-sm opacity-80">
+                        金額 NT 是直接折抵；百分比是「實付比例」，例如 80%
+                        代表打八折。
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <label className="form-control">
+                          <span className="label-text mb-1">
+                            最低消費（NT）
+                          </span>
+                          <input
+                            className="input input-bordered"
+                            inputMode="numeric"
+                            value={newCoupon.minSpend}
+                            onChange={(event) => {
+                              const minSpend = onlyDigits(
+                                event.currentTarget.value,
+                              );
+                              setNewCoupon((current) => ({
+                                ...current,
+                                minSpend,
+                              }));
+                            }}
+                            placeholder="0 代表無門檻"
+                          />
+                        </label>
+                        <label className="form-control">
+                          <span className="label-text mb-1">
+                            最多折抵（NT）
+                          </span>
+                          <input
+                            className="input input-bordered"
+                            inputMode="numeric"
+                            value={newCoupon.maxDiscount}
+                            onChange={(event) => {
+                              const maxDiscount = onlyDigits(
+                                event.currentTarget.value,
+                              );
+                              setNewCoupon((current) => ({
+                                ...current,
+                                maxDiscount,
+                              }));
+                            }}
+                            placeholder="0 代表不限"
+                          />
+                        </label>
+                        <label className="form-control">
+                          <span className="label-text mb-1">
+                            每個帳號可用次數
+                          </span>
+                          <input
+                            className="input input-bordered"
+                            inputMode="numeric"
+                            value={newCoupon.usageLimitPerUser}
+                            onChange={(event) => {
+                              const usageLimitPerUser = onlyDigits(
+                                event.currentTarget.value,
+                              );
+                              setNewCoupon((current) => ({
+                                ...current,
+                                usageLimitPerUser,
+                              }));
+                            }}
+                            placeholder="例如 1"
+                          />
+                        </label>
+                        <label className="form-control">
+                          <span className="label-text mb-1">總發放張數</span>
+                          <input
+                            className="input input-bordered"
+                            inputMode="numeric"
+                            value={newCoupon.usageLimitTotal}
+                            onChange={(event) => {
+                              const usageLimitTotal = onlyDigits(
+                                event.currentTarget.value,
+                              );
+                              setNewCoupon((current) => ({
+                                ...current,
+                                usageLimitTotal,
+                              }));
+                            }}
+                            placeholder="0 代表不限量"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <label className="form-control">
+                          <span className="label-text mb-1">開始日期</span>
+                          <input
+                            className="input input-bordered"
+                            type="date"
+                            value={newCoupon.startsDate}
+                            onChange={(event) => {
+                              const startsDate = event.currentTarget.value;
+                              setNewCoupon((current) => ({
+                                ...current,
+                                startsDate,
+                              }));
+                            }}
+                          />
+                        </label>
+                        <label className="form-control">
+                          <span className="label-text mb-1">結束日期</span>
+                          <input
+                            className="input input-bordered"
+                            type="date"
+                            value={newCoupon.endsDate}
+                            onChange={(event) => {
+                              const endsDate = event.currentTarget.value;
+                              setNewCoupon((current) => ({
+                                ...current,
+                                endsDate,
+                              }));
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <p className="text-xs opacity-60">
+                        使用期間：
+                        {newCoupon.startsDate
+                          ? `${newCoupon.startsDate} 00:00:00`
+                          : "請選開始日"}{" "}
+                        -{" "}
+                        {newCoupon.endsDate
+                          ? `${newCoupon.endsDate} 23:59:59`
+                          : "請選結束日"}
+                      </p>
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => {
+                          void createAdminCoupon();
+                        }}
+                        disabled={Boolean(adminStoreCode)}
+                      >
+                        {editingCouponCode ? "更新優惠券" : "新增優惠券"}
+                      </button>
+                      {editingCouponCode ? (
+                        <button
+                          className="btn btn-outline"
+                          onClick={resetCouponForm}
+                        >
+                          取消編輯
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="bg-base-100 rounded-lg shadow p-4">
+                    <ul className="space-y-2">
+                      {coupons.map((coupon) => (
+                        <li
+                          key={coupon.code}
+                          className="flex flex-col gap-3 border-b border-base-300 pb-3 sm:flex-row sm:items-start sm:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-semibold">
+                              {coupon.code} - {coupon.name}
+                            </p>
+                            <p className="text-xs opacity-70">
+                              低消 {formatMoney(coupon.minSpend ?? 0)} · 每帳號{" "}
+                              {coupon.usageLimitPerUser ?? 1} 次
+                              {coupon.usageLimitTotal
+                                ? ` · 數量有限 · ${couponRemainingText(coupon)}`
+                                : " · 不限總張數"}
+                              {coupon.maxDiscount
+                                ? ` · 最高折 ${formatMoney(coupon.maxDiscount)}`
+                                : ""}
+                              {coupon.startsAt
+                                ? ` · 開始 ${formatTaipeiDateTime(coupon.startsAt)}`
+                                : ""}
+                              {coupon.expiresAt
+                                ? ` · 到期 ${formatTaipeiDateTime(coupon.expiresAt)}`
+                                : ""}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+                            <span className="badge badge-accent">
+                              {coupon.discountType === "percent"
+                                ? `${coupon.discountValue}%`
+                                : formatMoney(coupon.discountValue)}
+                            </span>
+                            <button
+                              className="btn btn-xs btn-outline"
+                              onClick={() => startEditCoupon(coupon)}
+                            >
+                              編輯
+                            </button>
+                            <button
+                              className="btn btn-xs btn-error btn-outline"
+                              onClick={() => {
+                                void deleteAdminCoupon(coupon.code);
+                              }}
+                            >
+                              刪除
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </section>
             </>
           ) : null}
         </main>
@@ -6043,7 +6788,6 @@ export default function App() {
             </section>
           </div>
         ) : null}
-
       </div>
     );
   }
@@ -6054,7 +6798,7 @@ export default function App() {
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <div className="normal-case text-2xl font-bold leading-tight">
-            🍔 {text.appTitle}
+              🍔 {text.appTitle}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(220px,1fr)_auto_auto_auto_auto] lg:w-auto lg:min-w-[720px] lg:max-w-4xl lg:flex lg:items-end lg:justify-end">
@@ -6083,10 +6827,10 @@ export default function App() {
                   {adminStoreCode === "taipei"
                     ? "台北分店"
                     : adminStoreCode === "tainan"
-                    ? "台南分店"
-                    : adminStoreCode === "kaohsiung"
-                    ? "高雄分店"
-                    : adminStoreCode}
+                      ? "台南分店"
+                      : adminStoreCode === "kaohsiung"
+                        ? "高雄分店"
+                        : adminStoreCode}
                 </div>
               </div>
             )}
@@ -6153,9 +6897,7 @@ export default function App() {
           <section className="max-w-xl mx-auto card bg-base-100 shadow-md mb-8">
             <div className="card-body">
               <h2 className="card-title">{text.googleTitle}</h2>
-              <p className="text-sm opacity-70">
-                {text.googleDescription}
-              </p>
+              <p className="text-sm opacity-70">{text.googleDescription}</p>
               {authError ? (
                 <div className="alert alert-error">
                   <span>{authError}</span>
@@ -6294,70 +7036,69 @@ export default function App() {
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {(grouped.groupedItems[category] || []).map((item) => {
-                  const copy = menuCopy(item);
-                  return (
-                    <div
-                      key={item.id}
-                      className="card bg-base-100 shadow-md hover:shadow-lg transition-shadow"
-                    >
-                      <figure className="h-44 overflow-hidden bg-base-300">
-                        <img
-                          src={item.imageUrl}
-                          alt={copy.name}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                          onError={(event) => {
-                            const target = event.currentTarget;
-                            target.src =
-                              "https://images.unsplash.com/photo-1526318896980-cf78c088247c?auto=format&fit=crop&w=800&q=80";
-                          }}
-                        />
-                      </figure>
-                      <div className="card-body">
-                        <div className="flex items-start justify-between gap-2">
-                          <h3 className="card-title text-lg">{copy.name}</h3>
-                          {item.activePromotion ? (
-                            <span className="badge badge-accent shrink-0">
-                              {item.activePromotion.name}
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="text-sm opacity-80 line-clamp-2 min-h-[2.75rem]">
-                          {copy.description}
-                        </p>
-                        <div className="card-actions justify-between items-center">
-                          <div className="flex items-baseline gap-2">
+                    const copy = menuCopy(item);
+                    return (
+                      <div
+                        key={item.id}
+                        className="card bg-base-100 shadow-md hover:shadow-lg transition-shadow"
+                      >
+                        <figure className="h-44 overflow-hidden bg-base-300">
+                          <img
+                            src={item.imageUrl}
+                            alt={copy.name}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            onError={(event) => {
+                              const target = event.currentTarget;
+                              target.src =
+                                "https://images.unsplash.com/photo-1526318896980-cf78c088247c?auto=format&fit=crop&w=800&q=80";
+                            }}
+                          />
+                        </figure>
+                        <div className="card-body">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="card-title text-lg">{copy.name}</h3>
                             {item.activePromotion ? (
-                              <span className="text-sm line-through opacity-60">
-                                {formatMoney(item.price)}
+                              <span className="badge badge-accent shrink-0">
+                                {item.activePromotion.name}
                               </span>
                             ) : null}
-                            <span className="text-xl font-bold text-success">
-                              {formatMoney(promotionalMenuItemPrice(item))}
-                            </span>
                           </div>
-                          <button
-                            className="btn btn-sm btn-primary"
-                            onClick={() => {
-                              openAddToCart(item);
-                            }}
-                            disabled={activeItemId === item.id}
-                          >
-                            {activeItemId === item.id
-                              ? text.adding
-                              : `${text.addToCart}${cartQtyByItemId[item.id] ? ` (${cartQtyByItemId[item.id]})` : ""}`}
-                          </button>
+                          <p className="text-sm opacity-80 line-clamp-2 min-h-[2.75rem]">
+                            {copy.description}
+                          </p>
+                          <div className="card-actions justify-between items-center">
+                            <div className="flex items-baseline gap-2">
+                              {item.activePromotion ? (
+                                <span className="text-sm line-through opacity-60">
+                                  {formatMoney(item.price)}
+                                </span>
+                              ) : null}
+                              <span className="text-xl font-bold text-success">
+                                {formatMoney(promotionalMenuItemPrice(item))}
+                              </span>
+                            </div>
+                            <button
+                              className="btn btn-sm btn-primary"
+                              onClick={() => {
+                                openAddToCart(item);
+                              }}
+                              disabled={activeItemId === item.id}
+                            >
+                              {activeItemId === item.id
+                                ? text.adding
+                                : `${text.addToCart}${cartQtyByItemId[item.id] ? ` (${cartQtyByItemId[item.id]})` : ""}`}
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
+                    );
                   })}
                 </div>
               </div>
             ))}
           </>
         )}
-
       </main>
 
       {user && (isHistoryOpen || isOrderHistoryPage) ? (
@@ -6395,7 +7136,8 @@ export default function App() {
                         <div>
                           <h3 className="font-semibold">{text.order}</h3>
                           <p className="text-xs opacity-60">
-                            {text.pickupNumber} #{order.dailySequence ?? order.id}
+                            {text.pickupNumber} #
+                            {order.dailySequence ?? order.id}
                           </p>
                         </div>
                         <span
@@ -6405,22 +7147,41 @@ export default function App() {
                         </span>
                       </div>
                       <div className="text-sm opacity-70 space-y-1">
-                        <p>{text.customerName}：{order.customerName || user.name}</p>
-                        <p>{text.phone}：{order.customerPhone || "-"}</p>
-                        <p>{text.submittedAt}：{formatTaipeiDateTime(order.submittedAt)}</p>
+                        <p>
+                          {text.customerName}：{order.customerName || user.name}
+                        </p>
+                        <p>
+                          {text.phone}：{order.customerPhone || "-"}
+                        </p>
+                        <p>
+                          {text.submittedAt}：
+                          {formatTaipeiDateTime(order.submittedAt)}
+                        </p>
                         {order.completedAt ? (
-                          <p>{text.completedAt}：{formatTaipeiDateTime(order.completedAt)}</p>
+                          <p>
+                            {text.completedAt}：
+                            {formatTaipeiDateTime(order.completedAt)}
+                          </p>
                         ) : null}
                       </div>
                       <ul className="text-sm list-disc pl-5 space-y-1">
                         {order.items.map((detail) => (
-                          <li key={`${order.id}-${detail.menuItemId}-${detail.id ?? detail.menuItemName}`}>
+                          <li
+                            key={`${order.id}-${detail.menuItemId}-${detail.id ?? detail.menuItemName}`}
+                          >
                             {orderItemName(detail)} x {detail.qty}
                             {orderItemIsDrink(detail) ? (
                               <span className="opacity-60">
                                 {" "}
-                                ({detail.sugarLevel ? sugarLabel(detail.sugarLevel) : "正常糖"} /{" "}
-                                {detail.iceLevel ? iceLabel(detail.iceLevel) : "正常冰"})
+                                (
+                                {detail.sugarLevel
+                                  ? sugarLabel(detail.sugarLevel)
+                                  : "正常糖"}{" "}
+                                /{" "}
+                                {detail.iceLevel
+                                  ? iceLabel(detail.iceLevel)
+                                  : "正常冰"}
+                                )
                               </span>
                             ) : null}
                             {orderItemSpecification(detail) ? (
@@ -6433,7 +7194,11 @@ export default function App() {
                         ))}
                       </ul>
                       <div className="flex items-center justify-between font-semibold">
-                        <span>{order.paymentMethod === "card" ? text.card : text.cash}</span>
+                        <span>
+                          {order.paymentMethod === "card"
+                            ? text.card
+                            : text.cash}
+                        </span>
                         <span>
                           {text.total} {formatMoney(order.total)}
                         </span>
@@ -6445,7 +7210,9 @@ export default function App() {
                         }}
                         disabled={activeItemId === `order-${order.id}`}
                       >
-                        {activeItemId === `order-${order.id}` ? text.adding : text.buyAgain}
+                        {activeItemId === `order-${order.id}`
+                          ? text.adding
+                          : text.buyAgain}
                       </button>
                     </article>
                   ))}
@@ -6500,7 +7267,9 @@ export default function App() {
               </section>
 
               <section>
-                <h3 className="mb-3 text-lg font-bold">{text.availableCoupons}</h3>
+                <h3 className="mb-3 text-lg font-bold">
+                  {text.availableCoupons}
+                </h3>
                 {availableCollectedCoupons.length === 0 ? (
                   <p className="rounded-lg bg-base-200 p-4 text-sm opacity-70">
                     {text.noAvailableCoupons}
@@ -6540,7 +7309,9 @@ export default function App() {
               </section>
 
               <section>
-                <h3 className="mb-3 text-lg font-bold">{text.unavailableCoupons}</h3>
+                <h3 className="mb-3 text-lg font-bold">
+                  {text.unavailableCoupons}
+                </h3>
                 {unavailableCollectedCoupons.length === 0 ? (
                   <p className="rounded-lg bg-base-200 p-4 text-sm opacity-70">
                     {text.noUnavailableCoupons}
@@ -6599,7 +7370,9 @@ export default function App() {
             </section>
 
             <section className="mb-8">
-              <h3 className="mb-3 text-lg font-bold">{text.collectedCoupons}</h3>
+              <h3 className="mb-3 text-lg font-bold">
+                {text.collectedCoupons}
+              </h3>
               {collectedCoupons.length === 0 ? (
                 <p className="rounded-lg bg-base-200 p-4 text-sm opacity-70">
                   {text.noCollectedCoupons}
@@ -6621,7 +7394,8 @@ export default function App() {
                           onClick={() => {
                             if (toggleCoupon(coupon)) {
                               navigate(cartDetails.length > 0 ? "/cart" : "/");
-                              if (cartDetails.length > 0) setCartView("checkout");
+                              if (cartDetails.length > 0)
+                                setCartView("checkout");
                             }
                           }}
                         >
@@ -6640,7 +7414,9 @@ export default function App() {
             </section>
 
             <section>
-              <h3 className="mb-3 text-lg font-bold">{text.recommendedCoupons}</h3>
+              <h3 className="mb-3 text-lg font-bold">
+                {text.recommendedCoupons}
+              </h3>
               {recommendedCoupons.length === 0 ? (
                 <p className="rounded-lg bg-base-200 p-4 text-sm opacity-70">
                   {text.noRecommendedCoupons}
@@ -6803,319 +7579,341 @@ export default function App() {
               </div>
             ) : (
               <>
-            <figure className="bg-base-200">
-              <img
-                src={activeCustomizingItem.imageUrl || fallbackMenuImage}
-                alt={menuCopy(activeCustomizingItem).name}
-                className="h-[42vh] min-h-72 w-full object-cover bg-base-300"
-                loading="lazy"
-                onError={(event) => {
-                  const target = event.currentTarget;
-                  target.onerror = null;
-                  target.src = fallbackMenuImage;
-                }}
-              />
-            </figure>
+                <figure className="bg-base-200">
+                  <img
+                    src={activeCustomizingItem.imageUrl || fallbackMenuImage}
+                    alt={menuCopy(activeCustomizingItem).name}
+                    className="h-[42vh] min-h-72 w-full object-cover bg-base-300"
+                    loading="lazy"
+                    onError={(event) => {
+                      const target = event.currentTarget;
+                      target.onerror = null;
+                      target.src = fallbackMenuImage;
+                    }}
+                  />
+                </figure>
 
-            <div className="w-full px-5 md:px-10 lg:px-16">
-              <section className="border-b border-base-300 px-5 py-6 space-y-3">
-                <h3 className="text-2xl font-bold">
-                  {menuCopy(activeCustomizingItem).name}
-                </h3>
-                <p className="text-base leading-relaxed opacity-75">
-                  {menuCopy(activeCustomizingItem).description}
-                </p>
-                <div className="flex items-baseline gap-3">
-                  {activeCustomizingItem.activePromotion ? (
-                    <span className="text-base line-through opacity-60">
-                      {formatMoney(activeCustomizingItem.price)}
-                    </span>
-                  ) : null}
-                  <p className="text-2xl font-black text-success">
-                    {formatMoney(promotionalMenuItemPrice(activeCustomizingItem))}
-                  </p>
-                </div>
-              </section>
+                <div className="w-full px-5 md:px-10 lg:px-16">
+                  <section className="border-b border-base-300 px-5 py-6 space-y-3">
+                    <h3 className="text-2xl font-bold">
+                      {menuCopy(activeCustomizingItem).name}
+                    </h3>
+                    <p className="text-base leading-relaxed opacity-75">
+                      {menuCopy(activeCustomizingItem).description}
+                    </p>
+                    <div className="flex items-baseline gap-3">
+                      {activeCustomizingItem.activePromotion ? (
+                        <span className="text-base line-through opacity-60">
+                          {formatMoney(activeCustomizingItem.price)}
+                        </span>
+                      ) : null}
+                      <p className="text-2xl font-black text-success">
+                        {formatMoney(
+                          promotionalMenuItemPrice(activeCustomizingItem),
+                        )}
+                      </p>
+                    </div>
+                  </section>
 
-              <section className="border-b border-base-300 px-5 py-6">
-                <label className="label">
-                  <span className="label-text">{text.qty}</span>
-                </label>
-                <div className="join">
-                  <button
-                    className="btn join-item"
-                    onClick={() =>
-                      setCartDraft((current) => ({
-                        ...current,
-                        qty: Math.max(1, current.qty - 1),
-                      }))
-                    }
-                  >
-                    -
-                  </button>
-                  <span className="btn join-item no-animation">
-                    {cartDraft.qty}
-                  </span>
-                  <button
-                    className="btn join-item"
-                    onClick={() =>
-                      setCartDraft((current) => ({
-                        ...current,
-                        qty: current.qty + 1,
-                      }))
-                    }
-                  >
-                    +
-                  </button>
-                </div>
-              </section>
-
-              {activeCustomizingItem.largePrice !== undefined ? (
-                <section className="border-b border-base-300 px-5 py-6">
-                  <span className="label-text mb-2 block">{text.portion}</span>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      className={`btn ${cartDraft.size === "small" ? "btn-primary" : "btn-outline"}`}
-                      onClick={() =>
-                        setCartDraft((current) => ({ ...current, size: "small" }))
-                      }
-                    >
-                      {text.small}{" "}
-                      {formatMoney(
-                        promotionalMenuItemPrice(activeCustomizingItem),
-                      )}
-                    </button>
-                    <button
-                      className={`btn ${cartDraft.size === "large" ? "btn-primary" : "btn-outline"}`}
-                      onClick={() =>
-                        setCartDraft((current) => ({ ...current, size: "large" }))
-                      }
-                    >
-                      {text.large}{" "}
-                      {formatMoney(
-                        promotionalMenuItemPrice(
-                          activeCustomizingItem,
-                          activeCustomizingItem.largePrice,
-                        ),
-                      )}
-                    </button>
-                  </div>
-                </section>
-              ) : null}
-
-              {activeCustomizingItem.eggPrice !== undefined ? (
-                <section className="border-b border-base-300 px-5 py-6">
-                  <span className="label-text mb-2 block">
-                    {text.addEgg} +{formatMoney(addonSettings.eggPrice)}
-                  </span>
-                  <div className="join">
-                    <button
-                      className="btn join-item"
-                      onClick={() =>
-                        setCartDraft((current) => ({
-                          ...current,
-                          eggQty: Math.max(0, current.eggQty - 1),
-                        }))
-                      }
-                    >
-                      -
-                    </button>
-                    <span className="btn join-item no-animation">
-                      {cartDraft.eggQty}
-                    </span>
-                    <button
-                      className="btn join-item"
-                      onClick={() =>
-                        setCartDraft((current) => ({
-                          ...current,
-                          eggQty: current.eggQty + 1,
-                        }))
-                      }
-                    >
-                      +
-                    </button>
-                  </div>
-                </section>
-              ) : null}
-
-              {activeCustomizingItem.cheesePrice !== undefined ? (
-                <section className="border-b border-base-300 px-5 py-6">
-                  <span className="label-text mb-2 block">
-                    {text.addCheese} +{formatMoney(addonSettings.cheesePrice)}
-                  </span>
-                  <div className="join">
-                    <button
-                      className="btn join-item"
-                      onClick={() =>
-                        setCartDraft((current) => ({
-                          ...current,
-                          cheeseQty: Math.max(0, current.cheeseQty - 1),
-                        }))
-                      }
-                    >
-                      -
-                    </button>
-                    <span className="btn join-item no-animation">
-                      {cartDraft.cheeseQty}
-                    </span>
-                    <button
-                      className="btn join-item"
-                      onClick={() =>
-                        setCartDraft((current) => ({
-                          ...current,
-                          cheeseQty: current.cheeseQty + 1,
-                        }))
-                      }
-                    >
-                      +
-                    </button>
-                  </div>
-                </section>
-              ) : null}
-
-              {(activeCustomizingItem.addonKeys ?? []).map((addonKey) => {
-                const addon = (addonSettings.items ?? []).find(
-                  (candidate) => candidate.key === addonKey && candidate.isActive,
-                );
-                if (!addon) return null;
-                const selected = (cartDraft.addons ?? []).find(
-                  (candidate) => candidate.key === addon.key,
-                );
-                return (
-                  <section
-                    key={addon.key}
-                    className="border-b border-base-300 px-5 py-6"
-                  >
-                    <span className="label-text mb-2 block">
-                      {addon.name} +{formatMoney(addon.price)}
-                    </span>
+                  <section className="border-b border-base-300 px-5 py-6">
+                    <label className="label">
+                      <span className="label-text">{text.qty}</span>
+                    </label>
                     <div className="join">
                       <button
                         className="btn join-item"
                         onClick={() =>
                           setCartDraft((current) => ({
                             ...current,
-                            addons: (current.addons ?? [])
-                              .map((candidate) =>
-                                candidate.key === addon.key
-                                  ? { ...candidate, qty: Math.max(0, candidate.qty - 1) }
-                                  : candidate,
-                              )
-                              .filter((candidate) => candidate.qty > 0),
+                            qty: Math.max(1, current.qty - 1),
                           }))
                         }
                       >
                         -
                       </button>
                       <span className="btn join-item no-animation">
-                        {selected?.qty ?? 0}
+                        {cartDraft.qty}
                       </span>
                       <button
                         className="btn join-item"
                         onClick={() =>
-                          setCartDraft((current) => {
-                            const addons = current.addons ?? [];
-                            const existing = addons.find(
-                              (candidate) => candidate.key === addon.key,
-                            );
-                            return {
-                              ...current,
-                              addons: existing
-                                ? addons.map((candidate) =>
-                                    candidate.key === addon.key
-                                      ? { ...candidate, qty: candidate.qty + 1 }
-                                      : candidate,
-                                  )
-                                : [...addons, { ...addon, qty: 1 }],
-                            };
-                          })
+                          setCartDraft((current) => ({
+                            ...current,
+                            qty: current.qty + 1,
+                          }))
                         }
                       >
                         +
                       </button>
                     </div>
                   </section>
-                );
-              })}
 
-              {isDrink(activeCustomizingItem) ? (
-                <section className="divide-y divide-base-300 border-b border-base-300">
-                  <div className="px-5 py-6">
-                    <span className="label-text mb-2 block">{text.sugar}</span>
-                    <div className="grid grid-cols-3 gap-2">
-                      {sugarOptions.map((option) => (
+                  {activeCustomizingItem.largePrice !== undefined ? (
+                    <section className="border-b border-base-300 px-5 py-6">
+                      <span className="label-text mb-2 block">
+                        {text.portion}
+                      </span>
+                      <div className="grid grid-cols-2 gap-2">
                         <button
-                          key={option}
-                          className={`btn btn-sm ${cartDraft.sugarLevel === option || (!cartDraft.sugarLevel && option === "正常糖") ? "btn-primary" : "btn-outline"}`}
+                          className={`btn ${cartDraft.size === "small" ? "btn-primary" : "btn-outline"}`}
                           onClick={() =>
                             setCartDraft((current) => ({
                               ...current,
-                              sugarLevel: option,
+                              size: "small",
                             }))
                           }
                         >
-                          {sugarLabel(option)}
+                          {text.small}{" "}
+                          {formatMoney(
+                            promotionalMenuItemPrice(activeCustomizingItem),
+                          )}
                         </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="px-5 py-6">
-                    <span className="label-text mb-2 block">{text.ice}</span>
-                    <div className="grid grid-cols-3 gap-2">
-                      {iceOptions.map((option) => (
                         <button
-                          key={option}
-                          className={`btn btn-sm ${cartDraft.iceLevel === option || (!cartDraft.iceLevel && option === "正常冰") ? "btn-primary" : "btn-outline"}`}
+                          className={`btn ${cartDraft.size === "large" ? "btn-primary" : "btn-outline"}`}
                           onClick={() =>
                             setCartDraft((current) => ({
                               ...current,
-                              iceLevel: option,
+                              size: "large",
                             }))
                           }
                         >
-                          {iceLabel(option)}
+                          {text.large}{" "}
+                          {formatMoney(
+                            promotionalMenuItemPrice(
+                              activeCustomizingItem,
+                              activeCustomizingItem.largePrice,
+                            ),
+                          )}
                         </button>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-              ) : null}
+                      </div>
+                    </section>
+                  ) : null}
 
-              <label className="form-control px-5 py-6">
-                <span className="label-text mb-1">{text.note}</span>
-                <textarea
-                  className="textarea textarea-bordered"
-                  placeholder={text.itemNotePlaceholder}
-                  value={cartDraft.note}
-                  onChange={(event) => {
-                    const note = event.currentTarget.value;
-                    setCartDraft((current) => ({
-                      ...current,
-                      note,
-                    }));
-                  }}
-                />
-              </label>
-            </div>
+                  {activeCustomizingItem.eggPrice !== undefined ? (
+                    <section className="border-b border-base-300 px-5 py-6">
+                      <span className="label-text mb-2 block">
+                        {text.addEgg} +{formatMoney(addonSettings.eggPrice)}
+                      </span>
+                      <div className="join">
+                        <button
+                          className="btn join-item"
+                          onClick={() =>
+                            setCartDraft((current) => ({
+                              ...current,
+                              eggQty: Math.max(0, current.eggQty - 1),
+                            }))
+                          }
+                        >
+                          -
+                        </button>
+                        <span className="btn join-item no-animation">
+                          {cartDraft.eggQty}
+                        </span>
+                        <button
+                          className="btn join-item"
+                          onClick={() =>
+                            setCartDraft((current) => ({
+                              ...current,
+                              eggQty: current.eggQty + 1,
+                            }))
+                          }
+                        >
+                          +
+                        </button>
+                      </div>
+                    </section>
+                  ) : null}
+
+                  {activeCustomizingItem.cheesePrice !== undefined ? (
+                    <section className="border-b border-base-300 px-5 py-6">
+                      <span className="label-text mb-2 block">
+                        {text.addCheese} +
+                        {formatMoney(addonSettings.cheesePrice)}
+                      </span>
+                      <div className="join">
+                        <button
+                          className="btn join-item"
+                          onClick={() =>
+                            setCartDraft((current) => ({
+                              ...current,
+                              cheeseQty: Math.max(0, current.cheeseQty - 1),
+                            }))
+                          }
+                        >
+                          -
+                        </button>
+                        <span className="btn join-item no-animation">
+                          {cartDraft.cheeseQty}
+                        </span>
+                        <button
+                          className="btn join-item"
+                          onClick={() =>
+                            setCartDraft((current) => ({
+                              ...current,
+                              cheeseQty: current.cheeseQty + 1,
+                            }))
+                          }
+                        >
+                          +
+                        </button>
+                      </div>
+                    </section>
+                  ) : null}
+
+                  {(activeCustomizingItem.addonKeys ?? []).map((addonKey) => {
+                    const addon = (addonSettings.items ?? []).find(
+                      (candidate) =>
+                        candidate.key === addonKey && candidate.isActive,
+                    );
+                    if (!addon) return null;
+                    const selected = (cartDraft.addons ?? []).find(
+                      (candidate) => candidate.key === addon.key,
+                    );
+                    return (
+                      <section
+                        key={addon.key}
+                        className="border-b border-base-300 px-5 py-6"
+                      >
+                        <span className="label-text mb-2 block">
+                          {addon.name} +{formatMoney(addon.price)}
+                        </span>
+                        <div className="join">
+                          <button
+                            className="btn join-item"
+                            onClick={() =>
+                              setCartDraft((current) => ({
+                                ...current,
+                                addons: (current.addons ?? [])
+                                  .map((candidate) =>
+                                    candidate.key === addon.key
+                                      ? {
+                                          ...candidate,
+                                          qty: Math.max(0, candidate.qty - 1),
+                                        }
+                                      : candidate,
+                                  )
+                                  .filter((candidate) => candidate.qty > 0),
+                              }))
+                            }
+                          >
+                            -
+                          </button>
+                          <span className="btn join-item no-animation">
+                            {selected?.qty ?? 0}
+                          </span>
+                          <button
+                            className="btn join-item"
+                            onClick={() =>
+                              setCartDraft((current) => {
+                                const addons = current.addons ?? [];
+                                const existing = addons.find(
+                                  (candidate) => candidate.key === addon.key,
+                                );
+                                return {
+                                  ...current,
+                                  addons: existing
+                                    ? addons.map((candidate) =>
+                                        candidate.key === addon.key
+                                          ? {
+                                              ...candidate,
+                                              qty: candidate.qty + 1,
+                                            }
+                                          : candidate,
+                                      )
+                                    : [...addons, { ...addon, qty: 1 }],
+                                };
+                              })
+                            }
+                          >
+                            +
+                          </button>
+                        </div>
+                      </section>
+                    );
+                  })}
+
+                  {isDrink(activeCustomizingItem) ? (
+                    <section className="divide-y divide-base-300 border-b border-base-300">
+                      <div className="px-5 py-6">
+                        <span className="label-text mb-2 block">
+                          {text.sugar}
+                        </span>
+                        <div className="grid grid-cols-3 gap-2">
+                          {sugarOptions.map((option) => (
+                            <button
+                              key={option}
+                              className={`btn btn-sm ${cartDraft.sugarLevel === option || (!cartDraft.sugarLevel && option === "正常糖") ? "btn-primary" : "btn-outline"}`}
+                              onClick={() =>
+                                setCartDraft((current) => ({
+                                  ...current,
+                                  sugarLevel: option,
+                                }))
+                              }
+                            >
+                              {sugarLabel(option)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="px-5 py-6">
+                        <span className="label-text mb-2 block">
+                          {text.ice}
+                        </span>
+                        <div className="grid grid-cols-3 gap-2">
+                          {iceOptions.map((option) => (
+                            <button
+                              key={option}
+                              className={`btn btn-sm ${cartDraft.iceLevel === option || (!cartDraft.iceLevel && option === "正常冰") ? "btn-primary" : "btn-outline"}`}
+                              onClick={() =>
+                                setCartDraft((current) => ({
+                                  ...current,
+                                  iceLevel: option,
+                                }))
+                              }
+                            >
+                              {iceLabel(option)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </section>
+                  ) : null}
+
+                  <label className="form-control px-5 py-6">
+                    <span className="label-text mb-1">{text.note}</span>
+                    <textarea
+                      className="textarea textarea-bordered"
+                      placeholder={text.itemNotePlaceholder}
+                      value={cartDraft.note}
+                      onChange={(event) => {
+                        const note = event.currentTarget.value;
+                        setCartDraft((current) => ({
+                          ...current,
+                          note,
+                        }));
+                      }}
+                    />
+                  </label>
+                </div>
               </>
             )}
           </div>
           {activeCustomizingItem ? (
-          <div className="border-t border-base-300 p-4 bg-base-100">
-            <div className="w-full px-1 md:px-6 lg:px-12">
-              <button
-                className="btn btn-primary w-full"
-                disabled={activeItemId === activeCustomizingItem.id}
-                onClick={() => {
-                  void addToCart(activeCustomizingItem, cartDraft);
-                }}
-              >
-                {activeItemId === activeCustomizingItem.id
-                  ? text.adding
-                  : `${text.addToCart} ${formatMoney(customizingUnitPrice * cartDraft.qty)}`}
-              </button>
+            <div className="border-t border-base-300 p-4 bg-base-100">
+              <div className="w-full px-1 md:px-6 lg:px-12">
+                <button
+                  className="btn btn-primary w-full"
+                  disabled={activeItemId === activeCustomizingItem.id}
+                  onClick={() => {
+                    void addToCart(activeCustomizingItem, cartDraft);
+                  }}
+                >
+                  {activeItemId === activeCustomizingItem.id
+                    ? text.adding
+                    : `${text.addToCart} ${formatMoney(customizingUnitPrice * cartDraft.qty)}`}
+                </button>
+              </div>
             </div>
-          </div>
           ) : null}
         </section>
       ) : null}
@@ -7197,7 +7995,10 @@ export default function App() {
                         <div className="space-y-2">
                           {group.lines.map((detail) => (
                             <div
-                              key={detail.orderItemId ?? `${detail.itemId}-${detail.orderItem.sugarLevel}-${detail.orderItem.iceLevel}`}
+                              key={
+                                detail.orderItemId ??
+                                `${detail.itemId}-${detail.orderItem.sugarLevel}-${detail.orderItem.iceLevel}`
+                              }
                               className="rounded-lg border border-base-300 bg-base-100 p-3 space-y-2"
                             >
                               <div className="flex items-center justify-between gap-3">
@@ -7325,7 +8126,8 @@ export default function App() {
                                           );
                                         }}
                                       >
-                                        {text.small} {formatMoney(detail.item.price)}
+                                        {text.small}{" "}
+                                        {formatMoney(detail.item.price)}
                                       </button>
                                       <button
                                         className={`btn btn-xs ${detail.orderItem.size === "large" ? "btn-primary" : "btn-outline"}`}
@@ -7337,14 +8139,16 @@ export default function App() {
                                           );
                                         }}
                                       >
-                                        {text.large} {formatMoney(detail.item.largePrice)}
+                                        {text.large}{" "}
+                                        {formatMoney(detail.item.largePrice)}
                                       </button>
                                     </div>
                                   ) : null}
                                   {detail.item.eggPrice !== undefined ? (
                                     <div className="flex items-center justify-between gap-3">
                                       <span className="text-sm">
-                                        {text.addEgg} +{formatMoney(addonSettings.eggPrice)}
+                                        {text.addEgg} +
+                                        {formatMoney(addonSettings.eggPrice)}
                                       </span>
                                       <div className="join">
                                         <button
@@ -7356,7 +8160,8 @@ export default function App() {
                                               {
                                                 eggQty: Math.max(
                                                   0,
-                                                  (detail.orderItem.eggQty ?? 0) - 1,
+                                                  (detail.orderItem.eggQty ??
+                                                    0) - 1,
                                                 ),
                                               },
                                             );
@@ -7375,7 +8180,8 @@ export default function App() {
                                               detail.itemId,
                                               {
                                                 eggQty:
-                                                  (detail.orderItem.eggQty ?? 0) + 1,
+                                                  (detail.orderItem.eggQty ??
+                                                    0) + 1,
                                               },
                                             );
                                           }}
@@ -7388,7 +8194,8 @@ export default function App() {
                                   {detail.item.cheesePrice !== undefined ? (
                                     <div className="flex items-center justify-between gap-3">
                                       <span className="text-sm">
-                                        {text.addCheese} +{formatMoney(addonSettings.cheesePrice)}
+                                        {text.addCheese} +
+                                        {formatMoney(addonSettings.cheesePrice)}
                                       </span>
                                       <div className="join">
                                         <button
@@ -7400,7 +8207,8 @@ export default function App() {
                                               {
                                                 cheeseQty: Math.max(
                                                   0,
-                                                  (detail.orderItem.cheeseQty ?? 0) - 1,
+                                                  (detail.orderItem.cheeseQty ??
+                                                    0) - 1,
                                                 ),
                                               },
                                             );
@@ -7419,7 +8227,8 @@ export default function App() {
                                               detail.itemId,
                                               {
                                                 cheeseQty:
-                                                  (detail.orderItem.cheeseQty ?? 0) + 1,
+                                                  (detail.orderItem.cheeseQty ??
+                                                    0) + 1,
                                               },
                                             );
                                           }}
@@ -7429,86 +8238,110 @@ export default function App() {
                                       </div>
                                     </div>
                                   ) : null}
-                                  {(detail.item.addonKeys ?? []).map((addonKey) => {
-                                    const addon = (addonSettings.items ?? []).find(
-                                      (candidate) =>
-                                        candidate.key === addonKey && candidate.isActive,
-                                    );
-                                    if (!addon) return null;
-                                    const selected = (detail.orderItem.addons ?? []).find(
-                                      (candidate) => candidate.key === addon.key,
-                                    );
-                                    return (
-                                      <div
-                                        key={addon.key}
-                                        className="flex items-center justify-between gap-3"
-                                      >
-                                        <span className="text-sm">
-                                          {addon.name} +{formatMoney(addon.price)}
-                                        </span>
-                                        <div className="join">
-                                          <button
-                                            className="btn btn-xs join-item"
-                                            onClick={() => {
-                                              void updateCartItemOptions(
-                                                detail.orderItemId,
-                                                detail.itemId,
-                                                {
-                                                  addons: (detail.orderItem.addons ?? [])
-                                                    .map((candidate) =>
-                                                      candidate.key === addon.key
-                                                        ? {
-                                                            ...candidate,
-                                                            qty: Math.max(
-                                                              0,
-                                                              candidate.qty - 1,
-                                                            ),
-                                                          }
-                                                        : candidate,
-                                                    )
-                                                    .filter(
-                                                      (candidate) => candidate.qty > 0,
-                                                    ),
-                                                },
-                                              );
-                                            }}
-                                          >
-                                            -
-                                          </button>
-                                          <span className="btn btn-xs join-item no-animation">
-                                            {selected?.qty ?? 0}
+                                  {(detail.item.addonKeys ?? []).map(
+                                    (addonKey) => {
+                                      const addon = (
+                                        addonSettings.items ?? []
+                                      ).find(
+                                        (candidate) =>
+                                          candidate.key === addonKey &&
+                                          candidate.isActive,
+                                      );
+                                      if (!addon) return null;
+                                      const selected = (
+                                        detail.orderItem.addons ?? []
+                                      ).find(
+                                        (candidate) =>
+                                          candidate.key === addon.key,
+                                      );
+                                      return (
+                                        <div
+                                          key={addon.key}
+                                          className="flex items-center justify-between gap-3"
+                                        >
+                                          <span className="text-sm">
+                                            {addon.name} +
+                                            {formatMoney(addon.price)}
                                           </span>
-                                          <button
-                                            className="btn btn-xs join-item"
-                                            onClick={() => {
-                                              const current = detail.orderItem.addons ?? [];
-                                              const exists = current.some(
-                                                (candidate) => candidate.key === addon.key,
-                                              );
-                                              void updateCartItemOptions(
-                                                detail.orderItemId,
-                                                detail.itemId,
-                                                {
-                                                  addons: exists
-                                                    ? current.map((candidate) =>
-                                                        candidate.key === addon.key
+                                          <div className="join">
+                                            <button
+                                              className="btn btn-xs join-item"
+                                              onClick={() => {
+                                                void updateCartItemOptions(
+                                                  detail.orderItemId,
+                                                  detail.itemId,
+                                                  {
+                                                    addons: (
+                                                      detail.orderItem.addons ??
+                                                      []
+                                                    )
+                                                      .map((candidate) =>
+                                                        candidate.key ===
+                                                        addon.key
                                                           ? {
                                                               ...candidate,
-                                                              qty: candidate.qty + 1,
+                                                              qty: Math.max(
+                                                                0,
+                                                                candidate.qty -
+                                                                  1,
+                                                              ),
                                                             }
                                                           : candidate,
                                                       )
-                                                    : [...current, { ...addon, qty: 1 }],
-                                                },
-                                              );
-                                            }}
-                                          >
-                                            +
-                                          </button>
+                                                      .filter(
+                                                        (candidate) =>
+                                                          candidate.qty > 0,
+                                                      ),
+                                                  },
+                                                );
+                                              }}
+                                            >
+                                              -
+                                            </button>
+                                            <span className="btn btn-xs join-item no-animation">
+                                              {selected?.qty ?? 0}
+                                            </span>
+                                            <button
+                                              className="btn btn-xs join-item"
+                                              onClick={() => {
+                                                const current =
+                                                  detail.orderItem.addons ?? [];
+                                                const exists = current.some(
+                                                  (candidate) =>
+                                                    candidate.key === addon.key,
+                                                );
+                                                void updateCartItemOptions(
+                                                  detail.orderItemId,
+                                                  detail.itemId,
+                                                  {
+                                                    addons: exists
+                                                      ? current.map(
+                                                          (candidate) =>
+                                                            candidate.key ===
+                                                            addon.key
+                                                              ? {
+                                                                  ...candidate,
+                                                                  qty:
+                                                                    candidate.qty +
+                                                                    1,
+                                                                }
+                                                              : candidate,
+                                                        )
+                                                      : [
+                                                          ...current,
+                                                          { ...addon, qty: 1 },
+                                                        ],
+                                                  },
+                                                );
+                                              }}
+                                            >
+                                              +
+                                            </button>
+                                          </div>
                                         </div>
-                                      </div>
-                                    );
-                                  })}
+                                      );
+                                    },
+                                  )}
                                   <input
                                     className="input input-sm input-bordered w-full"
                                     placeholder={text.itemNotePlaceholder}
@@ -7537,7 +8370,9 @@ export default function App() {
                     className="input input-bordered w-full"
                     placeholder={text.checkoutNamePlaceholder}
                     value={customerName}
-                    onChange={(event) => setCustomerName(event.currentTarget.value)}
+                    onChange={(event) =>
+                      setCustomerName(event.currentTarget.value)
+                    }
                   />
                   <input
                     className="input input-bordered w-full"
@@ -7560,10 +8395,10 @@ export default function App() {
                         {adminStoreCode === "taipei"
                           ? "台北分店"
                           : adminStoreCode === "tainan"
-                          ? "台南分店"
-                          : adminStoreCode === "kaohsiung"
-                          ? "高雄分店"
-                          : adminStoreCode}
+                            ? "台南分店"
+                            : adminStoreCode === "kaohsiung"
+                              ? "高雄分店"
+                              : adminStoreCode}
                       </div>
                     </div>
                   ) : (
@@ -7587,7 +8422,9 @@ export default function App() {
                     className="input input-bordered w-full"
                     placeholder={text.pickupTimePlaceholder}
                     value={pickupTime}
-                    onChange={(event) => setPickupTime(event.currentTarget.value)}
+                    onChange={(event) =>
+                      setPickupTime(event.currentTarget.value)
+                    }
                   />
                   <div className="grid grid-cols-2 gap-2">
                     <label className="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300 p-3">
@@ -7613,7 +8450,9 @@ export default function App() {
                     className="textarea textarea-bordered w-full"
                     placeholder={text.orderNotePlaceholder}
                     value={orderNote}
-                    onChange={(event) => setOrderNote(event.currentTarget.value)}
+                    onChange={(event) =>
+                      setOrderNote(event.currentTarget.value)
+                    }
                   />
                   <div className="space-y-2">
                     <button
@@ -7636,8 +8475,10 @@ export default function App() {
                             couponCanApply ? "text-success" : "text-error"
                           }`}
                         >
-                          {couponCanApply ? text.couponApplied : text.couponUnavailable}：
-                          {appliedCoupon.code}
+                          {couponCanApply
+                            ? text.couponApplied
+                            : text.couponUnavailable}
+                          ：{appliedCoupon.code}
                         </p>
                         <p className="opacity-70">
                           {couponRuleText(appliedCoupon)}
@@ -7655,17 +8496,21 @@ export default function App() {
                 <span>{cartItemCount}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>{cartView === "checkout" ? text.originalAmount : text.totalAmount}</span>
                 <span>
-                  {formatMoney(cartTotal)}
+                  {cartView === "checkout"
+                    ? text.originalAmount
+                    : text.totalAmount}
                 </span>
+                <span>{formatMoney(cartTotal)}</span>
               </div>
               {cartView === "checkout" &&
               appliedCoupon &&
               couponCanApply &&
               couponDiscountTotal > 0 ? (
                 <div className="flex items-center justify-between text-sm text-success">
-                  <span>{text.discount}：{appliedCoupon.code}</span>
+                  <span>
+                    {text.discount}：{appliedCoupon.code}
+                  </span>
                   <span>-{formatMoney(couponDiscountTotal)}</span>
                 </div>
               ) : null}

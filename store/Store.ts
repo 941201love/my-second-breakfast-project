@@ -1,5 +1,6 @@
 import type {
   AddonSettings,
+  Employee,
   MenuItem,
   Order,
   StaleCartItem,
@@ -122,4 +123,6 @@ export interface Store {
   getCoupons(): ReadonlyArray<Coupon>;
   createCoupon(input: Coupon): Promise<Coupon>;
   deleteCoupon(code: string): Promise<Coupon | null>;
+  getEmployees(): ReadonlyArray<Employee>;
+  upsertEmployee(input: Employee): Promise<Employee>;
 }

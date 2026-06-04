@@ -4,6 +4,7 @@ import {
   activePromotionSchema,
   addonSettingsSchema,
   couponSchema,
+  employeeSchema,
   menuItemSchema,
   menuItemVersionHistorySchema,
   orderSchema,
@@ -105,16 +106,15 @@ export const updateMenuItemBodySchema = z.object({
   versionLevel: z.enum(["major", "minor"]).default("minor"),
 });
 
-export const adminLoginBodySchema = z.object({
-  username: z.string().min(1).optional(),
-  password: z.string().min(1),
-  storeCode: z.string().min(1).optional(),
-}).refine(
-  (value) => Boolean(value.storeCode) || Boolean(value.username),
-  {
+export const adminLoginBodySchema = z
+  .object({
+    username: z.string().min(1).optional(),
+    password: z.string().min(1),
+    storeCode: z.string().min(1).optional(),
+  })
+  .refine((value) => Boolean(value.storeCode) || Boolean(value.username), {
     message: "Username or storeCode is required",
-  },
-);
+  });
 
 export const adminLoginResponseSchema = z.object({
   data: z.object({
@@ -203,6 +203,12 @@ export const couponParamsSchema = z.object({
   code: z.string().min(1),
 });
 
+export const upsertEmployeeBodySchema = employeeSchema;
+
+export const employeeParamsSchema = z.object({
+  employeeId: z.string().min(1),
+});
+
 export const createPromotionBodySchema = activePromotionSchema.omit({
   id: true,
 });
@@ -237,6 +243,14 @@ export const activePromotionResponseSchema = z.object({
 
 export const couponListResponseSchema = z.object({
   data: z.array(couponSchema),
+});
+
+export const employeeListResponseSchema = z.object({
+  data: z.array(employeeSchema),
+});
+
+export const employeeResponseSchema = z.object({
+  data: employeeSchema,
 });
 
 export const couponResponseSchema = z.object({

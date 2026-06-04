@@ -97,6 +97,14 @@ export const couponSchema = z.object({
   isActive: z.boolean(),
 });
 
+export const employeeSchema = z.object({
+  employeeId: z.string().min(1),
+  name: z.string().min(1),
+  storeCode: z.string().min(1),
+  title: z.string().min(1),
+  isActive: z.boolean(),
+});
+
 export const addonDefinitionSchema = z.object({
   key: z.string().min(1),
   name: z.string().min(1),
@@ -217,6 +225,7 @@ export type MenuItemVersionHistory = z.infer<
 >;
 export type ActivePromotion = z.infer<typeof activePromotionSchema>;
 export type Coupon = z.infer<typeof couponSchema>;
+export type Employee = z.infer<typeof employeeSchema>;
 export type AddonSettings = z.infer<typeof addonSettingsSchema>;
 export type PriceSensitivity = z.infer<typeof priceSensitivitySchema>;
 export type StaleCartItem = z.infer<typeof staleCartItemSchema>;

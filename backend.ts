@@ -18,6 +18,8 @@ import {
   createMenuItemBodySchema,
   createPromotionBodySchema,
   deleteMenuItemParamsSchema,
+  employeeListResponseSchema,
+  employeeResponseSchema,
   getOrderByIdParamsSchema,
   healthResponseSchema,
   menuItemResponseSchema,
@@ -32,6 +34,7 @@ import {
   submitOrderParamsSchema,
   submitOrderBodySchema,
   toOrderResponse,
+  upsertEmployeeBodySchema,
   updateMenuDisplayOrderBodySchema,
   updateAddonSettingsBodySchema,
   updateMenuItemBodySchema,
@@ -76,10 +79,7 @@ const store = createStore({ dataFilePath: "./data/store.json" });
 const hasPublicAssets =
   existsSync("./public") && existsSync("./public/index.html");
 
-if (
-  isProduction &&
-  adminSessionSecret === "change-this-admin-session-secret"
-) {
+if (isProduction && adminSessionSecret === "change-this-admin-session-secret") {
   throw new Error(
     "Production ADMIN_SESSION_SECRET is unsafe. Set ADMIN_SESSION_SECRET.",
   );
@@ -126,13 +126,16 @@ async function requireUser(request: Request) {
 }
 
 function signAdminSession(sessionKey: string) {
-  return createHmac("sha256", adminSessionSecret).update(sessionKey).digest("hex");
+  return createHmac("sha256", adminSessionSecret)
+    .update(sessionKey)
+    .digest("hex");
 }
 
 function isAdminSessionValue(session: string) {
-  const validKeys = [adminUsername, ...Object.keys(adminBranchPasswords).map(
-    (code) => `branch:${code}`,
-  )];
+  const validKeys = [
+    adminUsername,
+    ...Object.keys(adminBranchPasswords).map((code) => `branch:${code}`),
+  ];
 
   return validKeys.some((sessionKey) => {
     const expected = signAdminSession(sessionKey);
@@ -263,13 +266,11 @@ function checkAdminLoginRateLimit(request: Request) {
 function recordAdminLoginFailure(request: Request) {
   const ip = clientIp(request);
   const now = Date.now();
-  const current =
-    adminLoginAttempts.get(ip) ??
-    {
-      count: 0,
-      resetAt: now + 10 * 60 * 1000,
-      blockedUntil: 0,
-    };
+  const current = adminLoginAttempts.get(ip) ?? {
+    count: 0,
+    resetAt: now + 10 * 60 * 1000,
+    blockedUntil: 0,
+  };
   const count = current.count + 1;
   adminLoginAttempts.set(ip, {
     count,
@@ -302,7 +303,8 @@ app.onAfterHandle(({ set }) => {
   set.headers["X-Content-Type-Options"] = "nosniff";
   set.headers["X-Frame-Options"] = "DENY";
   set.headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-  set.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+  set.headers["Permissions-Policy"] =
+    "camera=(), microphone=(), geolocation=()";
   set.headers["Content-Security-Policy"] =
     "default-src 'self'; img-src 'self' data: https:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
   if (isProduction) {
@@ -407,7 +409,10 @@ app.post(
         });
       }
       sessionKey = `branch:${storeCode}`;
-    } else if (body.username === adminUsername && body.password === adminPassword) {
+    } else if (
+      body.username === adminUsername &&
+      body.password === adminPassword
+    ) {
       sessionKey = adminUsername;
     }
 
@@ -420,15 +425,12 @@ app.post(
     }
 
     clearAdminLoginFailures(request);
-    return new Response(
-      JSON.stringify({ data: { username: sessionKey } }),
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "Set-Cookie": adminCookie(signAdminSession(sessionKey), 86400),
-        },
+    return new Response(JSON.stringify({ data: { username: sessionKey } }), {
+      headers: {
+        "Content-Type": "application/json",
+        "Set-Cookie": adminCookie(signAdminSession(sessionKey), 86400),
       },
-    );
+    });
   },
   {
     body: adminLoginBodySchema,
@@ -697,6 +699,46 @@ app.delete(
 );
 
 app.get(
+  "/api/employees",
+  ({ request }) => {
+    requireAdmin(request);
+    const branch = adminSessionBranch(request);
+    const requestedStoreCode = new URL(request.url).searchParams
+      .get("storeCode")
+      ?.trim();
+    const storeCode = branch ?? requestedStoreCode;
+    const employees = storeCode
+      ? store
+          .getEmployees()
+          .filter((employee) => employee.storeCode === storeCode)
+      : store.getEmployees();
+    return { data: employees };
+  },
+  {
+    response: {
+      200: employeeListResponseSchema,
+      401: apiErrorResponseSchema,
+    },
+  },
+);
+
+app.post(
+  "/api/employees",
+  async ({ body, request }) => {
+    requireHeadquarter(request);
+    const employee = await store.upsertEmployee(body);
+    return { data: employee };
+  },
+  {
+    body: upsertEmployeeBodySchema,
+    response: {
+      200: employeeResponseSchema,
+      401: apiErrorResponseSchema,
+    },
+  },
+);
+
+app.get(
   "/api/menu/:id/history",
   async ({ params }) => {
     const history = await menuRepository.getMenuVersionHistory(params.id);
@@ -824,7 +866,10 @@ app.post(
       return { data: toOrderResponse(existingOrder) };
     }
 
-    const newOrder = await store.createOrder({ userId: user.id, storeCode: (body as any)?.storeCode });
+    const newOrder = await store.createOrder({
+      userId: user.id,
+      storeCode: (body as any)?.storeCode,
+    });
     set.status = 201;
     return { data: toOrderResponse(newOrder) };
   },
@@ -850,7 +895,11 @@ app.get(
       timeZone: "Asia/Taipei",
     });
     const branch = adminSessionBranch(request);
-    const isTodayOrder = (order: { submittedAt?: string; createdAt: string; storeCode?: string }) =>
+    const isTodayOrder = (order: {
+      submittedAt?: string;
+      createdAt: string;
+      storeCode?: string;
+    }) =>
       new Date(order.submittedAt ?? order.createdAt).toLocaleDateString(
         "sv-SE",
         { timeZone: "Asia/Taipei" },
@@ -859,11 +908,17 @@ app.get(
     const filteredOrders = branch
       ? allOrders.filter((o) => (o.storeCode ?? "default") === branch)
       : allOrders;
-    const submittedOrders = filteredOrders.filter((order) => order.status !== "pending" && isTodayOrder(order));
-    const completedOrders = filteredOrders.filter(
-      (order) => (order.status === "completed" || order.status === "picked_up") && isTodayOrder(order),
+    const submittedOrders = filteredOrders.filter(
+      (order) => order.status !== "pending" && isTodayOrder(order),
     );
-    const waitingOrders = filteredOrders.filter((order) => order.status === "submitted" && isTodayOrder(order));
+    const completedOrders = filteredOrders.filter(
+      (order) =>
+        (order.status === "completed" || order.status === "picked_up") &&
+        isTodayOrder(order),
+    );
+    const waitingOrders = filteredOrders.filter(
+      (order) => order.status === "submitted" && isTodayOrder(order),
+    );
     const readyPickupNumbers = completedOrders
       .filter((order) => order.status === "completed")
       .map((order) => order.dailySequence ?? order.id)
@@ -978,7 +1033,8 @@ app.patch(
     detail: {
       tags: ["orders"],
       summary: "Pick up order",
-      description: "Archive a completed order after an admin marks it picked up.",
+      description:
+        "Archive a completed order after an admin marks it picked up.",
     },
     response: {
       200: orderResponseEnvelopeSchema,

@@ -1,6 +1,7 @@
 import { mkdir, rename } from "node:fs/promises";
 import type {
   AddonSettings,
+  Employee,
   MenuItem,
   Order,
   OrderItem,
@@ -22,6 +23,7 @@ interface DataStore {
   menu: MenuItem[];
   orders: Order[];
   coupons?: Coupon[];
+  employees?: Employee[];
   addonSettings?: AddonSettings;
   userIdCounter: number;
   menuIdCounter: number;
@@ -40,6 +42,37 @@ type LegacyMenuItem = Partial<MenuItem> & {
 type LegacyOrderItem = Partial<OrderItem> & {
   item?: LegacyMenuItem;
 };
+
+const defaultEmployees: Employee[] = [
+  {
+    employeeId: "TPE001",
+    name: "小明",
+    storeCode: "taipei",
+    title: "正職人員",
+    isActive: true,
+  },
+  {
+    employeeId: "TPE002",
+    name: "小美",
+    storeCode: "taipei",
+    title: "早班人員",
+    isActive: true,
+  },
+  {
+    employeeId: "TNN001",
+    name: "阿哲",
+    storeCode: "tainan",
+    title: "店員",
+    isActive: true,
+  },
+  {
+    employeeId: "KHH001",
+    name: "怡君",
+    storeCode: "kaohsiung",
+    title: "店員",
+    isActive: true,
+  },
+];
 
 const defaultMenu: MenuItem[] = [
   {
@@ -60,15 +93,18 @@ const defaultMenu: MenuItem[] = [
       },
       en: {
         name: "Ham Egg Toast",
-        description: "Pan-fried egg with ham and lettuce on lightly toasted white bread.",
+        description:
+          "Pan-fried egg with ham and lettuce on lightly toasted white bread.",
       },
       ja: {
         name: "ハムエッグトースト",
-        description: "焼き卵、ハム、レタスを軽く焼いた白トーストで挟んだ朝食定番。",
+        description:
+          "焼き卵、ハム、レタスを軽く焼いた白トーストで挟んだ朝食定番。",
       },
       ko: {
         name: "햄 에그 토스트",
-        description: "구운 달걀, 햄, 양상추를 살짝 구운 식빵에 넣은 아침 메뉴입니다.",
+        description:
+          "구운 달걀, 햄, 양상추를 살짝 구운 식빵에 넣은 아침 메뉴입니다.",
       },
     },
     imageUrl: "/imgs/menu/ham-egg-toast.webp",
@@ -94,11 +130,13 @@ const defaultMenu: MenuItem[] = [
       },
       en: {
         name: "Cheese Pork Cutlet Burger",
-        description: "Thick pork cutlet with cheese and lettuce, crisp outside and juicy inside.",
+        description:
+          "Thick pork cutlet with cheese and lettuce, crisp outside and juicy inside.",
       },
       ja: {
         name: "チーズポークカツバーガー",
-        description: "厚切りポークカツにチーズとレタスを合わせた食べ応えのあるバーガー。",
+        description:
+          "厚切りポークカツにチーズとレタスを合わせた食べ応えのあるバーガー。",
       },
       ko: {
         name: "치즈 돈가스 버거",
@@ -128,15 +166,18 @@ const defaultMenu: MenuItem[] = [
       },
       en: {
         name: "Tuna Egg Toast",
-        description: "House tuna salad with fried egg and lettuce, rich but not too salty.",
+        description:
+          "House tuna salad with fried egg and lettuce, rich but not too salty.",
       },
       ja: {
         name: "ツナエッグトースト",
-        description: "自家製ツナサラダに卵とレタスを合わせた、濃厚で食べやすいトースト。",
+        description:
+          "自家製ツナサラダに卵とレタスを合わせた、濃厚で食べやすいトースト。",
       },
       ko: {
         name: "참치 에그 토스트",
-        description: "직접 만든 참치 샐러드에 달걀과 양상추를 더한 고소한 토스트입니다.",
+        description:
+          "직접 만든 참치 샐러드에 달걀과 양상추를 더한 고소한 토스트입니다.",
       },
     },
     imageUrl: "/imgs/menu/tuna-egg-toast.webp",
@@ -162,15 +203,18 @@ const defaultMenu: MenuItem[] = [
       },
       en: {
         name: "Bacon Egg Pancake Roll",
-        description: "Crisp Taiwanese egg pancake filled with smoked bacon and egg.",
+        description:
+          "Crisp Taiwanese egg pancake filled with smoked bacon and egg.",
       },
       ja: {
         name: "ベーコン蛋餅",
-        description: "香ばしく焼いた台湾風蛋餅にスモークベーコンと卵を包みました。",
+        description:
+          "香ばしく焼いた台湾風蛋餅にスモークベーコンと卵を包みました。",
       },
       ko: {
         name: "베이컨 단빙",
-        description: "바삭하게 구운 대만식 달걀 전병에 훈제 베이컨과 달걀을 넣었습니다.",
+        description:
+          "바삭하게 구운 대만식 달걀 전병에 훈제 베이컨과 달걀을 넣었습니다.",
       },
     },
     imageUrl: "/imgs/menu/bacon-egg-roll.webp",
@@ -235,7 +279,8 @@ function normalizeMenuItem(item: LegacyMenuItem): MenuItem {
     category: item.category ?? "",
     description: item.description ?? "",
     translations:
-      item.translations ?? fallbackTranslations(item.name ?? "", item.description ?? ""),
+      item.translations ??
+      fallbackTranslations(item.name ?? "", item.description ?? ""),
     imageUrl: item.imageUrl ?? item.image_url ?? "",
     isCurrentVersion: item.isCurrentVersion ?? true,
     testGroup: item.testGroup ?? "default",
@@ -295,6 +340,21 @@ function normalizeUser(user: Partial<StoredUser>): StoredUser {
   };
 }
 
+function normalizeEmployee(employee: Partial<Employee>): Employee | null {
+  const employeeId = employee.employeeId?.trim().toUpperCase();
+  const name = employee.name?.trim();
+  const storeCode = employee.storeCode?.trim();
+  if (!employeeId || !name || !storeCode) return null;
+
+  return {
+    employeeId,
+    name,
+    storeCode,
+    title: employee.title?.trim() || "店員",
+    isActive: typeof employee.isActive === "boolean" ? employee.isActive : true,
+  };
+}
+
 function sameOrderItemOptions(
   item: OrderItem,
   input: {
@@ -348,6 +408,7 @@ export class JsonFileStore implements Store {
   private menu: MenuItem[] = [];
   private orders: Order[] = [];
   private coupons: Coupon[] = [];
+  private employees: Employee[] = [];
   private addonSettings: AddonSettings = {
     eggPrice: 10,
     cheesePrice: 10,
@@ -399,10 +460,10 @@ export class JsonFileStore implements Store {
             order.status === "picked_up"
               ? "picked_up"
               : order.status === "completed"
-              ? "completed"
-              : order.status === "submitted"
-                ? "submitted"
-                : "pending",
+                ? "completed"
+                : order.status === "submitted"
+                  ? "submitted"
+                  : "pending",
           paymentMethod:
             order.paymentMethod === "card" || order.paymentMethod === "cash"
               ? order.paymentMethod
@@ -442,7 +503,23 @@ export class JsonFileStore implements Store {
               expiresAt: coupon.expiresAt,
               isActive: coupon.isActive,
             }))
-          : [{ code: "BREAKFAST10", name: "早餐折 10 元", discountType: "amount", discountValue: 10, minSpend: 0, maxDiscount: 0, usageLimitPerUser: 1, isActive: true }],
+          : [
+              {
+                code: "BREAKFAST10",
+                name: "早餐折 10 元",
+                discountType: "amount",
+                discountValue: 10,
+                minSpend: 0,
+                maxDiscount: 0,
+                usageLimitPerUser: 1,
+                isActive: true,
+              },
+            ],
+        employees: Array.isArray(parsed.employees)
+          ? parsed.employees
+              .map((employee) => normalizeEmployee(employee))
+              .filter((employee): employee is Employee => Boolean(employee))
+          : defaultEmployees,
         addonSettings: {
           eggPrice: parsed.addonSettings?.eggPrice ?? 10,
           cheesePrice: parsed.addonSettings?.cheesePrice ?? 10,
@@ -571,25 +648,25 @@ export class JsonFileStore implements Store {
         versionLevel === "major"
           ? menuItem.majorVersion + 1
           : menuItem.majorVersion,
-      minorVersion:
-        versionLevel === "major" ? 0 : menuItem.minorVersion + 1,
+      minorVersion: versionLevel === "major" ? 0 : menuItem.minorVersion + 1,
       name: patch.changes.name ?? zh?.name ?? menuItem.name,
       price: patch.changes.price ?? menuItem.price,
       largePrice:
         patch.changes.largePrice === undefined
           ? menuItem.largePrice
-          : patch.changes.largePrice ?? undefined,
+          : (patch.changes.largePrice ?? undefined),
       eggPrice:
         patch.changes.eggPrice === undefined
           ? menuItem.eggPrice
-          : patch.changes.eggPrice ?? undefined,
+          : (patch.changes.eggPrice ?? undefined),
       cheesePrice:
         patch.changes.cheesePrice === undefined
           ? menuItem.cheesePrice
-          : patch.changes.cheesePrice ?? undefined,
+          : (patch.changes.cheesePrice ?? undefined),
       addonKeys: patch.changes.addonKeys ?? menuItem.addonKeys ?? [],
       category: patch.changes.category ?? menuItem.category,
-      description: patch.changes.description ?? zh?.description ?? menuItem.description,
+      description:
+        patch.changes.description ?? zh?.description ?? menuItem.description,
       translations,
       imageUrl: patch.changes.imageUrl ?? menuItem.imageUrl,
       testGroup: patch.changes.testGroup ?? menuItem.testGroup,
@@ -637,9 +714,7 @@ export class JsonFileStore implements Store {
 
   getOrderHistoryByUserId(userId: string): ReadonlyArray<Order> {
     return this.orders
-      .filter(
-        (order) => order.userId === userId && order.status !== "pending",
-      )
+      .filter((order) => order.userId === userId && order.status !== "pending")
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
@@ -737,8 +812,9 @@ export class JsonFileStore implements Store {
     );
     input = {
       ...input,
-      eggQty: menuItem.eggPrice === undefined ? 0 : input.eggQty ?? 0,
-      cheeseQty: menuItem.cheesePrice === undefined ? 0 : input.cheeseQty ?? 0,
+      eggQty: menuItem.eggPrice === undefined ? 0 : (input.eggQty ?? 0),
+      cheeseQty:
+        menuItem.cheesePrice === undefined ? 0 : (input.cheeseQty ?? 0),
       addons,
     };
     const baseMenuItemPrice =
@@ -757,7 +833,9 @@ export class JsonFileStore implements Store {
 
     const existingItemIndex =
       input.orderItemId !== undefined
-        ? order.items.findIndex((orderItem) => orderItem.id === input.orderItemId)
+        ? order.items.findIndex(
+            (orderItem) => orderItem.id === input.orderItemId,
+          )
         : input.forceNew
           ? -1
           : order.items.findIndex(
@@ -886,7 +964,9 @@ export class JsonFileStore implements Store {
     }
 
     const staleItem = order.items.find((orderItem) => {
-      const menuItem = this.menu.find((item) => item.id === orderItem.menuItemId);
+      const menuItem = this.menu.find(
+        (item) => item.id === orderItem.menuItemId,
+      );
       return !menuItem?.isCurrentVersion;
     });
     if (staleItem) {
@@ -926,9 +1006,7 @@ export class JsonFileStore implements Store {
 
     const coupon = input.couponCode
       ? this.coupons.find(
-          (item) =>
-            item.code === input.couponCode &&
-            item.isActive,
+          (item) => item.code === input.couponCode && item.isActive,
         )
       : undefined;
     if (input.couponCode && !this.canUseCoupon(coupon, order, input.userId)) {
@@ -1021,6 +1099,28 @@ export class JsonFileStore implements Store {
     return coupon;
   }
 
+  getEmployees(): ReadonlyArray<Employee> {
+    return this.employees;
+  }
+
+  async upsertEmployee(input: Employee): Promise<Employee> {
+    const employee = normalizeEmployee(input);
+    if (!employee) {
+      throw new Error("Invalid employee");
+    }
+
+    const index = this.employees.findIndex(
+      (item) => item.employeeId === employee.employeeId,
+    );
+    if (index === -1) {
+      this.employees.push(employee);
+    } else {
+      this.employees[index] = employee;
+    }
+    await this.persist();
+    return employee;
+  }
+
   private canUseCoupon(
     coupon: Coupon | undefined,
     order: Order,
@@ -1035,9 +1135,7 @@ export class JsonFileStore implements Store {
       return false;
     }
     const totalUsedCount = this.orders.filter(
-      (item) =>
-        item.status !== "pending" &&
-        item.couponCode === coupon.code,
+      (item) => item.status !== "pending" && item.couponCode === coupon.code,
     ).length;
     const usageLimitTotal = coupon.usageLimitTotal ?? 0;
     if (usageLimitTotal > 0 && totalUsedCount >= usageLimitTotal) {
@@ -1067,6 +1165,7 @@ export class JsonFileStore implements Store {
           isActive: true,
         },
       ],
+      employees: defaultEmployees,
       addonSettings: { eggPrice: 10, cheesePrice: 10, items: [] },
       userIdCounter: defaultUsers.length,
       menuIdCounter: defaultMenu.length,
@@ -1079,6 +1178,7 @@ export class JsonFileStore implements Store {
     this.menu = store.menu;
     this.orders = store.orders;
     this.coupons = store.coupons ?? [];
+    this.employees = store.employees ?? defaultEmployees;
     this.addonSettings = store.addonSettings ?? {
       eggPrice: 10,
       cheesePrice: 10,
@@ -1110,6 +1210,7 @@ export class JsonFileStore implements Store {
       menu: this.menu,
       orders: this.orders,
       coupons: this.coupons,
+      employees: this.employees,
       addonSettings: this.addonSettings,
       userIdCounter: this.userIdCounter,
       menuIdCounter: this.menuIdCounter,
@@ -1153,12 +1254,15 @@ export class JsonFileStore implements Store {
     const todayOrders = this.orders.filter((order) => {
       const source = order.submittedAt ?? order.createdAt;
       const sameDay =
-        new Date(source).toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" }) ===
-        today;
+        new Date(source).toLocaleDateString("sv-SE", {
+          timeZone: "Asia/Taipei",
+        }) === today;
       const sameStore = (order.storeCode ?? "default") === storeCode;
       return sameDay && order.dailySequence !== undefined && sameStore;
     });
 
-    return Math.max(0, ...todayOrders.map((order) => order.dailySequence ?? 0)) + 1;
+    return (
+      Math.max(0, ...todayOrders.map((order) => order.dailySequence ?? 0)) + 1
+    );
   }
 }

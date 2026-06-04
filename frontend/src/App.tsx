@@ -120,6 +120,13 @@ function dateInputValue(value?: string) {
   return date.toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" });
 }
 
+function taipeiDateTimeToIso(date: string, time: string) {
+  if (!date || !time) return "";
+  const parsed = new Date(`${date}T${time}:00+08:00`);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString();
+}
+
 function taipeiDayBoundaryIso(date: string, endOfDay: boolean) {
   if (!date) return "";
   const time = endOfDay ? "23:59:59" : "00:00:00";
@@ -276,6 +283,7 @@ type KitchenClockRecord = {
   timeIn: string;
   timeOut: string | null;
   durationMinutes: number | null;
+  note?: string;
 };
 
 const storeNameMapping: Record<string, string> = {
@@ -1403,6 +1411,12 @@ export default function App() {
   const [adminRevenueEndDate, setAdminRevenueEndDate] =
     useState(todayTaipeiDate());
   const [adminReportStoreCode, setAdminReportStoreCode] = useState("");
+  const [clockQueryDate, setClockQueryDate] = useState(todayTaipeiDate());
+  const [clockNote, setClockNote] = useState("");
+  const [manualClockEmployeeId, setManualClockEmployeeId] = useState("");
+  const [manualClockIn, setManualClockIn] = useState("");
+  const [manualClockOut, setManualClockOut] = useState("");
+  const [manualClockNote, setManualClockNote] = useState("");
   const [checkedPosItems, setCheckedPosItems] = useState<
     Record<string, boolean>
   >({});
@@ -2594,8 +2608,7 @@ export default function App() {
   );
 
   const kitchenEmployeeSummaries = useMemo(() => {
-    const today = todayTaipeiDate();
-    const currentMonth = today.slice(0, 7);
+    const currentMonth = clockQueryDate.slice(0, 7);
     const summary = new Map<
       string,
       {
@@ -2610,16 +2623,19 @@ export default function App() {
     for (const record of clockRecords) {
       const employeeId = record.employeeId ?? record.employee;
       const employeeName = record.employeeName ?? record.employee;
+      const employee = branchEmployees.find(
+        (item) => item.employeeId === employeeId,
+      );
       const current = summary.get(employeeId) ?? {
         employeeId,
-        employeeName,
+        employeeName: employee?.name ?? employeeName,
         todayMinutes: 0,
         monthMinutes: 0,
         openShift: null,
       };
 
       if (record.timeOut && record.durationMinutes != null) {
-        if (record.date === today) {
+        if (record.date === clockQueryDate) {
           current.todayMinutes += record.durationMinutes;
         }
         if (record.date.startsWith(currentMonth)) {
@@ -2637,7 +2653,29 @@ export default function App() {
     return Array.from(summary.values()).sort((a, b) =>
       a.employeeId.localeCompare(b.employeeId),
     );
-  }, [clockRecords]);
+  }, [branchEmployees, clockQueryDate, clockRecords]);
+
+  const clockRecordsForQueryDate = useMemo(
+    () =>
+      clockRecords
+        .filter((record) => record.date === clockQueryDate)
+        .sort(
+          (a, b) =>
+            new Date(a.timeIn).getTime() - new Date(b.timeIn).getTime(),
+        ),
+    [clockQueryDate, clockRecords],
+  );
+
+  const dutyEmployeesForQueryDate = useMemo(() => {
+    const employeeIds = new Set(
+      clockRecordsForQueryDate.map(
+        (record) => record.employeeId ?? record.employee,
+      ),
+    );
+    return branchEmployees
+      .filter((employee) => employeeIds.has(employee.employeeId))
+      .sort((a, b) => a.employeeId.localeCompare(b.employeeId));
+  }, [branchEmployees, clockRecordsForQueryDate]);
 
   function couponUsedCount(coupon: Coupon) {
     return adminOrders.filter(
@@ -3165,6 +3203,7 @@ export default function App() {
               ...record,
               timeOut,
               durationMinutes: minutes,
+              note: clockNote.trim() || record.note,
             }
           : record,
       );
@@ -3179,6 +3218,7 @@ export default function App() {
           timeIn: new Date().toISOString(),
           timeOut: null,
           durationMinutes: null,
+          note: clockNote.trim() || undefined,
         },
         ...nextRecords,
       ];
@@ -3186,9 +3226,61 @@ export default function App() {
 
     setClockRecords(nextRecords);
     saveKitchenClockRecords(storeCode, nextRecords);
+    setClockNote("");
     if (activeShift) {
       setSelectedEmployeeId("");
     }
+  }
+
+  function handleManualClockRecord(): void {
+    const storeCode = adminStoreCode?.trim();
+    const employee = branchEmployees.find(
+      (item) => item.employeeId === manualClockEmployeeId,
+    );
+    if (!storeCode || !employee || !manualClockIn) {
+      setAdminError("請選擇員工並填寫補上班時間。");
+      return;
+    }
+
+    const timeIn = taipeiDateTimeToIso(clockQueryDate, manualClockIn);
+    const timeOut = manualClockOut
+      ? taipeiDateTimeToIso(clockQueryDate, manualClockOut)
+      : "";
+    if (!timeIn || (manualClockOut && !timeOut)) {
+      setAdminError("補卡時間格式不正確。");
+      return;
+    }
+
+    const durationMinutes = timeOut
+      ? Math.max(
+          0,
+          Math.round(
+            (new Date(timeOut).getTime() - new Date(timeIn).getTime()) / 60000,
+          ),
+        )
+      : null;
+    const nextRecords: KitchenClockRecord[] = [
+      {
+        employee: `${employee.employeeId} ${employee.name}`,
+        employeeId: employee.employeeId,
+        employeeName: employee.name,
+        storeCode,
+        date: clockQueryDate,
+        timeIn,
+        timeOut: timeOut || null,
+        durationMinutes,
+        note: manualClockNote.trim() || "補卡",
+      },
+      ...clockRecords,
+    ];
+
+    setClockRecords(nextRecords);
+    saveKitchenClockRecords(storeCode, nextRecords);
+    setManualClockEmployeeId("");
+    setManualClockIn("");
+    setManualClockOut("");
+    setManualClockNote("");
+    setAdminError("補卡紀錄已新增。");
   }
 
   useEffect(() => {
@@ -5575,6 +5667,41 @@ export default function App() {
 
                 {adminStoreCode ? (
                   <>
+                    <div className="mb-5 grid gap-3 md:grid-cols-[18rem_1fr]">
+                      <label className="form-control">
+                        <span className="label-text mb-1">查詢日期</span>
+                        <input
+                          className="input input-bordered"
+                          type="date"
+                          value={clockQueryDate}
+                          onChange={(event) =>
+                            setClockQueryDate(event.currentTarget.value)
+                          }
+                        />
+                      </label>
+                      <div className="rounded-lg border border-base-300 bg-base-200 p-3">
+                        <div className="text-sm font-semibold opacity-70">
+                          當日值班
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {dutyEmployeesForQueryDate.length === 0 ? (
+                            <span className="text-sm opacity-60">
+                              這天尚無打卡紀錄。
+                            </span>
+                          ) : (
+                            dutyEmployeesForQueryDate.map((employee) => (
+                              <span
+                                key={`duty-${employee.employeeId}`}
+                                className="badge badge-outline"
+                              >
+                                {employee.employeeId} {employee.name}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="grid gap-4 md:grid-cols-[1fr_220px]">
                       <div>
                         <div className="mb-2 text-sm font-semibold">
@@ -5639,6 +5766,17 @@ export default function App() {
                         {selectedEmployeeOpenShift ? "下班打卡" : "上班打卡"}
                       </button>
                     </div>
+                    <label className="form-control mt-3">
+                      <span className="label-text mb-1">打卡備註</span>
+                      <input
+                        className="input input-bordered"
+                        value={clockNote}
+                        onChange={(event) =>
+                          setClockNote(event.currentTarget.value)
+                        }
+                        placeholder="例如：忘記打卡、支援尖峰、提早下班"
+                      />
+                    </label>
 
                     {branchEmployees.length === 0 ? (
                       <div className="mt-4 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
@@ -5680,6 +5818,80 @@ export default function App() {
                       </div>
                     ) : null}
 
+                    <section className="mt-6 rounded-lg border border-base-300 bg-base-200 p-4">
+                      <div className="flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                          <h3 className="text-xl font-bold">補卡紀錄</h3>
+                          <p className="text-sm opacity-60">
+                            忘記上班卡或下班卡時，可在查詢日期補登並留下備註。
+                          </p>
+                        </div>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={handleManualClockRecord}
+                        >
+                          新增補卡
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-5">
+                        <label className="form-control md:col-span-2">
+                          <span className="label-text mb-1">員工</span>
+                          <select
+                            className="select select-bordered"
+                            value={manualClockEmployeeId}
+                            onChange={(event) =>
+                              setManualClockEmployeeId(
+                                event.currentTarget.value,
+                              )
+                            }
+                          >
+                            <option value="">請選擇員工</option>
+                            {branchEmployees.map((employee) => (
+                              <option
+                                key={`manual-${employee.employeeId}`}
+                                value={employee.employeeId}
+                              >
+                                {employee.employeeId} - {employee.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="form-control">
+                          <span className="label-text mb-1">上班</span>
+                          <input
+                            className="input input-bordered"
+                            type="time"
+                            value={manualClockIn}
+                            onChange={(event) =>
+                              setManualClockIn(event.currentTarget.value)
+                            }
+                          />
+                        </label>
+                        <label className="form-control">
+                          <span className="label-text mb-1">下班</span>
+                          <input
+                            className="input input-bordered"
+                            type="time"
+                            value={manualClockOut}
+                            onChange={(event) =>
+                              setManualClockOut(event.currentTarget.value)
+                            }
+                          />
+                        </label>
+                        <label className="form-control">
+                          <span className="label-text mb-1">備註</span>
+                          <input
+                            className="input input-bordered"
+                            value={manualClockNote}
+                            onChange={(event) =>
+                              setManualClockNote(event.currentTarget.value)
+                            }
+                            placeholder="補卡原因"
+                          />
+                        </label>
+                      </div>
+                    </section>
+
                     <div className="mt-6 space-y-4">
                       {kitchenEmployeeSummaries.length === 0 ? (
                         <div className="rounded-lg border border-base-300 bg-base-200 p-4 text-sm opacity-70">
@@ -5708,7 +5920,7 @@ export default function App() {
                             </div>
                             <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                               <div className="rounded-md bg-base-100 p-3">
-                                <div className="opacity-60">今日工時</div>
+                                <div className="opacity-60">查詢日工時</div>
                                 <div className="font-bold">
                                   {summary.todayMinutes} 分鐘
                                 </div>
@@ -5730,6 +5942,57 @@ export default function App() {
                         ))
                       )}
                     </div>
+
+                    <section className="mt-6 rounded-lg border border-base-300 bg-base-200 p-4">
+                      <h3 className="text-xl font-bold">當日班次紀錄</h3>
+                      <div className="mt-3 grid gap-2">
+                        {clockRecordsForQueryDate.length === 0 ? (
+                          <div className="rounded-md bg-base-100 p-3 text-sm opacity-60">
+                            這天尚無班次紀錄。
+                          </div>
+                        ) : (
+                          clockRecordsForQueryDate.map((record, index) => (
+                            <div
+                              key={`${record.employeeId ?? record.employee}-${record.timeIn}-${index}`}
+                              className="grid gap-2 rounded-md bg-base-100 p-3 text-sm md:grid-cols-[1.2fr_1fr_1fr_1fr_1.4fr]"
+                            >
+                              <div>
+                                <div className="font-mono opacity-60">
+                                  {record.employeeId ?? "-"}
+                                </div>
+                                <div className="font-semibold">
+                                  {record.employeeName ?? record.employee}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="opacity-60">上班</div>
+                                <div>{formatTaipeiTime(record.timeIn)}</div>
+                              </div>
+                              <div>
+                                <div className="opacity-60">下班</div>
+                                <div>
+                                  {record.timeOut
+                                    ? formatTaipeiTime(record.timeOut)
+                                    : "未下班"}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="opacity-60">工時</div>
+                                <div>
+                                  {record.durationMinutes == null
+                                    ? "-"
+                                    : `${record.durationMinutes} 分鐘`}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="opacity-60">備註</div>
+                                <div>{record.note || "-"}</div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </section>
                   </>
                 ) : null}
               </section>
@@ -6187,47 +6450,30 @@ export default function App() {
                 }
               >
                 <h2 className="text-2xl font-bold mb-3">POS 訂單看板</h2>
-                <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
-                  <table className="table table-zebra table-fixed min-w-[1280px]">
-                    <colgroup>
-                      <col className="w-24" />
-                      <col className="w-32" />
-                      <col className="w-24" />
-                      <col className="w-[31rem]" />
-                      <col className="w-[25rem]" />
-                      <col className="w-28" />
-                      <col className="w-48" />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th>單號</th>
-                        <th>狀態</th>
-                        <th>付款</th>
-                        <th>品項</th>
-                        <th>備註</th>
-                        <th>金額</th>
-                        <th>操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {adminOrders
-                        .filter(
-                          (order) =>
-                            order.status === "submitted" ||
-                            order.status === "completed",
-                        )
-                        .slice(0, 20)
-                        .map((order) => {
-                          const waitMinutes = orderWaitMinutes(order);
-                          return (
-                            <tr
-                              key={order.id}
-                              className={orderWaitClass(waitMinutes)}
-                            >
-                              <td className="font-bold align-middle">
-                                #{order.dailySequence ?? order.id}
-                              </td>
-                              <td className="align-middle">
+                <div className="grid gap-3 xl:grid-cols-2">
+                  {adminOrders
+                    .filter(
+                      (order) =>
+                        order.status === "submitted" ||
+                        order.status === "completed",
+                    )
+                    .slice(0, 20)
+                    .map((order) => {
+                      const waitMinutes = orderWaitMinutes(order);
+                      return (
+                        <article
+                          key={order.id}
+                          className={`rounded-lg border border-base-300 bg-base-100 p-4 shadow ${orderWaitClass(waitMinutes)}`}
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-base-300 pb-3">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <div>
+                                <div className="text-xs opacity-60">單號</div>
+                                <div className="text-2xl font-black">
+                                  #{order.dailySequence ?? order.id}
+                                </div>
+                              </div>
+                              <div>
                                 <span
                                   className={`badge min-w-[4rem] whitespace-nowrap justify-center ${orderStatusBadgeClass(order.status)}`}
                                 >
@@ -6238,163 +6484,167 @@ export default function App() {
                                     ? "待顧客取貨"
                                     : `等待 ${waitMinutes} 分鐘`}
                                 </div>
-                              </td>
-                              <td className="whitespace-nowrap">
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs opacity-60">金額</div>
+                              <div className="text-xl font-bold">
+                                {formatMoney(order.total)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_15rem]">
+                            <ul className="space-y-1 text-sm">
+                              {order.items.map((item, index) => {
+                                const checkboxId = `${order.id}-${item.id ?? item.menuItemId}-${index}`;
+                                return (
+                                  <li
+                                    key={checkboxId}
+                                    className={`flex items-start gap-2 rounded-md px-2 py-1 ${
+                                      checkedPosItems[checkboxId]
+                                        ? "bg-success/20 text-success"
+                                        : "bg-base-200/40"
+                                    }`}
+                                  >
+                                    <input
+                                      className="checkbox checkbox-success checkbox-sm mt-1"
+                                      type="checkbox"
+                                      checked={Boolean(
+                                        checkedPosItems[checkboxId],
+                                      )}
+                                      onChange={(event) => {
+                                        const checked =
+                                          event.currentTarget.checked;
+                                        setCheckedPosItems((current) => ({
+                                          ...current,
+                                          [checkboxId]: checked,
+                                        }));
+                                      }}
+                                    />
+                                    <span
+                                      className={
+                                        checkedPosItems[checkboxId]
+                                          ? "line-through opacity-50"
+                                          : ""
+                                      }
+                                    >
+                                      {item.menuItemName} x {item.qty}
+                                      {orderItemIsDrink(item) ? (
+                                        <span className="opacity-60">
+                                          {" "}
+                                          (
+                                          {item.sugarLevel
+                                            ? sugarLabel(item.sugarLevel)
+                                            : "正常糖"}{" "}
+                                          /{" "}
+                                          {item.iceLevel
+                                            ? iceLabel(item.iceLevel)
+                                            : "正常冰"}
+                                          )
+                                        </span>
+                                      ) : null}
+                                      {orderItemSpecification(item) ? (
+                                        <span className="opacity-60">
+                                          {" "}
+                                          ({orderItemSpecification(item)})
+                                        </span>
+                                      ) : null}
+                                      {item.note ? (
+                                        <span className="opacity-60">
+                                          {" "}
+                                          - {item.note}
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+
+                            <div className="space-y-1 rounded-md bg-base-200 p-3 text-sm">
+                              <div>{order.note || "-"}</div>
+                              <div className="opacity-70">
+                                訂購人：{order.customerName || "-"}
+                              </div>
+                              <div className="opacity-70">
+                                電話：{order.customerPhone || "-"}
+                              </div>
+                              <div className="opacity-70">
+                                付款：
                                 {order.paymentMethod === "card"
                                   ? "刷卡"
                                   : "現金"}
-                              </td>
-                              <td className="align-middle">
-                                <ul className="space-y-1 text-sm">
-                                  {order.items.map((item, index) => {
-                                    const checkboxId = `${order.id}-${item.id ?? item.menuItemId}-${index}`;
-                                    return (
-                                      <li
-                                        key={checkboxId}
-                                        className={`flex items-start gap-2 rounded-md px-2 py-1 ${
-                                          checkedPosItems[checkboxId]
-                                            ? "bg-success/20 text-success"
-                                            : "bg-base-200/40"
-                                        }`}
-                                      >
-                                        <input
-                                          className="checkbox checkbox-success checkbox-sm mt-1"
-                                          type="checkbox"
-                                          checked={Boolean(
-                                            checkedPosItems[checkboxId],
-                                          )}
-                                          onChange={(event) => {
-                                            const checked =
-                                              event.currentTarget.checked;
-                                            setCheckedPosItems((current) => ({
-                                              ...current,
-                                              [checkboxId]: checked,
-                                            }));
-                                          }}
-                                        />
-                                        <span
-                                          className={
-                                            checkedPosItems[checkboxId]
-                                              ? "line-through opacity-50"
-                                              : ""
-                                          }
-                                        >
-                                          {item.menuItemName} x {item.qty}
-                                          {orderItemIsDrink(item) ? (
-                                            <span className="opacity-60">
-                                              {" "}
-                                              (
-                                              {item.sugarLevel
-                                                ? sugarLabel(item.sugarLevel)
-                                                : "正常糖"}{" "}
-                                              /{" "}
-                                              {item.iceLevel
-                                                ? iceLabel(item.iceLevel)
-                                                : "正常冰"}
-                                              )
-                                            </span>
-                                          ) : null}
-                                          {orderItemSpecification(item) ? (
-                                            <span className="opacity-60">
-                                              {" "}
-                                              ({orderItemSpecification(item)})
-                                            </span>
-                                          ) : null}
-                                          {item.note ? (
-                                            <span className="opacity-60">
-                                              {" "}
-                                              - {item.note}
-                                            </span>
-                                          ) : null}
-                                        </span>
-                                      </li>
-                                    );
-                                  })}
-                                </ul>
-                              </td>
-                              <td className="text-sm align-middle">
-                                <div>{order.note || "-"}</div>
-                                <div className="opacity-70">
-                                  訂購人：{order.customerName || "-"}
-                                </div>
-                                <div className="opacity-70">
-                                  電話：{order.customerPhone || "-"}
-                                </div>
-                                <div className="opacity-70">
-                                  取餐：{order.pickupTime || "-"}
-                                </div>
+                              </div>
+                              <div className="opacity-70">
+                                取餐：{order.pickupTime || "-"}
+                              </div>
+                              <div className="text-base-content/80">
+                                下單：{formatTaipeiDateTime(order.submittedAt)}
+                              </div>
+                              {order.completedAt ? (
                                 <div className="text-base-content/80">
-                                  下單：
-                                  {formatTaipeiDateTime(order.submittedAt)}
+                                  完成：
+                                  {formatTaipeiDateTime(order.completedAt)}
                                 </div>
-                                {order.completedAt ? (
-                                  <div className="text-base-content/80">
-                                    完成：
-                                    {formatTaipeiDateTime(order.completedAt)}
-                                  </div>
-                                ) : null}
-                              </td>
-                              <td className="whitespace-nowrap font-semibold align-middle">
-                                {formatMoney(order.total)}
-                              </td>
-                              <td className="align-middle">
-                                {order.status === "submitted" ? (
-                                  <div className="flex min-h-8 justify-end">
-                                    <button
-                                      className="btn btn-xs btn-success min-w-16 whitespace-nowrap"
-                                      disabled={
-                                        adminOrderActionId !== null &&
-                                        adminOrderActionId !== order.id
-                                      }
-                                      onClick={() => {
-                                        void completeAdminOrder(order.id);
-                                      }}
-                                    >
-                                      {adminOrderActionId === order.id
-                                        ? "處理中..."
-                                        : "完成"}
-                                    </button>
-                                  </div>
-                                ) : order.status === "completed" ? (
-                                  <div className="flex min-h-8 justify-end gap-2">
-                                    <button
-                                      className="btn btn-xs btn-outline min-w-16 whitespace-nowrap"
-                                      disabled={
-                                        adminOrderActionId !== null &&
-                                        adminOrderActionId !== order.id
-                                      }
-                                      onClick={() => {
-                                        void reopenAdminOrder(order.id);
-                                      }}
-                                    >
-                                      退回製作
-                                    </button>
-                                    <button
-                                      className="btn btn-xs btn-primary min-w-16 whitespace-nowrap"
-                                      disabled={
-                                        adminOrderActionId !== null &&
-                                        adminOrderActionId !== order.id
-                                      }
-                                      onClick={() => {
-                                        void pickUpAdminOrder(order.id);
-                                      }}
-                                    >
-                                      {adminOrderActionId === order.id
-                                        ? "處理中..."
-                                        : "已取貨"}
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <span className="text-xs opacity-50">
-                                    已歸檔
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="mt-3 flex justify-end gap-2">
+                            {order.status === "submitted" ? (
+                              <button
+                                className="btn btn-sm btn-success min-w-20 whitespace-nowrap"
+                                disabled={
+                                  adminOrderActionId !== null &&
+                                  adminOrderActionId !== order.id
+                                }
+                                onClick={() => {
+                                  void completeAdminOrder(order.id);
+                                }}
+                              >
+                                {adminOrderActionId === order.id
+                                  ? "處理中..."
+                                  : "完成"}
+                              </button>
+                            ) : order.status === "completed" ? (
+                              <>
+                                <button
+                                  className="btn btn-sm btn-outline min-w-24 whitespace-nowrap"
+                                  disabled={
+                                    adminOrderActionId !== null &&
+                                    adminOrderActionId !== order.id
+                                  }
+                                  onClick={() => {
+                                    void reopenAdminOrder(order.id);
+                                  }}
+                                >
+                                  退回製作
+                                </button>
+                                <button
+                                  className="btn btn-sm btn-primary min-w-20 whitespace-nowrap"
+                                  disabled={
+                                    adminOrderActionId !== null &&
+                                    adminOrderActionId !== order.id
+                                  }
+                                  onClick={() => {
+                                    void pickUpAdminOrder(order.id);
+                                  }}
+                                >
+                                  {adminOrderActionId === order.id
+                                    ? "處理中..."
+                                    : "已取貨"}
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-xs opacity-50">
+                                已歸檔
+                              </span>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    })}
                 </div>
               </section>
 

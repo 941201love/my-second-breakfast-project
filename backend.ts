@@ -817,7 +817,13 @@ app.get(
   "/api/orders/current",
   async ({ request }) => {
     const user = await requireUser(request);
-    const currentOrder = store.getCurrentOrderByUserId(user.id);
+    const storeCode = new URL(request.url).searchParams
+      .get("storeCode")
+      ?.trim();
+    const currentOrder = store.getCurrentOrderByUserId(
+      user.id,
+      storeCode || undefined,
+    );
     return { data: currentOrder ? toOrderResponse(currentOrder) : null };
   },
   {
@@ -861,14 +867,18 @@ app.post(
   "/api/orders",
   async ({ body, request, set }) => {
     const user = await requireUser(request);
-    const existingOrder = store.getCurrentOrderByUserId(user.id);
+    const requestedStoreCode = (body as any)?.storeCode?.trim();
+    const existingOrder = store.getCurrentOrderByUserId(
+      user.id,
+      requestedStoreCode || undefined,
+    );
     if (existingOrder) {
       return { data: toOrderResponse(existingOrder) };
     }
 
     const newOrder = await store.createOrder({
       userId: user.id,
-      storeCode: (body as any)?.storeCode,
+      storeCode: requestedStoreCode,
     });
     set.status = 201;
     return { data: toOrderResponse(newOrder) };

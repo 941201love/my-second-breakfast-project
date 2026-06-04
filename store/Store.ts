@@ -75,7 +75,10 @@ export interface Store {
   updateAddonSettings(input: AddonSettings): Promise<AddonSettings>;
 
   getOrders(): ReadonlyArray<Order>;
-  getCurrentOrderByUserId(userId: string): Order | undefined;
+  getCurrentOrderByUserId(
+    userId: string,
+    storeCode?: string,
+  ): Order | undefined;
   getOrderHistoryByUserId(userId: string): ReadonlyArray<Order>;
   getOrderById(orderId: number): Order | undefined;
   createOrder(input: { userId: string }): Promise<Order>;

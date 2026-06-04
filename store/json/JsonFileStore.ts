@@ -697,9 +697,17 @@ export class JsonFileStore implements Store {
     return this.orders;
   }
 
-  getCurrentOrderByUserId(userId: string): Order | undefined {
+  getCurrentOrderByUserId(
+    userId: string,
+    storeCode?: string,
+  ): Order | undefined {
+    const normalizedStoreCode = storeCode?.trim();
     const pendingOrders = this.orders.filter(
-      (order) => order.userId === userId && order.status === "pending",
+      (order) =>
+        order.userId === userId &&
+        order.status === "pending" &&
+        (!normalizedStoreCode ||
+          (order.storeCode ?? "default") === normalizedStoreCode),
     );
 
     if (pendingOrders.length === 0) {
@@ -723,7 +731,10 @@ export class JsonFileStore implements Store {
   }
 
   async createOrder(input: { userId: string }): Promise<Order> {
-    const existingOrder = this.getCurrentOrderByUserId(input.userId);
+    const existingOrder = this.getCurrentOrderByUserId(
+      input.userId,
+      (input as any).storeCode,
+    );
     if (existingOrder) {
       return existingOrder;
     }

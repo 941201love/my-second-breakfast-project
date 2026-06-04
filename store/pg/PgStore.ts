@@ -287,9 +287,17 @@ export class PgStore implements Store {
     return this.orders;
   }
 
-  getCurrentOrderByUserId(userId: string): Order | undefined {
+  getCurrentOrderByUserId(
+    userId: string,
+    storeCode?: string,
+  ): Order | undefined {
+    const normalizedStoreCode = storeCode?.trim();
     const pendingOrders = this.orders.filter(
-      (o) => o.userId === userId && o.status === "pending",
+      (o) =>
+        o.userId === userId &&
+        o.status === "pending" &&
+        (!normalizedStoreCode ||
+          (o.storeCode ?? "default") === normalizedStoreCode),
     );
 
     if (pendingOrders.length === 0) return undefined;
@@ -312,7 +320,10 @@ export class PgStore implements Store {
     userId: string;
     storeCode?: string;
   }): Promise<Order> {
-    const existingOrder = this.getCurrentOrderByUserId(input.userId);
+    const existingOrder = this.getCurrentOrderByUserId(
+      input.userId,
+      input.storeCode,
+    );
     if (existingOrder) return existingOrder;
 
     const createdAt = new Date();

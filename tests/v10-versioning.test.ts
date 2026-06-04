@@ -396,3 +396,29 @@ test("orders keep their branch code and branch pickup numbers are independent", 
     expect(tainanSubmitted.order.dailySequence).toBe(1);
   }
 });
+
+test("same user can keep separate pending carts per branch", async () => {
+  const store = new JsonFileStore({
+    dataFilePath: join(tempDir, "store.json"),
+  });
+  await store.init();
+
+  const taipeiOrder = await store.createOrder({
+    userId: "user-branch-switch",
+    storeCode: "taipei",
+  });
+  const tainanOrder = await store.createOrder({
+    userId: "user-branch-switch",
+    storeCode: "tainan",
+  });
+
+  expect(taipeiOrder.id).not.toBe(tainanOrder.id);
+  expect(taipeiOrder.storeCode).toBe("taipei");
+  expect(tainanOrder.storeCode).toBe("tainan");
+  expect(
+    store.getCurrentOrderByUserId("user-branch-switch", "taipei")?.id,
+  ).toBe(taipeiOrder.id);
+  expect(
+    store.getCurrentOrderByUserId("user-branch-switch", "tainan")?.id,
+  ).toBe(tainanOrder.id);
+});

@@ -1721,7 +1721,13 @@ export default function App() {
     setCartQtyByItemId(nextQtyByItemId);
     setCartOrderItemById(nextOrderItemById);
     setCartTotal(order.total);
-    if (!adminStoreCode && order.storeCode && order.storeCode !== "default") {
+    if (
+      !adminStoreCode &&
+      !routeStoreCode &&
+      !orderStoreCode &&
+      order.storeCode &&
+      order.storeCode !== "default"
+    ) {
       setOrderStoreCode(order.storeCode);
       window.localStorage.setItem(
         "breakfast-order-store-code",
@@ -1780,7 +1786,11 @@ export default function App() {
   }
 
   async function loadCurrentOrder(): Promise<Order | null> {
-    const response = await fetch(buildApiUrl("/api/orders/current"), {
+    const selectedStoreCode = adminStoreCode || routeStoreCode || orderStoreCode;
+    const query = selectedStoreCode
+      ? `?storeCode=${encodeURIComponent(selectedStoreCode)}`
+      : "";
+    const response = await fetch(buildApiUrl(`/api/orders/current${query}`), {
       credentials: "include",
     });
 
@@ -2292,10 +2302,10 @@ export default function App() {
       window.localStorage.setItem("breakfast-order-store-code", adminStoreCode);
       return;
     }
-    if (storedOrderStoreCode) {
+    if (!routeStoreCode && storedOrderStoreCode) {
       setOrderStoreCode(storedOrderStoreCode);
     }
-  }, [adminStoreCode]);
+  }, [adminStoreCode, routeStoreCode]);
 
   useEffect(() => {
     if (!adminStoreCode && orderStoreCode) {
@@ -2672,7 +2682,7 @@ export default function App() {
     try {
       // Better Auth 的 social sign-in 入口是 POST。
       // 先向後端取得導向 Google 同意頁的 URL，再切換瀏覽器位置。
-      const callbackURL = window.location.origin;
+      const callbackURL = window.location.href;
       const response = await fetch(buildApiUrl("/api/auth/sign-in/social"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },

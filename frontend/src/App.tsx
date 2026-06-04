@@ -1613,6 +1613,27 @@ export default function App() {
     }
     return parts.join(" / ");
   };
+  const kitchenOrderItemName = (detail: OrderItem) => {
+    const name = detail.menuItemName;
+    if ((detail.eggQty ?? 0) <= 0 || name.includes("蛋")) return name;
+    if (name.includes("吐司")) return name.replace("吐司", "蛋吐司");
+    if (name.includes("漢堡")) return name.replace("漢堡", "蛋漢堡");
+    if (name.includes("飯糰")) return name.replace("飯糰", "蛋飯糰");
+    return `${name}（加蛋）`;
+  };
+  const kitchenOrderItemDetails = (detail: OrderItem) => {
+    const parts: string[] = [];
+    const specification = orderItemSpecification(detail);
+    if (specification) parts.push(specification);
+    if (orderItemIsDrink(detail)) {
+      parts.push(
+        `${detail.sugarLevel ? sugarLabel(detail.sugarLevel) : "正常糖"} / ${
+          detail.iceLevel ? iceLabel(detail.iceLevel) : "正常冰"
+        }`,
+      );
+    }
+    return parts;
+  };
   const couponCanApply = appliedCoupon ? isCouponUsable(appliedCoupon) : false;
   const couponDiscountTotal = useMemo(
     () =>
@@ -5030,6 +5051,17 @@ export default function App() {
                   ) : (
                     kitchenPageOrders.map((order) => {
                       const waitMinutes = orderWaitMinutes(order);
+                      const kitchenItems = order.items.flatMap(
+                        (item, index) =>
+                          Array.from(
+                            { length: Math.max(1, item.qty) },
+                            (_, unitIndex) => ({
+                              item,
+                              key: `${order.id}-${item.id ?? item.menuItemId}-${index}-${unitIndex}`,
+                              unitIndex,
+                            }),
+                          ),
+                      );
                       return (
                         <article
                           key={order.id}
@@ -5053,39 +5085,66 @@ export default function App() {
                               </p>
                             </div>
                           </div>
-                          <div className="mb-3 border-t border-base-300 pt-3 text-sm text-slate-800">
-                            <div className="mb-2 text-xs opacity-70">
+                          <div className="mb-3 border-t border-base-300 pt-3 text-sm text-base-content">
+                            <div className="mb-2 text-xs font-semibold text-base-content/80">
                               下單時間
                             </div>
-                            <div>{formatTaipeiDateTime(order.submittedAt)}</div>
+                            <div className="font-semibold text-base-content/90">
+                              {formatTaipeiDateTime(order.submittedAt)}
+                            </div>
                           </div>
                           <div className="mb-4 space-y-2 text-sm">
-                            {order.items.map((item, index) => (
-                              <div
-                                key={`${order.id}-${item.id ?? item.menuItemId}-${index}`}
-                                className="rounded-lg border border-base-300 bg-base-200 p-3"
-                              >
-                                <div className="font-semibold">
-                                  {item.menuItemName} x {item.qty}
-                                </div>
-                                {orderItemIsDrink(item) ? (
-                                  <div className="text-xs opacity-70">
-                                    {item.sugarLevel
-                                      ? sugarLabel(item.sugarLevel)
-                                      : "正常糖"}{" "}
-                                    /{" "}
-                                    {item.iceLevel
-                                      ? iceLabel(item.iceLevel)
-                                      : "正常冰"}
+                            {kitchenItems.map(({ item, key, unitIndex }) => {
+                              const itemDone = Boolean(checkedPosItems[key]);
+                              const details = kitchenOrderItemDetails(item);
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  className={`block w-full rounded-lg border p-3 text-left transition ${
+                                    itemDone
+                                      ? "border-success/50 bg-success/15 text-success"
+                                      : "border-base-300 bg-base-200 text-base-content hover:border-primary/60"
+                                  }`}
+                                  onClick={() => {
+                                    setCheckedPosItems((current) => ({
+                                      ...current,
+                                      [key]: !current[key],
+                                    }));
+                                  }}
+                                >
+                                  <div
+                                    className={`font-semibold ${
+                                      itemDone ? "line-through" : ""
+                                    }`}
+                                  >
+                                    {kitchenOrderItemName(item)}
                                   </div>
-                                ) : null}
-                                {item.note ? (
-                                  <div className="text-xs opacity-70">
-                                    備註：{item.note}
-                                  </div>
-                                ) : null}
-                              </div>
-                            ))}
+                                  {details.length > 0 ? (
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      {details.map((detail) => (
+                                        <span
+                                          key={`${key}-${detail}`}
+                                          className="rounded-md bg-base-100/70 px-2 py-0.5 text-xs text-base-content/80"
+                                        >
+                                          {detail}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                  {item.note ? (
+                                    <div className="mt-1 text-xs font-semibold text-warning">
+                                      備註：{item.note}
+                                    </div>
+                                  ) : null}
+                                  {item.qty > 1 ? (
+                                    <div className="mt-1 text-[11px] text-base-content/50">
+                                      第 {unitIndex + 1} 份
+                                    </div>
+                                  ) : null}
+                                </button>
+                              );
+                            })}
                           </div>
                           <button
                             className="btn btn-block btn-primary"

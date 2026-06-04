@@ -290,6 +290,25 @@ const branchStoreOptions = [
   { code: "kaohsiung", name: "高雄分店" },
 ];
 
+const branchStoreCodeSet = new Set(
+  branchStoreOptions.map((store) => store.code),
+);
+
+function branchStoreCodeFromPath(path: string) {
+  const match = path.match(/^\/([^/]+)(?:\/(.*))?$/);
+  if (!match) return "";
+  const [, storeCode, restPath = ""] = match;
+  if (!branchStoreCodeSet.has(storeCode) || restPath === "kitchen") return "";
+  return storeCode;
+}
+
+function stripBranchStoreFromPath(path: string) {
+  const storeCode = branchStoreCodeFromPath(path);
+  if (!storeCode) return path;
+  const nextPath = path.replace(`/${storeCode}`, "") || "/";
+  return nextPath.startsWith("/") ? nextPath : `/${nextPath}`;
+}
+
 const storeEmployeePrefixes: Record<string, string> = {
   taipei: "TPE",
   tainan: "TNN",
@@ -1200,6 +1219,8 @@ export default function App() {
   const branchKitchenMatch = currentPath.match(/^\/([^/]+)\/kitchen$/);
   const kitchenBranchCode = branchKitchenMatch?.[1] ?? "";
   const isKitchenPage = Boolean(branchKitchenMatch);
+  const routeStoreCode = branchStoreCodeFromPath(currentPath);
+  const customerPath = stripBranchStoreFromPath(currentPath);
   const isAdminPage = currentPath.startsWith("/admin") || isKitchenPage;
   const isAdminDashboardPage = currentPath === "/admin";
   const isAdminOrdersPage = currentPath === "/admin/orders";
@@ -1215,14 +1236,14 @@ export default function App() {
     : "";
   const isAdminProductFormPage =
     isAdminAddProductPage || isAdminEditProductPage;
-  const isCartPage = currentPath === "/cart";
-  const isOrderHistoryPage = currentPath === "/orders";
-  const isProfilePage = currentPath === "/profile";
-  const isCouponWalletPage = currentPath === "/coupons";
-  const isCheckoutCouponsPage = currentPath === "/checkout-coupons";
-  const isItemPage = currentPath.startsWith("/item/");
+  const isCartPage = customerPath === "/cart";
+  const isOrderHistoryPage = customerPath === "/orders";
+  const isProfilePage = customerPath === "/profile";
+  const isCouponWalletPage = customerPath === "/coupons";
+  const isCheckoutCouponsPage = customerPath === "/checkout-coupons";
+  const isItemPage = customerPath.startsWith("/item/");
   const itemPageId = isItemPage
-    ? decodeURIComponent(currentPath.replace(/^\/item\//, ""))
+    ? decodeURIComponent(customerPath.replace(/^\/item\//, ""))
     : "";
   const [user, setUser] = useState<SessionUser | null>(null);
   const [authError, setAuthError] = useState("");
@@ -1416,6 +1437,22 @@ export default function App() {
       window.history.pushState({}, "", path);
     }
     setCurrentPath(path);
+  }
+
+  function customerRoute(path: string, storeCode = orderStoreCode): string {
+    if (!storeCode) return path;
+    if (path === "/") return `/${storeCode}`;
+    if (path.startsWith("/admin") || /^\/[^/]+\/kitchen$/.test(path)) {
+      return path;
+    }
+    if (path === `/${storeCode}` || path.startsWith(`/${storeCode}/`)) {
+      return path;
+    }
+    return `/${storeCode}${path}`;
+  }
+
+  function navigateCustomer(path: string): void {
+    navigate(customerRoute(path));
   }
 
   function requestConfirm(message: string): Promise<boolean> {
@@ -1775,13 +1812,7 @@ export default function App() {
     if (payload?.data) setOrderProgress(payload.data);
   }
 
-  function changeOrderStoreCode(storeCode: string): void {
-    setOrderStoreCode(storeCode);
-    if (storeCode) {
-      window.localStorage.setItem("breakfast-order-store-code", storeCode);
-    } else {
-      window.localStorage.removeItem("breakfast-order-store-code");
-    }
+  function resetOrderProgress(): void {
     setOrderProgress({
       latestSubmittedOrderId: null,
       latestCompletedOrderId: null,
@@ -1789,6 +1820,27 @@ export default function App() {
       readyPickupNumbers: [],
       waitingPickupNumbers: [],
     });
+  }
+
+  function orderStoreCodeOf(order: Order | null | undefined): string {
+    if (!order?.storeCode || order.storeCode === "default") return "";
+    return order.storeCode;
+  }
+
+  function changeOrderStoreCode(storeCode: string): void {
+    setOrderStoreCode(storeCode);
+    if (storeCode) {
+      window.localStorage.setItem("breakfast-order-store-code", storeCode);
+    } else {
+      window.localStorage.removeItem("breakfast-order-store-code");
+    }
+    setLastSubmittedOrder((current) =>
+      current && orderStoreCodeOf(current) !== storeCode ? null : current,
+    );
+    resetOrderProgress();
+    if (!adminStoreCode) {
+      navigate(customerRoute("/", storeCode));
+    }
     void loadOrderProgress(storeCode);
   }
 
@@ -1798,7 +1850,8 @@ export default function App() {
 
   useEffect(() => {
     const initialStoreCode =
-      window.localStorage.getItem("breakfast-order-store-code") ?? "";
+      routeStoreCode ||
+      (window.localStorage.getItem("breakfast-order-store-code") ?? "");
     let mounted = true;
 
     // V9: 從 Better Auth session cookie 恢復登入狀態（不再用 localStorage）
@@ -1820,6 +1873,13 @@ export default function App() {
     void restoreSession();
 
     setLoading(false);
+    if (initialStoreCode) {
+      setOrderStoreCode(initialStoreCode);
+      window.localStorage.setItem(
+        "breakfast-order-store-code",
+        initialStoreCode,
+      );
+    }
     void loadOrderProgress(initialStoreCode);
     const progressTimer = window.setInterval(() => {
       void loadOrderProgress(
@@ -1838,6 +1898,17 @@ export default function App() {
       window.clearInterval(clockTimer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!routeStoreCode || routeStoreCode === orderStoreCode) return;
+    setOrderStoreCode(routeStoreCode);
+    window.localStorage.setItem("breakfast-order-store-code", routeStoreCode);
+    setLastSubmittedOrder((current) =>
+      current && orderStoreCodeOf(current) !== routeStoreCode ? null : current,
+    );
+    resetOrderProgress();
+    void loadOrderProgress(routeStoreCode);
+  }, [routeStoreCode]);
 
   useEffect(() => {
     if (!user) return;
@@ -1870,9 +1941,9 @@ export default function App() {
           "/profile",
           "/coupons",
           "/checkout-coupons",
-        ].includes(currentPath)
+        ].includes(customerPath)
       ) {
-        navigate("/");
+        navigateCustomer("/");
       }
       resetCartState();
       return;
@@ -1948,7 +2019,7 @@ export default function App() {
       JSON.stringify(normalizedProfile),
     );
     setIsProfileOpen(false);
-    navigate("/");
+    navigateCustomer("/");
   }
 
   useEffect(() => {
@@ -2104,7 +2175,7 @@ export default function App() {
       setCartDraft(createDefaultCartDraft());
       lastCustomizingItemIdRef.current = null;
       setActionError("請先使用 Google 登入後再加入購物車。");
-      navigate("/");
+      navigateCustomer("/");
       return;
     }
 
@@ -2114,7 +2185,7 @@ export default function App() {
         setCartDraft(createDefaultCartDraft());
         lastCustomizingItemIdRef.current = null;
         setActionError("找不到這個商品，請重新選擇。");
-        navigate("/");
+        navigateCustomer("/");
       }
       return;
     }
@@ -3635,7 +3706,7 @@ export default function App() {
     setCartDraft(createDefaultCartDraft());
     lastCustomizingItemIdRef.current = item.id;
     setCustomizingItem(item);
-    navigate(`/item/${encodeURIComponent(item.id)}`);
+    navigateCustomer(`/item/${encodeURIComponent(item.id)}`);
   }
 
   async function addToCart(
@@ -3755,8 +3826,8 @@ export default function App() {
       setCustomizingItem(null);
       setCartDraft(createDefaultCartDraft());
       lastCustomizingItemIdRef.current = null;
-      if (currentPath.startsWith("/item/")) {
-        navigate("/");
+      if (isItemPage) {
+        navigateCustomer("/");
       }
     }
   }
@@ -3804,7 +3875,7 @@ export default function App() {
       if (latestOrder) syncCartFromOrder(latestOrder);
       setCartView("items");
       setIsHistoryOpen(false);
-      navigate("/cart");
+      navigateCustomer("/cart");
     } catch (buyAgainError) {
       setActionError("重新加入購物車失敗，可能有品項已下架或版本已更新。");
       console.error(buyAgainError);
@@ -4081,6 +4152,15 @@ export default function App() {
     return numbers.map((number) => `#${number}`).join(" ");
   }
 
+  const selectedPickupStoreCode = adminStoreCode || orderStoreCode;
+
+  function orderMatchesSelectedPickupStore(order: Order): boolean {
+    return Boolean(
+      selectedPickupStoreCode &&
+        orderStoreCodeOf(order) === selectedPickupStoreCode,
+    );
+  }
+
   function currentUserPickupNumbers(): number[] {
     const activeNumbers = new Set([
       ...orderProgress.readyPickupNumbers,
@@ -4096,7 +4176,9 @@ export default function App() {
           new Date(order.submittedAt ?? order.createdAt).toLocaleDateString(
             "sv-SE",
             { timeZone: "Asia/Taipei" },
-          ) === today && activeStatuses.has(order.status),
+          ) === today &&
+          activeStatuses.has(order.status) &&
+          orderMatchesSelectedPickupStore(order),
       )
       .map((order) => order.dailySequence ?? order.id)
       .filter(
@@ -4114,6 +4196,7 @@ export default function App() {
       if (
         lastOrderDate === today &&
         activeStatuses.has(lastSubmittedOrder.status) &&
+        orderMatchesSelectedPickupStore(lastSubmittedOrder) &&
         (activeNumbers.size === 0 || activeNumbers.has(lastNumber))
       ) {
         ownNumbers.push(lastNumber);
@@ -4229,7 +4312,7 @@ export default function App() {
       setLastSubmittedOrder(payload.data);
       resetCartState();
       setIsCartOpen(false);
-      navigate("/");
+      navigateCustomer("/");
       await loadOrderProgress();
       await loadOrderHistory();
     } catch (submitError) {
@@ -7195,23 +7278,40 @@ export default function App() {
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(220px,1fr)_auto_auto_auto_auto] lg:w-auto lg:min-w-[720px] lg:max-w-4xl lg:flex lg:items-end lg:justify-end">
             {!adminStoreCode ? (
-              <label className="form-control col-span-2 min-w-0 sm:col-span-1 sm:min-w-64">
+              <div className="form-control col-span-2 min-w-0 sm:col-span-1 sm:min-w-64">
                 <span className="label-text text-xs font-semibold opacity-70">
                   取餐門市
                 </span>
-                <select
-                  className="select select-bordered w-full"
-                  value={orderStoreCode}
-                  onChange={(event) => {
-                    changeOrderStoreCode(event.currentTarget.value);
-                  }}
-                >
-                  <option value="">請選擇門市</option>
-                  <option value="taipei">台北分店</option>
-                  <option value="tainan">台南分店</option>
-                  <option value="kaohsiung">高雄分店</option>
-                </select>
-              </label>
+                <details className="dropdown dropdown-bottom w-full">
+                  <summary className="btn btn-outline h-12 w-full justify-between border-base-300 bg-base-100 px-4 text-left font-bold">
+                    <span>
+                      {branchStoreOptions.find(
+                        (store) => store.code === orderStoreCode,
+                      )?.name ?? "請選擇門市"}
+                    </span>
+                    <span className="text-xs opacity-70">▼</span>
+                  </summary>
+                  <div className="dropdown-content z-[2147483647] mt-2 w-full rounded-lg border border-base-300 bg-base-100 p-2 shadow-2xl">
+                    {branchStoreOptions.map((store) => (
+                      <button
+                        key={store.code}
+                        type="button"
+                        className={`btn btn-ghost h-11 w-full justify-start ${
+                          orderStoreCode === store.code ? "btn-active" : ""
+                        }`}
+                        onClick={(event) => {
+                          event.currentTarget
+                            .closest("details")
+                            ?.removeAttribute("open");
+                          changeOrderStoreCode(store.code);
+                        }}
+                      >
+                        {store.name}
+                      </button>
+                    ))}
+                  </div>
+                </details>
+              </div>
             ) : (
               <div className="col-span-2 rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm sm:col-span-1 sm:min-w-52">
                 <div className="text-xs font-semibold opacity-70">取餐門市</div>
@@ -7246,7 +7346,7 @@ export default function App() {
                   setCustomerPhone(profile.phone);
                 }
                 setCartView("items");
-                navigate("/cart");
+                navigateCustomer("/cart");
               }}
               disabled={!user}
             >
@@ -7255,7 +7355,7 @@ export default function App() {
             <button
               className="btn btn-outline h-12"
               onClick={() => {
-                navigate("/orders");
+                navigateCustomer("/orders");
                 void loadOrderHistory();
               }}
               disabled={!user}
@@ -7265,7 +7365,7 @@ export default function App() {
             {user ? (
               <button
                 className="btn btn-outline h-12"
-                onClick={() => navigate("/profile")}
+                onClick={() => navigateCustomer("/profile")}
               >
                 {text.profile}
               </button>
@@ -7502,7 +7602,7 @@ export default function App() {
                 className="btn btn-sm btn-ghost"
                 onClick={() => {
                   setIsHistoryOpen(false);
-                  navigate("/");
+                  navigateCustomer("/");
                 }}
               >
                 {text.close}
@@ -7629,7 +7729,7 @@ export default function App() {
             <button
               className="btn btn-sm btn-ghost"
               onClick={() => {
-                navigate("/cart");
+                navigateCustomer("/cart");
                 setCartView("checkout");
               }}
             >
@@ -7655,7 +7755,7 @@ export default function App() {
                     className="btn btn-primary join-item"
                     onClick={() => {
                       if (applyCouponCode()) {
-                        navigate("/cart");
+                        navigateCustomer("/cart");
                         setCartView("checkout");
                       }
                     }}
@@ -7691,7 +7791,7 @@ export default function App() {
                             className="btn btn-sm btn-primary shrink-0"
                             onClick={() => {
                               if (toggleCoupon(coupon)) {
-                                navigate("/cart");
+                                navigateCustomer("/cart");
                                 setCartView("checkout");
                               }
                             }}
@@ -7740,7 +7840,7 @@ export default function App() {
             <h2 className="text-xl font-bold">{text.couponWalletTitle}</h2>
             <button
               className="btn btn-sm btn-ghost"
-              onClick={() => navigate("/profile")}
+              onClick={() => navigateCustomer("/profile")}
             >
               {text.close}
             </button>
@@ -7792,7 +7892,9 @@ export default function App() {
                           className="btn btn-sm btn-primary"
                           onClick={() => {
                             if (toggleCoupon(coupon)) {
-                              navigate(cartDetails.length > 0 ? "/cart" : "/");
+                              navigateCustomer(
+                                cartDetails.length > 0 ? "/cart" : "/",
+                              );
                               if (cartDetails.length > 0)
                                 setCartView("checkout");
                             }
@@ -7864,7 +7966,7 @@ export default function App() {
                 className="btn btn-sm btn-ghost"
                 onClick={() => {
                   setIsProfileOpen(false);
-                  navigate("/");
+                  navigateCustomer("/");
                 }}
               >
                 {text.close}
@@ -7901,7 +8003,7 @@ export default function App() {
               />
               <button
                 className="btn btn-outline w-full justify-between"
-                onClick={() => navigate("/coupons")}
+                onClick={() => navigateCustomer("/coupons")}
               >
                 <span>{text.couponWallet}</span>
                 <span className="badge badge-primary">
@@ -7948,7 +8050,7 @@ export default function App() {
                 setCustomizingItem(null);
                 setCartDraft(createDefaultCartDraft());
                 lastCustomizingItemIdRef.current = null;
-                navigate("/");
+                navigateCustomer("/");
               }}
               aria-label={text.back}
             >
@@ -7969,7 +8071,7 @@ export default function App() {
                       setCustomizingItem(null);
                       setCartDraft(createDefaultCartDraft());
                       lastCustomizingItemIdRef.current = null;
-                      navigate("/");
+                      navigateCustomer("/");
                     }}
                   >
                     {text.back}
@@ -8340,7 +8442,7 @@ export default function App() {
                 className="btn btn-sm btn-ghost"
                 onClick={() => {
                   setIsCartOpen(false);
-                  navigate("/");
+                  navigateCustomer("/");
                 }}
               >
                 {text.close}
@@ -8856,7 +8958,7 @@ export default function App() {
                   <div className="space-y-2">
                     <button
                       className="btn btn-outline w-full justify-between"
-                      onClick={() => navigate("/checkout-coupons")}
+                      onClick={() => navigateCustomer("/checkout-coupons")}
                     >
                       <span>{text.useCouponTitle}</span>
                       <span aria-hidden="true">›</span>

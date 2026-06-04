@@ -5098,51 +5098,59 @@ export default function App() {
                               const itemDone = Boolean(checkedPosItems[key]);
                               const details = kitchenOrderItemDetails(item);
                               return (
-                                <button
+                                <label
                                   key={key}
-                                  type="button"
-                                  className={`block w-full rounded-lg border p-3 text-left transition ${
+                                  className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${
                                     itemDone
-                                      ? "border-success/50 bg-success/15 text-success"
-                                      : "border-base-300 bg-base-200 text-base-content hover:border-primary/60"
+                                      ? "border-success/60 bg-success/15 text-success"
+                                      : "border-base-300 bg-base-200 text-base-content hover:border-success/50"
                                   }`}
-                                  onClick={() => {
-                                    setCheckedPosItems((current) => ({
-                                      ...current,
-                                      [key]: !current[key],
-                                    }));
-                                  }}
                                 >
-                                  <div
-                                    className={`font-semibold ${
-                                      itemDone ? "line-through" : ""
-                                    }`}
-                                  >
-                                    {kitchenOrderItemName(item)}
+                                  <input
+                                    className="checkbox checkbox-success checkbox-sm mt-1 shrink-0"
+                                    type="checkbox"
+                                    checked={itemDone}
+                                    onChange={(event) => {
+                                      const checked =
+                                        event.currentTarget.checked;
+                                      setCheckedPosItems((current) => ({
+                                        ...current,
+                                        [key]: checked,
+                                      }));
+                                    }}
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <div
+                                      className={`font-semibold ${
+                                        itemDone ? "line-through" : ""
+                                      }`}
+                                    >
+                                      {kitchenOrderItemName(item)}
+                                    </div>
+                                    {details.length > 0 ? (
+                                      <div className="mt-1 flex flex-wrap gap-1">
+                                        {details.map((detail) => (
+                                          <span
+                                            key={`${key}-${detail}`}
+                                            className="rounded-md bg-base-100/70 px-2 py-0.5 text-xs text-base-content/80"
+                                          >
+                                            {detail}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    ) : null}
+                                    {item.note ? (
+                                      <div className="mt-1 text-xs font-semibold text-warning">
+                                        備註：{item.note}
+                                      </div>
+                                    ) : null}
+                                    {item.qty > 1 ? (
+                                      <div className="mt-1 text-[11px] text-base-content/50">
+                                        第 {unitIndex + 1} 份
+                                      </div>
+                                    ) : null}
                                   </div>
-                                  {details.length > 0 ? (
-                                    <div className="mt-1 flex flex-wrap gap-1">
-                                      {details.map((detail) => (
-                                        <span
-                                          key={`${key}-${detail}`}
-                                          className="rounded-md bg-base-100/70 px-2 py-0.5 text-xs text-base-content/80"
-                                        >
-                                          {detail}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  ) : null}
-                                  {item.note ? (
-                                    <div className="mt-1 text-xs font-semibold text-warning">
-                                      備註：{item.note}
-                                    </div>
-                                  ) : null}
-                                  {item.qty > 1 ? (
-                                    <div className="mt-1 text-[11px] text-base-content/50">
-                                      第 {unitIndex + 1} 份
-                                    </div>
-                                  ) : null}
-                                </button>
+                                </label>
                               );
                             })}
                           </div>

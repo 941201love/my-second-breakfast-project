@@ -626,6 +626,9 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     readyForPickup: "可取餐",
     waitingPickup: "待取餐",
     pickupStatus: "取餐進度",
+    pickupReadyNoticeTitle: "餐點可以取餐了",
+    pickupReadyNoticeMessage: "請到櫃台領取取餐編號 {numbers} 的餐點。",
+    viewPickupStatus: "查看取餐進度",
     myPickupNumber: "我的取餐編號",
     noActiveOrder: "目前沒有進行中的訂單",
     cartDetails: "購物車明細",
@@ -736,6 +739,9 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     readyForPickup: "Ready for pickup",
     waitingPickup: "In progress",
     pickupStatus: "Pickup status",
+    pickupReadyNoticeTitle: "Your order is ready",
+    pickupReadyNoticeMessage: "Please pick up order {numbers} at the counter.",
+    viewPickupStatus: "View pickup status",
     myPickupNumber: "My pickup number",
     noActiveOrder: "No active order",
     cartDetails: "Cart",
@@ -846,6 +852,9 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     readyForPickup: "受取可能",
     waitingPickup: "調理中",
     pickupStatus: "受取状況",
+    pickupReadyNoticeTitle: "商品を受け取れます",
+    pickupReadyNoticeMessage: "受取番号 {numbers} の商品をカウンターでお受け取りください。",
+    viewPickupStatus: "受取状況を見る",
     myPickupNumber: "自分の受取番号",
     noActiveOrder: "進行中の注文はありません",
     cartDetails: "カート",
@@ -956,6 +965,9 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     readyForPickup: "픽업 가능",
     waitingPickup: "준비 중",
     pickupStatus: "픽업 현황",
+    pickupReadyNoticeTitle: "주문을 픽업할 수 있습니다",
+    pickupReadyNoticeMessage: "픽업 번호 {numbers}의 주문을 카운터에서 받아 주세요.",
+    viewPickupStatus: "픽업 현황 보기",
     myPickupNumber: "내 픽업 번호",
     noActiveOrder: "진행 중인 주문이 없습니다",
     cartDetails: "장바구니",
@@ -3656,6 +3668,11 @@ export default function App() {
     return [...new Set(ownNumbers)].sort((left, right) => left - right);
   }
 
+  const readyOwnPickupNumbers = currentUserPickupNumbers().filter((number) =>
+    orderProgress.readyPickupNumbers.includes(number),
+  );
+  const readyOwnPickupText = pickupNumberList(readyOwnPickupNumbers);
+
   function isCouponUsable(coupon: Coupon): boolean {
     if (coupon.isActive === false) return false;
     if ((coupon.minSpend ?? 0) > cartTotal) return false;
@@ -4104,7 +4121,7 @@ export default function App() {
             {
               path: branchKitchenPath,
               title: "後廚 POS",
-              description: "簡化製作畫面，最多 8 張待製作訂單",
+              description: "簡化製作畫面，管理待製作訂單",
             },
           ]
         : [
@@ -4383,7 +4400,7 @@ export default function App() {
               <div>
                 <h1 className="text-3xl font-bold">後廚 POS</h1>
                 <p className="text-sm opacity-60">
-                  只顯示訂單號、製作時間、品項與完成操作，最多 8 筆訂單並支援分頁。
+                  只顯示訂單號、製作時間、品項與完成操作，協助後廚快速處理待製作訂單。
                 </p>
               </div>
               <button
@@ -7680,6 +7697,34 @@ export default function App() {
             </div>
           </aside>
         </>
+      ) : null}
+
+      {user && readyOwnPickupNumbers.length > 0 ? (
+        <div className="fixed inset-x-0 bottom-4 z-[2147483644] px-4">
+          <section className="mx-auto flex max-w-3xl flex-col gap-3 rounded-lg border border-success/40 bg-success px-4 py-3 text-success-content shadow-2xl sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold opacity-80">
+                {text.pickupReadyNoticeTitle}
+              </div>
+              <div className="mt-1 text-lg font-black sm:text-xl">
+                {text.pickupReadyNoticeMessage.replace(
+                  "{numbers}",
+                  readyOwnPickupText,
+                )}
+              </div>
+            </div>
+            <button
+              className="btn btn-sm shrink-0 border-success-content/40 bg-success-content text-success hover:bg-success-content/90"
+              onClick={() => {
+                setIsPickupStatusOpen(true);
+                void loadOrderProgress(adminStoreCode || orderStoreCode);
+                void loadOrderHistory();
+              }}
+            >
+              {text.viewPickupStatus}
+            </button>
+          </section>
+        </div>
       ) : null}
 
       {isPickupStatusOpen ? (

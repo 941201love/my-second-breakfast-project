@@ -5097,7 +5097,7 @@ export default function App() {
                               </p>
                             </div>
                           </div>
-                          <div className="mb-2 grid grid-cols-1 gap-1 text-sm sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                          <div className="mb-2 grid auto-rows-[3.75rem] grid-cols-1 gap-1 text-sm sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                             {kitchenItems.map(({ item, key, unitIndex }) => {
                               const itemDone = Boolean(checkedPosItems[key]);
                               const details = kitchenOrderItemDetails(item);
@@ -5105,7 +5105,7 @@ export default function App() {
                                 <button
                                   key={key}
                                   type="button"
-                                  className={`flex min-h-9 items-start gap-1.5 rounded-md border px-2 py-1 text-left transition ${
+                                  className={`flex h-full items-center gap-2 rounded-md border px-2 py-1 text-left transition ${
                                     itemDone
                                       ? "border-success/60 bg-success/20 text-success"
                                       : "border-base-300 bg-base-200 text-base-content hover:border-success/50"
@@ -5118,14 +5118,16 @@ export default function App() {
                                   }}
                                 >
                                   <span
-                                    className={`mt-1 h-2 w-2 shrink-0 rounded-full border ${
+                                    className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border-2 ${
                                       itemDone
-                                        ? "border-success bg-success"
+                                        ? "border-success bg-success text-success-content"
                                         : "border-success/80"
                                     }`}
                                     aria-hidden="true"
-                                  />
-                                  <div className="min-w-0 flex-1">
+                                  >
+                                    {itemDone ? "✓" : ""}
+                                  </span>
+                                  <div className="min-w-0 flex-1 overflow-hidden">
                                     <div className="flex min-w-0 items-baseline gap-2">
                                       <span
                                         className={`truncate font-semibold leading-tight ${

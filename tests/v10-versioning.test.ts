@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { JsonFileStore } from "../store/json/JsonFileStore.ts";
+import { calculateOrderProgress } from "../order-progress.ts";
 
 let tempDir = "";
 
@@ -395,6 +396,57 @@ test("orders keep their branch code and branch pickup numbers are independent", 
     expect(taipeiSubmitted.order.dailySequence).toBe(1);
     expect(tainanSubmitted.order.dailySequence).toBe(1);
   }
+});
+
+test("order progress is filtered by selected branch", () => {
+  const today = new Date("2026-06-04T08:00:00+08:00");
+  const submittedAt = "2026-06-04T01:30:00.000Z";
+  const createdAt = "2026-06-04T01:00:00.000Z";
+  const orders = [
+    {
+      id: 1,
+      dailySequence: 4,
+      status: "completed",
+      storeCode: "taipei",
+      createdAt,
+      submittedAt,
+    },
+    {
+      id: 2,
+      dailySequence: 4,
+      status: "submitted",
+      storeCode: "tainan",
+      createdAt,
+      submittedAt,
+    },
+    {
+      id: 3,
+      dailySequence: 7,
+      status: "completed",
+      storeCode: "kaohsiung",
+      createdAt,
+      submittedAt,
+    },
+  ];
+
+  expect(
+    calculateOrderProgress(orders, { storeCode: "taipei", now: today }),
+  ).toMatchObject({
+    readyPickupNumbers: [4],
+    waitingPickupNumbers: [],
+  });
+  expect(
+    calculateOrderProgress(orders, { storeCode: "tainan", now: today }),
+  ).toMatchObject({
+    readyPickupNumbers: [],
+    waitingPickupNumbers: [4],
+  });
+  expect(
+    calculateOrderProgress(orders, { storeCode: "kaohsiung", now: today }),
+  ).toMatchObject({
+    readyPickupNumbers: [7],
+    waitingPickupNumbers: [],
+  });
 });
 
 test("same user can keep separate pending carts per branch", async () => {

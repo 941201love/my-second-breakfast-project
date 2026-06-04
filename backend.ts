@@ -45,6 +45,7 @@ import {
 import { createStore } from "./store/index.ts";
 import { auth, getCurrentUser } from "./auth/better-auth.ts";
 import { menuRepository } from "./db/repositories/menuRepository.ts";
+import { calculateOrderProgress } from "./order-progress.ts";
 
 // 從環境變量獲取配置
 const port = parseInt(process.env.PORT || "3000", 10);
@@ -901,64 +902,13 @@ app.post(
 app.get(
   "/api/orders/progress",
   ({ request }) => {
-    const today = new Date().toLocaleDateString("sv-SE", {
-      timeZone: "Asia/Taipei",
-    });
-    const branch = adminSessionBranch(request);
-    const isTodayOrder = (order: {
-      submittedAt?: string;
-      createdAt: string;
-      storeCode?: string;
-    }) =>
-      new Date(order.submittedAt ?? order.createdAt).toLocaleDateString(
-        "sv-SE",
-        { timeZone: "Asia/Taipei" },
-      ) === today;
-    const allOrders = store.getOrders();
-    const filteredOrders = branch
-      ? allOrders.filter((o) => (o.storeCode ?? "default") === branch)
-      : allOrders;
-    const submittedOrders = filteredOrders.filter(
-      (order) => order.status !== "pending" && isTodayOrder(order),
-    );
-    const completedOrders = filteredOrders.filter(
-      (order) =>
-        (order.status === "completed" || order.status === "picked_up") &&
-        isTodayOrder(order),
-    );
-    const waitingOrders = filteredOrders.filter(
-      (order) => order.status === "submitted" && isTodayOrder(order),
-    );
-    const readyPickupNumbers = completedOrders
-      .filter((order) => order.status === "completed")
-      .map((order) => order.dailySequence ?? order.id)
-      .sort((a, b) => a - b);
-    const waitingPickupNumbers = waitingOrders
-      .map((order) => order.dailySequence ?? order.id)
-      .sort((a, b) => a - b);
+    const requestedStoreCode = new URL(request.url).searchParams
+      .get("storeCode")
+      ?.trim();
+    const branch = adminSessionBranch(request) ?? requestedStoreCode;
 
     return {
-      data: {
-        latestSubmittedOrderId:
-          submittedOrders.length > 0
-            ? Math.max(
-                ...submittedOrders.map(
-                  (order) => order.dailySequence ?? order.id,
-                ),
-              )
-            : null,
-        latestCompletedOrderId:
-          completedOrders.length > 0
-            ? Math.max(
-                ...completedOrders.map(
-                  (order) => order.dailySequence ?? order.id,
-                ),
-              )
-            : null,
-        waitingCount: waitingOrders.length,
-        readyPickupNumbers,
-        waitingPickupNumbers,
-      },
+      data: calculateOrderProgress(store.getOrders(), { storeCode: branch }),
     };
   },
   {

@@ -5065,39 +5065,39 @@ export default function App() {
                       return (
                         <article
                           key={order.id}
-                          className={`rounded-lg border p-3 shadow transition ${
+                          className={`rounded-lg border p-2 shadow transition ${
                             order.status === "submitted"
                               ? "bg-base-100"
                               : "bg-success/10"
                           }`}
                         >
-                          <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                              <p className="text-xs font-semibold text-base-content/70">
+                          <div className="mb-2 grid grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-base-300 pb-2">
+                            <div className="min-w-16">
+                              <p className="text-[11px] font-semibold leading-none text-base-content/60">
                                 單號
                               </p>
-                              <p className="text-xl font-bold">
+                              <p className="text-lg font-bold leading-tight">
                                 #{order.dailySequence ?? order.id}
                               </p>
                             </div>
+                            <div className="min-w-0 text-xs font-semibold text-base-content/80">
+                              <span className="mr-2 text-base-content/60">
+                                下單
+                              </span>
+                              <span className="text-base-content/90">
+                                {formatTaipeiDateTime(order.submittedAt)}
+                              </span>
+                            </div>
                             <div className="text-right">
-                              <p className="text-xs font-semibold text-base-content/70">
+                              <p className="text-[11px] font-semibold leading-none text-base-content/60">
                                 製作時間
                               </p>
-                              <p className="text-lg font-semibold">
+                              <p className="text-base font-bold leading-tight">
                                 {waitMinutes} 分鐘
                               </p>
                             </div>
                           </div>
-                          <div className="mb-2 border-t border-base-300 pt-2 text-sm text-base-content">
-                            <div className="mb-1 text-xs font-semibold text-base-content/80">
-                              下單時間
-                            </div>
-                            <div className="text-sm font-semibold text-base-content/90">
-                              {formatTaipeiDateTime(order.submittedAt)}
-                            </div>
-                          </div>
-                          <div className="mb-3 grid grid-cols-1 gap-1.5 text-sm md:grid-cols-2 xl:grid-cols-3">
+                          <div className="mb-2 grid grid-cols-1 gap-1 text-sm sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                             {kitchenItems.map(({ item, key, unitIndex }) => {
                               const itemDone = Boolean(checkedPosItems[key]);
                               const details = kitchenOrderItemDetails(item);
@@ -5105,7 +5105,7 @@ export default function App() {
                                 <button
                                   key={key}
                                   type="button"
-                                  className={`flex min-h-11 items-start gap-2 rounded-md border px-2 py-1.5 text-left transition ${
+                                  className={`flex min-h-9 items-start gap-1.5 rounded-md border px-2 py-1 text-left transition ${
                                     itemDone
                                       ? "border-success/60 bg-success/20 text-success"
                                       : "border-base-300 bg-base-200 text-base-content hover:border-success/50"
@@ -5118,7 +5118,7 @@ export default function App() {
                                   }}
                                 >
                                   <span
-                                    className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full border ${
+                                    className={`mt-1 h-2 w-2 shrink-0 rounded-full border ${
                                       itemDone
                                         ? "border-success bg-success"
                                         : "border-success/80"
@@ -5126,26 +5126,28 @@ export default function App() {
                                     aria-hidden="true"
                                   />
                                   <div className="min-w-0 flex-1">
-                                    <div
-                                      className={`truncate font-semibold leading-tight ${
-                                        itemDone ? "line-through" : ""
-                                      }`}
-                                    >
-                                      {kitchenOrderItemName(item)}
+                                    <div className="flex min-w-0 items-baseline gap-2">
+                                      <span
+                                        className={`truncate font-semibold leading-tight ${
+                                          itemDone ? "line-through" : ""
+                                        }`}
+                                      >
+                                        {kitchenOrderItemName(item)}
+                                      </span>
+                                      {item.qty > 1 ? (
+                                        <span className="shrink-0 text-[11px] leading-none text-base-content/50">
+                                          #{unitIndex + 1}
+                                        </span>
+                                      ) : null}
                                     </div>
                                     {details.length > 0 ? (
-                                      <div className="mt-0.5 truncate text-xs text-base-content/70">
+                                      <div className="truncate text-[11px] leading-tight text-base-content/70">
                                         {details.join(" / ")}
                                       </div>
                                     ) : null}
                                     {item.note ? (
-                                      <div className="mt-0.5 truncate text-xs font-semibold text-warning">
+                                      <div className="truncate text-[11px] font-semibold leading-tight text-warning">
                                         備註：{item.note}
-                                      </div>
-                                    ) : null}
-                                    {item.qty > 1 ? (
-                                      <div className="mt-0.5 text-[11px] leading-none text-base-content/50">
-                                        第 {unitIndex + 1} 份
                                       </div>
                                     ) : null}
                                   </div>
@@ -5154,7 +5156,7 @@ export default function App() {
                             })}
                           </div>
                           <button
-                            className="btn btn-block btn-primary"
+                            className="btn btn-primary btn-sm h-10 min-h-10 w-full"
                             disabled={adminOrderActionId !== null}
                             onClick={() => {
                               void completeAdminOrder(order.id);

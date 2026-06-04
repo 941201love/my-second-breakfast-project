@@ -1089,7 +1089,8 @@ function createDefaultCartDraft() {
 
 export default function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
-  const isAdminPage = currentPath.startsWith("/admin");
+  const isAdminPage =
+    currentPath.startsWith("/admin") || currentPath === "/kitchen";
   const isAdminDashboardPage = currentPath === "/admin";
   const isAdminOrdersPage = currentPath === "/admin/orders";
   const isAdminMenuPage = currentPath === "/admin/menu";

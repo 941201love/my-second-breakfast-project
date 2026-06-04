@@ -6145,7 +6145,16 @@ export default function App() {
               >
                 <h2 className="text-2xl font-bold mb-3">POS 訂單看板</h2>
                 <div className="overflow-x-auto bg-base-100 rounded-lg shadow">
-                  <table className="table table-zebra min-w-[1120px]">
+                  <table className="table table-zebra table-fixed min-w-[1280px]">
+                    <colgroup>
+                      <col className="w-24" />
+                      <col className="w-32" />
+                      <col className="w-24" />
+                      <col className="w-[31rem]" />
+                      <col className="w-[25rem]" />
+                      <col className="w-28" />
+                      <col className="w-48" />
+                    </colgroup>
                     <thead>
                       <tr>
                         <th>單號</th>
@@ -6172,10 +6181,10 @@ export default function App() {
                               key={order.id}
                               className={orderWaitClass(waitMinutes)}
                             >
-                              <td className="font-bold">
+                              <td className="font-bold align-middle">
                                 #{order.dailySequence ?? order.id}
                               </td>
-                              <td className="w-28">
+                              <td className="align-middle">
                                 <span
                                   className={`badge min-w-[4rem] whitespace-nowrap justify-center ${orderStatusBadgeClass(order.status)}`}
                                 >
@@ -6192,7 +6201,7 @@ export default function App() {
                                   ? "刷卡"
                                   : "現金"}
                               </td>
-                              <td>
+                              <td className="align-middle">
                                 <ul className="space-y-1 text-sm">
                                   {order.items.map((item, index) => {
                                     const checkboxId = `${order.id}-${item.id ?? item.menuItemId}-${index}`;
@@ -6260,7 +6269,7 @@ export default function App() {
                                   })}
                                 </ul>
                               </td>
-                              <td className="text-sm">
+                              <td className="text-sm align-middle">
                                 <div>{order.note || "-"}</div>
                                 <div className="opacity-70">
                                   訂購人：{order.customerName || "-"}
@@ -6282,27 +6291,29 @@ export default function App() {
                                   </div>
                                 ) : null}
                               </td>
-                              <td className="font-semibold">
+                              <td className="whitespace-nowrap font-semibold align-middle">
                                 {formatMoney(order.total)}
                               </td>
-                              <td>
+                              <td className="align-middle">
                                 {order.status === "submitted" ? (
-                                  <button
-                                    className="btn btn-xs btn-success min-w-12 whitespace-nowrap"
-                                    disabled={
-                                      adminOrderActionId !== null &&
-                                      adminOrderActionId !== order.id
-                                    }
-                                    onClick={() => {
-                                      void completeAdminOrder(order.id);
-                                    }}
-                                  >
-                                    {adminOrderActionId === order.id
-                                      ? "處理中..."
-                                      : "完成"}
-                                  </button>
+                                  <div className="flex min-h-8 justify-end">
+                                    <button
+                                      className="btn btn-xs btn-success min-w-16 whitespace-nowrap"
+                                      disabled={
+                                        adminOrderActionId !== null &&
+                                        adminOrderActionId !== order.id
+                                      }
+                                      onClick={() => {
+                                        void completeAdminOrder(order.id);
+                                      }}
+                                    >
+                                      {adminOrderActionId === order.id
+                                        ? "處理中..."
+                                        : "完成"}
+                                    </button>
+                                  </div>
                                 ) : order.status === "completed" ? (
-                                  <div className="flex flex-wrap gap-2">
+                                  <div className="flex min-h-8 justify-end gap-2">
                                     <button
                                       className="btn btn-xs btn-outline min-w-16 whitespace-nowrap"
                                       disabled={

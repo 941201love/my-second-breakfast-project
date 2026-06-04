@@ -4209,53 +4209,75 @@ export default function App() {
     );
   }
 
-  function currentUserPickupNumbers(): number[] {
-    const activeNumbers = new Set([
-      ...orderProgress.readyPickupNumbers,
-      ...orderProgress.waitingPickupNumbers,
-    ]);
-    const activeStatuses = new Set(["submitted", "completed"]);
+  function uniqueSortedNumbers(numbers: number[]): number[] {
+    return [...new Set(numbers)].sort((left, right) => left - right);
+  }
+
+  function isTodayActivePickupOrder(order: Order): boolean {
     const today = new Date().toLocaleDateString("sv-SE", {
       timeZone: "Asia/Taipei",
     });
-    const ownNumbers = historyOrders
-      .filter(
-        (order) =>
-          new Date(order.submittedAt ?? order.createdAt).toLocaleDateString(
-            "sv-SE",
-            { timeZone: "Asia/Taipei" },
-          ) === today &&
-          activeStatuses.has(order.status) &&
-          orderMatchesSelectedPickupStore(order),
-      )
-      .map((order) => order.dailySequence ?? order.id)
-      .filter(
-        (number) => activeNumbers.size === 0 || activeNumbers.has(number),
-      );
+    const orderDate = new Date(
+      order.submittedAt ?? order.createdAt,
+    ).toLocaleDateString("sv-SE", {
+      timeZone: "Asia/Taipei",
+    });
+    return (
+      orderDate === today &&
+      (order.status === "submitted" || order.status === "completed") &&
+      orderMatchesSelectedPickupStore(order)
+    );
+  }
 
-    if (lastSubmittedOrder) {
-      const lastNumber =
-        lastSubmittedOrder.dailySequence ?? lastSubmittedOrder.id;
-      const lastOrderDate = new Date(
-        lastSubmittedOrder.submittedAt ?? lastSubmittedOrder.createdAt,
-      ).toLocaleDateString("sv-SE", {
-        timeZone: "Asia/Taipei",
-      });
-      if (
-        lastOrderDate === today &&
-        activeStatuses.has(lastSubmittedOrder.status) &&
-        orderMatchesSelectedPickupStore(lastSubmittedOrder) &&
-        (activeNumbers.size === 0 || activeNumbers.has(lastNumber))
-      ) {
-        ownNumbers.push(lastNumber);
-      }
+  function ownActivePickupOrders(): Order[] {
+    const ownOrders = historyOrders.filter(isTodayActivePickupOrder);
+
+    if (
+      lastSubmittedOrder &&
+      isTodayActivePickupOrder(lastSubmittedOrder) &&
+      !ownOrders.some((order) => order.id === lastSubmittedOrder.id)
+    ) {
+      ownOrders.push(lastSubmittedOrder);
     }
 
-    return [...new Set(ownNumbers)].sort((left, right) => left - right);
+    return ownOrders;
+  }
+
+  const ownWaitingPickupNumbers = uniqueSortedNumbers(
+    ownActivePickupOrders()
+      .filter((order) => order.status === "submitted")
+      .map((order) => order.dailySequence ?? order.id),
+  );
+  const ownReadyPickupNumbers = uniqueSortedNumbers(
+    ownActivePickupOrders()
+      .filter((order) => order.status === "completed")
+      .map((order) => order.dailySequence ?? order.id),
+  );
+  const visibleWaitingPickupNumbers = uniqueSortedNumbers([
+    ...orderProgress.waitingPickupNumbers,
+    ...ownWaitingPickupNumbers,
+  ]);
+  const visibleReadyPickupNumbers = uniqueSortedNumbers([
+    ...orderProgress.readyPickupNumbers,
+    ...ownReadyPickupNumbers,
+  ]);
+  const visibleCurrentUserPickupNumbers = uniqueSortedNumbers([
+    ...ownWaitingPickupNumbers,
+    ...ownReadyPickupNumbers,
+  ]);
+
+  function currentUserPickupNumbers(): number[] {
+    const progressNumbers = new Set([
+      ...visibleReadyPickupNumbers,
+      ...visibleWaitingPickupNumbers,
+    ]);
+    return visibleCurrentUserPickupNumbers.filter((number) =>
+      progressNumbers.has(number),
+    );
   }
 
   const readyOwnPickupNumbers = currentUserPickupNumbers().filter((number) =>
-    orderProgress.readyPickupNumbers.includes(number),
+    visibleReadyPickupNumbers.includes(number),
   );
   const readyOwnPickupText = pickupNumberList(readyOwnPickupNumbers);
 
@@ -9219,7 +9241,7 @@ export default function App() {
                     {text.readyForPickup}
                   </span>
                   <strong className="mt-1 block text-xl">
-                    {pickupNumberList(orderProgress.readyPickupNumbers)}
+                    {pickupNumberList(visibleReadyPickupNumbers)}
                   </strong>
                 </div>
                 <div className="p-4">
@@ -9227,7 +9249,7 @@ export default function App() {
                     {text.waitingPickup}
                   </span>
                   <strong className="mt-1 block text-xl">
-                    {pickupNumberList(orderProgress.waitingPickupNumbers)}
+                    {pickupNumberList(visibleWaitingPickupNumbers)}
                   </strong>
                 </div>
               </div>

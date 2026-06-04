@@ -2630,6 +2630,10 @@ export default function App() {
 
   useEffect(() => {
     if (!isKitchenPage) return;
+    if (adminAuthed && !adminStoreCode) {
+      navigate("/admin");
+      return;
+    }
     if (adminStoreCode) {
       const records = loadKitchenClockRecords(adminStoreCode);
       setClockRecords(records);
@@ -4060,11 +4064,15 @@ export default function App() {
         title: "訂單與營收",
         description: "歷史訂單、日期區間營收",
       },
-      {
-        path: "/kitchen",
-        title: "後廚 POS",
-        description: "簡化製作畫面，最多 8 張待製作訂單",
-      },
+      ...(adminStoreCode
+        ? [
+            {
+              path: "/kitchen",
+              title: "後廚 POS",
+              description: "簡化製作畫面，最多 8 張待製作訂單",
+            },
+          ]
+        : []),
       {
         path: "/admin/menu",
         title: "菜單與加料",

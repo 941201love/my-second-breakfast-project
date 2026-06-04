@@ -8383,9 +8383,13 @@ export default function App() {
                   <label className="form-control px-5 py-6">
                     <span className="label-text mb-1">{text.note}</span>
                     <textarea
-                      className="textarea textarea-bordered"
+                      className="textarea textarea-bordered min-h-24 w-full resize-y outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
                       placeholder={text.itemNotePlaceholder}
                       value={cartDraft.note}
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      inputMode="text"
                       onChange={(event) => {
                         const note = event.currentTarget.value;
                         setCartDraft((current) => ({

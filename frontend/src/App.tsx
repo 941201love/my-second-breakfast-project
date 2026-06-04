@@ -2645,6 +2645,18 @@ export default function App() {
   }, [isKitchenPage, adminAuthed, adminStoreCode, kitchenBranchCode]);
 
   useEffect(() => {
+    if (!adminAuthed || !adminStoreCode) return;
+    if (
+      isAdminMenuPage ||
+      isAdminCouponsPage ||
+      isAdminAddProductPage ||
+      isAdminEditProductPage
+    ) {
+      navigate("/admin");
+    }
+  }, [adminAuthed, adminStoreCode, isAdminMenuPage, isAdminCouponsPage, isAdminAddProductPage, isAdminEditProductPage]);
+
+  useEffect(() => {
     if (!isKitchenPage) return;
     setKitchenPage(1);
   }, [isKitchenPage]);
@@ -4076,12 +4088,13 @@ export default function App() {
               description: "簡化製作畫面，最多 8 張待製作訂單",
             },
           ]
-        : []),
-      {
-        path: "/admin/menu",
-        title: "菜單與加料",
-        description: "商品、圖片、售價與共用加料",
-      },
+        : [
+            {
+              path: "/admin/menu",
+              title: "菜單與加料",
+              description: "商品、圖片、售價與共用加料",
+            },
+          ]),
       ...(adminStoreCode
         ? []
         : [

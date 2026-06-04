@@ -1249,7 +1249,7 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
   const [items, setItems] = useState<MenuItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [menuLoading, setMenuLoading] = useState(false);
   const [error, setError] = useState("");
   const [orderId, setOrderId] = useState<number | null>(null);
   const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
@@ -1903,7 +1903,6 @@ export default function App() {
     }
     void restoreSession();
 
-    setLoading(false);
     if (initialStoreCode) {
       setOrderStoreCode(initialStoreCode);
       window.localStorage.setItem(
@@ -1943,14 +1942,15 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    setLoading(true);
+    setMenuLoading(true);
+    setError("");
     Promise.all([loadMenu(), loadCoupons(), loadAddonSettings()])
       .catch((fetchError) => {
         setError("無法取得菜單資料，請稍後再試。");
         console.error(fetchError);
       })
       .finally(() => {
-        setLoading(false);
+        setMenuLoading(false);
       });
   }, [user]);
 
@@ -2229,7 +2229,7 @@ export default function App() {
     }
 
     if (!routeItem) {
-      if (!loading && items.length > 0) {
+      if (!menuLoading && items.length > 0) {
         setCustomizingItem(null);
         setCartDraft(createDefaultCartDraft());
         lastCustomizingItemIdRef.current = null;
@@ -2244,7 +2244,7 @@ export default function App() {
       lastCustomizingItemIdRef.current = routeItem.id;
       setCartDraft(createDefaultCartDraft());
     }
-  }, [isItemPage, items.length, loading, routeItem?.id, user?.id]);
+  }, [isItemPage, items.length, menuLoading, routeItem?.id, user?.id]);
 
   useEffect(() => {
     if (!isAdminAddProductPage) return;
@@ -2290,7 +2290,7 @@ export default function App() {
   const promotionalItems = items.filter((item) => item.activePromotion);
 
   useEffect(() => {
-    if (!isAdminPage || loading || items.length === 0) return;
+    if (!isAdminPage || menuLoading || items.length === 0) return;
 
     async function restoreAdmin() {
       const response = await fetch(buildApiUrl("/api/admin/session"), {
@@ -2309,7 +2309,7 @@ export default function App() {
     }
 
     void restoreAdmin();
-  }, [isAdminPage, loading, items]);
+  }, [isAdminPage, menuLoading, items]);
 
   useEffect(() => {
     const storedOrderStoreCode = window.localStorage.getItem(
@@ -4370,14 +4370,6 @@ export default function App() {
     } finally {
       setIsSubmittingOrder(false);
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <span className="loading loading-spinner loading-lg"></span>
-      </div>
-    );
   }
 
   if (error) {
@@ -7546,7 +7538,12 @@ export default function App() {
           </section>
         ) : null}
 
-        {!user ? null : items.length === 0 ? (
+        {!user ? null : menuLoading && items.length === 0 ? (
+          <div className="flex items-center justify-center gap-3 rounded-lg bg-base-100 px-4 py-12 shadow">
+            <span className="loading loading-spinner loading-md"></span>
+            <span className="font-semibold">{text.loading}</span>
+          </div>
+        ) : items.length === 0 ? (
           <div className="alert alert-info">
             <span>目前沒有菜單資料</span>
           </div>
@@ -8161,7 +8158,7 @@ export default function App() {
               <div className="grid min-h-full place-items-center px-6 text-center">
                 <div className="space-y-4">
                   <p className="text-2xl font-bold">
-                    {loading ? "商品載入中..." : "找不到這個商品"}
+                    {menuLoading ? "商品載入中..." : "找不到這個商品"}
                   </p>
                   <button
                     className="btn btn-primary"

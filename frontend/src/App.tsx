@@ -28,6 +28,7 @@ function isDrink(item: MenuItem) {
 }
 
 const newItemsTabKey = "__new_items__";
+const allItemsTabKey = "__all_items__";
 type CustomerMenuCategoryFilter = string;
 type CustomerPriceSort = "none" | "asc" | "desc";
 
@@ -831,6 +832,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     completedTitle: "餐點已完成，可以取餐",
     pickupNumber: "取餐編號",
     addToCart: "加入購物車",
+    allItems: "全部",
     newItems: "新品推出",
     newBadge: "新品",
     adding: "加入中...",
@@ -951,6 +953,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     completedTitle: "Your order is ready for pickup",
     pickupNumber: "Pickup number",
     addToCart: "Add to cart",
+    allItems: "All",
     newItems: "New arrivals",
     newBadge: "New",
     adding: "Adding...",
@@ -1073,6 +1076,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     completedTitle: "注文ができました。受け取りできます",
     pickupNumber: "受取番号",
     addToCart: "カートに追加",
+    allItems: "すべて",
     newItems: "新商品",
     newBadge: "新商品",
     adding: "追加中...",
@@ -1195,6 +1199,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     completedTitle: "주문이 준비되었습니다. 픽업하세요",
     pickupNumber: "픽업 번호",
     addToCart: "장바구니 담기",
+    allItems: "전체",
     newItems: "신상품",
     newBadge: "신상품",
     adding: "담는 중...",
@@ -1750,6 +1755,7 @@ export default function App() {
     });
 
     return [
+      { key: allItemsTabKey, label: text.allItems },
       ...(items.some((item) => item.isRecentlyUpdated)
         ? [{ key: newItemsTabKey, label: text.newItems }]
         : []),
@@ -1758,7 +1764,7 @@ export default function App() {
         label: categoryLabel(category),
       })),
     ];
-  }, [items, profile.language, text.newItems]);
+  }, [items, profile.language, text.allItems, text.newItems]);
   const activeCustomerCategoryLabel =
     customerCategoryTabs.find((tab) => tab.key === customerCategoryFilter)
       ?.label ?? "";
@@ -2480,6 +2486,7 @@ export default function App() {
           }
           if (
             customerCategoryFilter &&
+            customerCategoryFilter !== allItemsTabKey &&
             customerCategoryFilter !== newItemsTabKey &&
             (item.category || "未分類") !== customerCategoryFilter
           ) {
@@ -2523,14 +2530,22 @@ export default function App() {
   );
 
   const grouped = useMemo(() => {
+    const showSectionTitle =
+      customerPromoOnly ||
+      customerCategoryFilter === allItemsTabKey ||
+      customerCategoryFilter === newItemsTabKey;
+
     return {
-      sectionTitle: customerPromoOnly
-        ? text.promoFilter
-        : activeCustomerCategoryLabel,
+      sectionTitle: showSectionTitle
+        ? customerPromoOnly
+          ? text.promoFilter
+          : activeCustomerCategoryLabel
+        : "",
       items: visibleMenuItems,
     };
   }, [
     activeCustomerCategoryLabel,
+    customerCategoryFilter,
     customerPromoOnly,
     text.promoFilter,
     visibleMenuItems,
@@ -9072,9 +9087,11 @@ export default function App() {
             ) : null}
             {grouped.items.length > 0 ? (
               <div className="customer-menu-section">
-                <h2 className="customer-section-title">
-                  {grouped.sectionTitle}
-                </h2>
+                {grouped.sectionTitle ? (
+                  <h2 className="customer-section-title">
+                    {grouped.sectionTitle}
+                  </h2>
+                ) : null}
                 <div className="customer-menu-list">
                   {grouped.items.map((item) => {
                     const copy = menuCopy(item);

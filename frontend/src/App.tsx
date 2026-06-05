@@ -93,6 +93,15 @@ function formatMoney(amount: number) {
   return `NT$${amount}`;
 }
 
+function formatWorkMinutes(minutes: number) {
+  const safeMinutes = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(safeMinutes / 60);
+  const remainder = safeMinutes % 60;
+  if (hours <= 0) return `${remainder} 分鐘`;
+  if (remainder <= 0) return `${hours} 小時`;
+  return `${hours} 小時 ${remainder} 分鐘`;
+}
+
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
 }
@@ -1450,10 +1459,18 @@ export default function App() {
   const [adminReportStoreCode, setAdminReportStoreCode] = useState("");
   const [clockQueryDate, setClockQueryDate] = useState(todayTaipeiDate());
   const [clockNote, setClockNote] = useState("");
+  const [employeeWorkStartDate, setEmployeeWorkStartDate] =
+    useState(todayTaipeiDate());
+  const [employeeWorkEndDate, setEmployeeWorkEndDate] =
+    useState(todayTaipeiDate());
+  const [employeeWorkStoreCode, setEmployeeWorkStoreCode] = useState("");
   const [manualClockEmployeeId, setManualClockEmployeeId] = useState("");
   const [manualClockIn, setManualClockIn] = useState("");
   const [manualClockOut, setManualClockOut] = useState("");
   const [manualClockNote, setManualClockNote] = useState("");
+  const [allClockRecords, setAllClockRecords] = useState<KitchenClockRecord[]>(
+    [],
+  );
   const clockHourOptions = useMemo(
     () => Array.from({ length: 12 }, (_, index) => String(index + 1)),
     [],
@@ -2744,6 +2761,107 @@ export default function App() {
       .sort((a, b) => a.employeeId.localeCompare(b.employeeId));
   }, [branchEmployees, clockRecordsForQueryDate]);
 
+  const employeeWorkRecords = useMemo(
+    () =>
+      allClockRecords
+        .filter((record) => {
+          const employee = employees.find(
+            (item) => item.employeeId === (record.employeeId ?? record.employee),
+          );
+          const storeCode = record.storeCode ?? employee?.storeCode ?? "";
+          return (
+            record.date >= employeeWorkStartDate &&
+            record.date <= employeeWorkEndDate &&
+            (!employeeWorkStoreCode || storeCode === employeeWorkStoreCode)
+          );
+        })
+        .sort(
+          (a, b) =>
+            new Date(a.timeIn).getTime() - new Date(b.timeIn).getTime(),
+        ),
+    [
+      allClockRecords,
+      employeeWorkEndDate,
+      employeeWorkStartDate,
+      employeeWorkStoreCode,
+      employees,
+    ],
+  );
+
+  const employeeWorkSummaries = useMemo(() => {
+    const summaries = new Map<
+      string,
+      {
+        employeeId: string;
+        employeeName: string;
+        storeCode: string;
+        title: string;
+        shiftCount: number;
+        totalMinutes: number;
+        openShiftCount: number;
+        noteCount: number;
+      }
+    >();
+
+    const visibleEmployees = employees.filter(
+      (employee) =>
+        !employeeWorkStoreCode || employee.storeCode === employeeWorkStoreCode,
+    );
+    for (const employee of visibleEmployees) {
+      summaries.set(employee.employeeId, {
+        employeeId: employee.employeeId,
+        employeeName: employee.name,
+        storeCode: employee.storeCode,
+        title: employee.title || "店員",
+        shiftCount: 0,
+        totalMinutes: 0,
+        openShiftCount: 0,
+        noteCount: 0,
+      });
+    }
+
+    for (const record of employeeWorkRecords) {
+      const employeeId = record.employeeId ?? record.employee;
+      const employee = employees.find((item) => item.employeeId === employeeId);
+      const current = summaries.get(employeeId) ?? {
+        employeeId,
+        employeeName: record.employeeName ?? record.employee,
+        storeCode: record.storeCode ?? employee?.storeCode ?? "",
+        title: employee?.title || "店員",
+        shiftCount: 0,
+        totalMinutes: 0,
+        openShiftCount: 0,
+        noteCount: 0,
+      };
+
+      current.shiftCount += 1;
+      current.totalMinutes += record.durationMinutes ?? 0;
+      if (!record.timeOut) current.openShiftCount += 1;
+      if (record.note) current.noteCount += 1;
+      summaries.set(employeeId, current);
+    }
+
+    return Array.from(summaries.values()).sort((a, b) =>
+      a.storeCode === b.storeCode
+        ? a.employeeId.localeCompare(b.employeeId)
+        : a.storeCode.localeCompare(b.storeCode),
+    );
+  }, [employeeWorkRecords, employeeWorkStoreCode, employees]);
+
+  const employeeWorkTotalMinutes = employeeWorkSummaries.reduce(
+    (sum, summary) => sum + summary.totalMinutes,
+    0,
+  );
+
+  const employeeWorkOpenShiftCount = employeeWorkSummaries.reduce(
+    (sum, summary) => sum + summary.openShiftCount,
+    0,
+  );
+
+  const employeeWorkCompletedShiftCount = employeeWorkRecords.filter(
+    (record) => record.durationMinutes != null,
+  ).length;
+
   function couponUsedCount(coupon: Coupon) {
     return adminOrders.filter(
       (order) => order.status !== "pending" && order.couponCode === coupon.code,
@@ -3233,6 +3351,23 @@ export default function App() {
     }
   }
 
+  function loadAllKitchenClockRecords(): KitchenClockRecord[] {
+    const stored = window.localStorage.getItem(kitchenClockStorageKey);
+    if (!stored) return [];
+
+    try {
+      const parsed = JSON.parse(stored);
+      if (!parsed || typeof parsed !== "object") return [];
+      return Object.values(parsed)
+        .flatMap((records) => (Array.isArray(records) ? records : []))
+        .filter((record): record is KitchenClockRecord =>
+          Boolean(record && typeof record === "object"),
+        );
+    } catch {
+      return [];
+    }
+  }
+
   function saveKitchenClockRecords(
     storeCode: string,
     records: KitchenClockRecord[],
@@ -3255,6 +3390,7 @@ export default function App() {
       kitchenClockStorageKey,
       JSON.stringify(allData),
     );
+    setAllClockRecords(loadAllKitchenClockRecords());
   }
 
   function openClockPicker(target: "in" | "out") {
@@ -3384,10 +3520,17 @@ export default function App() {
   useEffect(() => {
     if (!adminAuthed) {
       setEmployees([]);
+      setAllClockRecords([]);
       return;
     }
     void loadEmployeesData();
+    setAllClockRecords(loadAllKitchenClockRecords());
   }, [adminAuthed, adminStoreCode]);
+
+  useEffect(() => {
+    if (!adminAuthed || !isAdminEmployeesPage) return;
+    setAllClockRecords(loadAllKitchenClockRecords());
+  }, [adminAuthed, isAdminEmployeesPage]);
 
   useEffect(() => {
     if (!isKitchenPage && !isAdminClockPage) return;
@@ -5892,6 +6035,225 @@ export default function App() {
                     </div>
                   </section>
                 </div>
+
+                <section className="rounded-lg border border-base-300 bg-base-100 p-5 shadow">
+                  <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold">員工工時管理</h3>
+                      <p className="mt-1 text-sm opacity-60">
+                        依日期區間彙整各門市上下班紀錄，追蹤總工時、未打下班卡與補卡備註。
+                      </p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <label className="form-control">
+                        <span className="label-text mb-1">開始日期</span>
+                        <input
+                          className="input input-bordered"
+                          type="date"
+                          value={employeeWorkStartDate}
+                          onChange={(event) =>
+                            setEmployeeWorkStartDate(event.currentTarget.value)
+                          }
+                        />
+                      </label>
+                      <label className="form-control">
+                        <span className="label-text mb-1">結束日期</span>
+                        <input
+                          className="input input-bordered"
+                          type="date"
+                          value={employeeWorkEndDate}
+                          onChange={(event) =>
+                            setEmployeeWorkEndDate(event.currentTarget.value)
+                          }
+                        />
+                      </label>
+                      <label className="form-control">
+                        <span className="label-text mb-1">門市</span>
+                        <select
+                          className="select select-bordered"
+                          value={employeeWorkStoreCode}
+                          onChange={(event) =>
+                            setEmployeeWorkStoreCode(event.currentTarget.value)
+                          }
+                        >
+                          <option value="">全部門市</option>
+                          {branchStoreOptions.map((store) => (
+                            <option key={`work-store-${store.code}`} value={store.code}>
+                              {store.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <div className="rounded-lg bg-base-200 p-4">
+                      <div className="text-sm opacity-60">區間總工時</div>
+                      <div className="mt-1 text-2xl font-black text-primary">
+                        {formatWorkMinutes(employeeWorkTotalMinutes)}
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-base-200 p-4">
+                      <div className="text-sm opacity-60">有效班次</div>
+                      <div className="mt-1 text-2xl font-black text-success">
+                        {employeeWorkCompletedShiftCount} 筆
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-base-200 p-4">
+                      <div className="text-sm opacity-60">未打下班</div>
+                      <div className="mt-1 text-2xl font-black text-warning">
+                        {employeeWorkOpenShiftCount} 筆
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-base-200 p-4">
+                      <div className="text-sm opacity-60">平均班次</div>
+                      <div className="mt-1 text-2xl font-black text-accent">
+                        {employeeWorkCompletedShiftCount === 0
+                          ? "-"
+                          : formatWorkMinutes(
+                              employeeWorkTotalMinutes /
+                                employeeWorkCompletedShiftCount,
+                            )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_1.2fr]">
+                    <div className="rounded-lg border border-base-300 bg-base-200 p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <h4 className="font-bold">員工工時彙總</h4>
+                        <span className="badge badge-outline">
+                          {employeeWorkSummaries.length} 位
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {employeeWorkSummaries.length === 0 ? (
+                          <div className="rounded-md bg-base-100 p-3 text-sm opacity-60">
+                            目前沒有員工資料。
+                          </div>
+                        ) : (
+                          employeeWorkSummaries.map((summary) => (
+                            <div
+                              key={`work-summary-${summary.employeeId}`}
+                              className="grid gap-3 rounded-md bg-base-100 p-3 text-sm md:grid-cols-[1.2fr_1fr_1fr_auto]"
+                            >
+                              <div>
+                                <div className="font-mono opacity-60">
+                                  {summary.employeeId}
+                                </div>
+                                <div className="font-semibold">
+                                  {summary.employeeName}
+                                </div>
+                                <div className="text-xs opacity-60">
+                                  {storeNameMapping[summary.storeCode] ??
+                                    summary.storeCode}
+                                  分店 · {summary.title}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="opacity-60">總工時</div>
+                                <div className="font-semibold">
+                                  {formatWorkMinutes(summary.totalMinutes)}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="opacity-60">班次</div>
+                                <div>{summary.shiftCount} 筆</div>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {summary.openShiftCount > 0 ? (
+                                  <span className="badge badge-warning">
+                                    未下班 {summary.openShiftCount}
+                                  </span>
+                                ) : null}
+                                {summary.noteCount > 0 ? (
+                                  <span className="badge badge-outline">
+                                    備註 {summary.noteCount}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-base-300 bg-base-200 p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <h4 className="font-bold">班次明細</h4>
+                        <span className="badge badge-outline">
+                          {employeeWorkRecords.length} 筆
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {employeeWorkRecords.length === 0 ? (
+                          <div className="rounded-md bg-base-100 p-3 text-sm opacity-60">
+                            此區間尚無打卡紀錄。
+                          </div>
+                        ) : (
+                          employeeWorkRecords.map((record, index) => {
+                            const employeeId =
+                              record.employeeId ?? record.employee;
+                            const employee = employees.find(
+                              (item) => item.employeeId === employeeId,
+                            );
+                            const storeCode =
+                              record.storeCode ?? employee?.storeCode ?? "";
+                            return (
+                              <div
+                                key={`work-record-${employeeId}-${record.timeIn}-${index}`}
+                                className="grid gap-2 rounded-md bg-base-100 p-3 text-sm md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_1fr]"
+                              >
+                                <div>
+                                  <div className="font-mono opacity-60">
+                                    {employeeId}
+                                  </div>
+                                  <div className="font-semibold">
+                                    {record.employeeName ??
+                                      employee?.name ??
+                                      record.employee}
+                                  </div>
+                                  <div className="text-xs opacity-60">
+                                    {record.date} ·{" "}
+                                    {storeNameMapping[storeCode] ?? storeCode}
+                                    分店
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="opacity-60">上班</div>
+                                  <div>{formatTaipeiTime(record.timeIn)}</div>
+                                </div>
+                                <div>
+                                  <div className="opacity-60">下班</div>
+                                  <div>
+                                    {record.timeOut
+                                      ? formatTaipeiTime(record.timeOut)
+                                      : "未下班"}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="opacity-60">工時</div>
+                                  <div>
+                                    {record.durationMinutes == null
+                                      ? "-"
+                                      : formatWorkMinutes(
+                                          record.durationMinutes,
+                                        )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="opacity-60">備註</div>
+                                  <div>{record.note || "-"}</div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </section>
               </section>
 
               <section
@@ -5923,7 +6285,7 @@ export default function App() {
                         />
                       </label>
                       <label className="form-control">
-                        <span className="label-text mb-1 font-semibold">
+                        <span className="label-text mb-1">
                           當日值班
                         </span>
                         <div className="min-h-14 rounded-lg border border-base-300 bg-base-200 p-3">

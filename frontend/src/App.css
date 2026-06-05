@@ -460,6 +460,119 @@
   opacity: 0.6;
 }
 
+.customer-shell .customer-customizer {
+  background: var(--customer-surface);
+  color: var(--customer-heading);
+}
+
+.customer-shell .customer-customizer .bg-base-100,
+.customer-shell .customer-customizer .bg-base-200,
+.customer-shell .customer-customizer .bg-base-300 {
+  background-color: var(--customer-surface);
+}
+
+.customer-shell .customer-customizer figure {
+  background: var(--customer-brand-50);
+}
+
+.customer-shell .customer-customizer h2,
+.customer-shell .customer-customizer h3,
+.customer-shell .customer-customizer p,
+.customer-shell .customer-customizer span,
+.customer-shell .customer-customizer label {
+  color: var(--customer-heading);
+}
+
+.customer-shell .customer-customizer .opacity-75,
+.customer-shell .customer-customizer .opacity-70,
+.customer-shell .customer-customizer .opacity-60 {
+  color: var(--customer-brand);
+  opacity: 1;
+}
+
+.customer-shell .customer-customizer .border-base-300 {
+  border-color: rgba(96, 108, 56, 0.18);
+}
+
+.customer-shell .customer-customizer .label-text {
+  color: var(--customer-heading);
+  font-weight: 700;
+}
+
+.customer-shell .customer-customizer .text-success {
+  color: #00a86b;
+}
+
+.customer-shell .customer-customizer .btn {
+  border-color: rgba(40, 54, 24, 0.16);
+  background: #f7f8f1;
+  color: var(--customer-heading);
+  box-shadow: none;
+}
+
+.customer-shell .customer-customizer .btn:hover {
+  border-color: var(--customer-brand);
+  background: var(--customer-brand-50);
+  color: var(--customer-heading);
+}
+
+.customer-shell .customer-customizer .btn-circle {
+  border-color: rgba(40, 54, 24, 0.12);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--customer-heading);
+  box-shadow: 0 10px 24px rgba(40, 54, 24, 0.14);
+}
+
+.customer-shell .customer-customizer .btn-primary,
+.customer-shell .customer-customizer .btn-primary:hover {
+  border-color: var(--customer-brand);
+  background: var(--customer-brand);
+  color: #ffffff;
+}
+
+.customer-shell .customer-customizer .btn-outline {
+  border-color: rgba(40, 54, 24, 0.28);
+  background: #ffffff;
+  color: var(--customer-heading);
+}
+
+.customer-shell .customer-customizer .join .btn {
+  min-width: 54px;
+  background: #f7f8f1;
+  color: var(--customer-heading);
+}
+
+.customer-shell .customer-customizer .join .no-animation {
+  border-right-color: rgba(40, 54, 24, 0.08);
+  border-left-color: rgba(40, 54, 24, 0.08);
+  background: #ffffff;
+}
+
+.customer-shell .customer-customizer textarea,
+.customer-shell .customer-customizer input {
+  border-color: rgba(40, 54, 24, 0.22);
+  background: #ffffff;
+  color: var(--customer-heading);
+}
+
+.customer-shell .customer-customizer textarea::placeholder,
+.customer-shell .customer-customizer input::placeholder {
+  color: var(--customer-muted);
+}
+
+.customer-shell .customer-customizer textarea:focus,
+.customer-shell .customer-customizer input:focus {
+  border-color: var(--customer-brand);
+  outline: 2px solid rgba(96, 108, 56, 0.18);
+  outline-offset: 2px;
+}
+
+.customer-shell .customer-customizer > .border-t {
+  border-color: rgba(96, 108, 56, 0.18);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 -12px 28px rgba(40, 54, 24, 0.08);
+}
+
 @media (max-width: 900px) {
   .customer-topbar-inner,
   .customer-action-grid {

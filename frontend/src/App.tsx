@@ -9624,7 +9624,7 @@ export default function App() {
       ) : null}
 
       {isItemPage ? (
-        <section className="fixed inset-0 z-[2147483647] flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-base-100">
+        <section className="customer-customizer fixed inset-0 z-[2147483647] flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-base-100">
           <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-start p-4">
             <button
               className="btn btn-circle bg-base-100/90 shadow"

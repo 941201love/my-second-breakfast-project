@@ -821,6 +821,11 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     viewPickupStatus: "查看取餐進度",
     myPickupNumber: "我的取餐編號",
     noActiveOrder: "目前沒有進行中的訂單",
+    pickupStore: "取餐門市",
+    store: "門市",
+    storeSelected: "門市已指定",
+    chooseStore: "請選擇門市",
+    orderId: "訂單 ID",
     cartDetails: "購物車明細",
     orderHistory: "歷史訂單",
     profile: "個人",
@@ -891,6 +896,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponMinSpend: "最低消費",
     originalAmount: "金額",
     confirmClearCart: "確定要清空購物車嗎？",
+    confirmSubmitOrder: "確定要送出訂單嗎？送出後店家會開始製作。",
     confirm: "確定",
     cancel: "取消",
     discount: "優惠折抵",
@@ -942,6 +948,11 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     viewPickupStatus: "View pickup status",
     myPickupNumber: "My pickup number",
     noActiveOrder: "No active order",
+    pickupStore: "Pickup store",
+    store: "Store",
+    storeSelected: "Store selected",
+    chooseStore: "Choose a store",
+    orderId: "Order ID",
     cartDetails: "Cart",
     orderHistory: "Order history",
     profile: "Profile",
@@ -1012,6 +1023,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponMinSpend: "Minimum spend",
     originalAmount: "Amount",
     confirmClearCart: "Clear the cart?",
+    confirmSubmitOrder:
+      "Place this order? The store will start preparing it after submission.",
     confirm: "Confirm",
     cancel: "Cancel",
     discount: "Discount",
@@ -1065,6 +1078,11 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     viewPickupStatus: "受取状況を見る",
     myPickupNumber: "自分の受取番号",
     noActiveOrder: "進行中の注文はありません",
+    pickupStore: "受取店舗",
+    store: "店舗",
+    storeSelected: "店舗は指定済みです",
+    chooseStore: "店舗を選択",
+    orderId: "注文ID",
     cartDetails: "カート",
     orderHistory: "注文履歴",
     profile: "プロフィール",
@@ -1135,6 +1153,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponMinSpend: "最低利用額",
     originalAmount: "金額",
     confirmClearCart: "カートを空にしますか？",
+    confirmSubmitOrder:
+      "注文を送信しますか？送信後、店舗が調理を開始します。",
     confirm: "確認",
     cancel: "キャンセル",
     discount: "割引",
@@ -1188,6 +1208,11 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     viewPickupStatus: "픽업 현황 보기",
     myPickupNumber: "내 픽업 번호",
     noActiveOrder: "진행 중인 주문이 없습니다",
+    pickupStore: "픽업 매장",
+    store: "매장",
+    storeSelected: "매장이 지정되었습니다",
+    chooseStore: "매장을 선택하세요",
+    orderId: "주문 ID",
     cartDetails: "장바구니",
     orderHistory: "주문 내역",
     profile: "프로필",
@@ -1258,6 +1283,8 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     couponMinSpend: "최소 주문 금액",
     originalAmount: "금액",
     confirmClearCart: "장바구니를 비우시겠습니까?",
+    confirmSubmitOrder:
+      "주문을 보낼까요? 전송 후 매장에서 준비를 시작합니다.",
     confirm: "확인",
     cancel: "취소",
     discount: "할인",
@@ -5038,7 +5065,7 @@ export default function App() {
       setCheckoutNotice(text.phoneInvalid);
       return;
     }
-    if (!(await requestConfirm("確定要送出訂單嗎？送出後店家會開始製作。"))) {
+    if (!(await requestConfirm(text.confirmSubmitOrder))) {
       return;
     }
     setIsSubmittingOrder(true);
@@ -8821,21 +8848,23 @@ export default function App() {
           <div className="min-w-0">
             <div className="customer-brand">
               <span className="customer-brand-mark">🍔</span>
-              <span>{text.appTitle}</span>
+              <span className="customer-brand-text" title={text.appTitle}>
+                {text.appTitle}
+              </span>
             </div>
           </div>
           <div className="customer-action-grid">
             {!adminStoreCode ? (
               <div className="customer-store-control col-span-2 min-w-0 sm:col-span-1 sm:min-w-64">
                 <span className="customer-store-label">
-                  取餐門市
+                  {text.pickupStore}
                 </span>
                 <details className="dropdown dropdown-bottom w-full">
                   <summary className="customer-store-button">
                     <span>
                       {branchStoreOptions.find(
                         (store) => store.code === orderStoreCode,
-                      )?.name ?? "請選擇門市"}
+                      )?.name ?? text.chooseStore}
                     </span>
                     <span className="text-xs opacity-70">▼</span>
                   </summary>
@@ -8862,7 +8891,7 @@ export default function App() {
               </div>
             ) : (
               <div className="customer-store-static col-span-2 sm:col-span-1 sm:min-w-52">
-                <div className="customer-store-label">取餐門市</div>
+                <div className="customer-store-label">{text.pickupStore}</div>
                 <div className="font-bold">
                   {adminStoreCode === "taipei"
                     ? "台北分店"
@@ -9117,7 +9146,7 @@ export default function App() {
                         </figure>
                         <div className="customer-menu-info">
                           <div>
-                            <h3>{copy.name}</h3>
+                            <h3 title={copy.name}>{copy.name}</h3>
                             <p>
                               {copy.description}
                             </p>
@@ -9195,7 +9224,7 @@ export default function App() {
                   {historyOrders.map((order) => (
                     <article
                       key={order.id}
-                      className="rounded-lg bg-base-200 p-4 space-y-3"
+                      className="customer-history-card rounded-lg bg-base-200 p-4 space-y-3"
                     >
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div>
@@ -9205,7 +9234,7 @@ export default function App() {
                             {order.dailySequence ?? order.id}
                           </p>
                           <p className="text-xs opacity-60">
-                            訂單 ID #{order.id} · 門市：
+                            {text.orderId} #{order.id} · {text.store}：
                             {storeNameMapping[order.storeCode ?? ""] ??
                               order.storeCode ??
                               "-"}
@@ -9276,7 +9305,7 @@ export default function App() {
                         </span>
                       </div>
                       <button
-                        className="btn btn-sm btn-outline w-full"
+                        className="btn btn-sm btn-outline w-full customer-buy-again-button"
                         onClick={() => {
                           void buyAgain(order);
                         }}
@@ -10468,7 +10497,7 @@ export default function App() {
                   />
                   {adminStoreCode ? (
                     <div className="rounded-lg border border-base-300 bg-base-200 p-3 text-sm">
-                      <div className="font-semibold">門市已指定</div>
+                      <div className="font-semibold">{text.storeSelected}</div>
                       <div>
                         {adminStoreCode === "taipei"
                           ? "台北分店"
@@ -10481,7 +10510,7 @@ export default function App() {
                     </div>
                   ) : (
                     <label className="form-control">
-                      <span className="label-text">門市</span>
+                      <span className="label-text">{text.store}</span>
                       <select
                         className="select select-bordered w-full"
                         value={orderStoreCode}
@@ -10489,7 +10518,7 @@ export default function App() {
                           setOrderStoreCode(event.currentTarget.value);
                         }}
                       >
-                        <option value="">請選擇門市</option>
+                        <option value="">{text.chooseStore}</option>
                         <option value="taipei">台北分店</option>
                         <option value="tainan">台南分店</option>
                         <option value="kaohsiung">高雄分店</option>

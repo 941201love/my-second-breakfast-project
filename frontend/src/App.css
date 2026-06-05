@@ -35,14 +35,16 @@
   display: flex;
   max-width: 1560px;
   margin: 0 auto;
-  padding: 14px 20px;
+  padding: 12px 18px;
   align-items: end;
   justify-content: space-between;
-  gap: 24px;
+  gap: 18px;
 }
 
 .customer-brand {
   display: flex;
+  min-width: 0;
+  max-width: 420px;
   align-items: center;
   gap: 10px;
   color: var(--customer-heading);
@@ -50,6 +52,12 @@
   font-weight: 700;
   letter-spacing: 0;
   white-space: nowrap;
+}
+
+.customer-brand-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .customer-brand-mark {
@@ -84,7 +92,7 @@
 .customer-store-static,
 .customer-nav-button {
   display: flex;
-  min-height: 48px;
+  min-height: 42px;
   align-items: center;
   border-radius: 16px;
   border: 1px solid rgba(40, 54, 24, 0.18);
@@ -96,9 +104,17 @@
 .customer-store-button {
   width: 100%;
   justify-content: space-between;
-  padding: 0 18px;
+  padding: 0 14px;
   cursor: pointer;
   text-align: left;
+}
+
+.customer-store-button span:first-child,
+.customer-store-static .font-bold,
+.customer-nav-button {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .customer-store-static {
@@ -118,7 +134,8 @@
 
 .customer-nav-button {
   justify-content: center;
-  padding: 0 18px;
+  max-width: 180px;
+  padding: 0 14px;
   white-space: nowrap;
   transition:
     background 0.2s ease,
@@ -134,7 +151,7 @@
 .customer-nav-button-filled {
   border-color: var(--customer-brand);
   background: var(--customer-brand);
-  color: #ffffff;
+  color: var(--customer-brand-50);
 }
 
 .customer-nav-button:not(:disabled):hover,
@@ -149,7 +166,7 @@
 .customer-main {
   max-width: 1560px;
   margin: 0 auto;
-  padding: 28px 20px 72px;
+  padding: 24px 18px 72px;
 }
 
 .customer-shell .bg-base-100,
@@ -157,6 +174,15 @@
 .customer-shell .bg-base-300 {
   background-color: var(--customer-surface);
   color: var(--customer-heading);
+}
+
+.customer-shell .bg-primary {
+  background-color: var(--customer-brand);
+  color: var(--customer-brand-50);
+}
+
+.customer-shell .text-primary-content {
+  color: var(--customer-brand-50);
 }
 
 .customer-shell .border-base-300 {
@@ -173,21 +199,47 @@
 }
 
 .customer-shell .card,
-.customer-shell .alert {
+.customer-shell .alert,
+.customer-shell .modal-box {
   border: 1px solid rgba(40, 54, 24, 0.08);
   background: var(--customer-surface);
   color: var(--customer-heading);
 }
 
+.customer-shell .alert-info,
+.customer-shell .alert-warning {
+  border-color: rgba(221, 161, 94, 0.42);
+  background: var(--customer-brand-50);
+  color: var(--customer-heading);
+}
+
+.customer-shell .btn {
+  min-height: 40px;
+  border-color: rgba(40, 54, 24, 0.22);
+  background: var(--customer-surface);
+  color: var(--customer-heading);
+  box-shadow: none;
+}
+
 .customer-shell .btn-primary {
   border-color: var(--customer-brand);
   background: var(--customer-brand);
-  color: #ffffff;
+  color: var(--customer-brand-50);
 }
 
 .customer-shell .btn-outline,
 .customer-shell .btn-ghost,
 .customer-shell .btn:not(.btn-primary) {
+  border-color: rgba(40, 54, 24, 0.28);
+  background: var(--customer-surface);
+  color: var(--customer-heading);
+}
+
+.customer-shell .btn-ghost:hover,
+.customer-shell .btn-outline:hover,
+.customer-shell .btn:not(.btn-primary):hover {
+  border-color: var(--customer-brand-100);
+  background: var(--customer-brand-50);
   color: var(--customer-heading);
 }
 
@@ -204,7 +256,20 @@
   color: var(--customer-muted);
 }
 
-.customer-shell .badge {
+.customer-shell .badge,
+.customer-shell .badge-primary,
+.customer-shell .badge-info,
+.customer-shell .badge-success,
+.customer-shell .badge-warning,
+.customer-shell .badge-ghost {
+  border-color: var(--customer-brand);
+  background: var(--customer-brand);
+  color: var(--customer-brand-50);
+}
+
+.customer-shell .badge-warning {
+  border-color: #dda15e;
+  background: #dda15e;
   color: var(--customer-heading);
 }
 
@@ -356,8 +421,12 @@
 
 .customer-category-tab {
   position: relative;
-  padding: 10px 22px;
-  font-size: 19px;
+  max-width: 190px;
+  overflow: hidden;
+  padding: 8px 18px;
+  font-size: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .customer-category-tab.active {
@@ -376,14 +445,18 @@
 
 .customer-pill {
   display: inline-flex;
-  min-height: 44px;
+  max-width: 190px;
+  min-height: 40px;
   align-items: center;
   gap: 8px;
   border-radius: 16px;
   background: var(--customer-brand-50);
-  padding: 0 18px;
+  padding: 0 14px;
   color: var(--customer-heading);
-  font-size: 16px;
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .customer-pill.active {
@@ -468,6 +541,9 @@
   color: var(--customer-heading);
   font-size: 17px;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .customer-menu-info p {
@@ -496,7 +572,7 @@
   border-radius: 999px;
   background: var(--customer-brand);
   padding: 2px 8px;
-  color: #ffffff;
+  color: var(--customer-brand-50);
 }
 
 .customer-card-actions {
@@ -523,12 +599,12 @@
 }
 
 .customer-add-button {
-  min-height: 36px;
+  min-height: 34px;
   border: 0;
   border-radius: 12px;
   background: var(--customer-brand);
   padding: 0 14px;
-  color: #ffffff;
+  color: var(--customer-brand-50);
   cursor: pointer;
   font-weight: 700;
 }
@@ -536,6 +612,28 @@
 .customer-add-button:disabled {
   cursor: wait;
   opacity: 0.6;
+}
+
+.customer-history-card {
+  border: 1px solid rgba(40, 54, 24, 0.16);
+  background: var(--customer-surface);
+  box-shadow: 0 10px 24px rgba(40, 54, 24, 0.06);
+}
+
+.customer-buy-again-button {
+  border-color: var(--customer-brand);
+  background: var(--customer-brand);
+  color: var(--customer-brand-50);
+}
+
+.customer-buy-again-button:hover {
+  border-color: var(--customer-brand-100);
+  background: var(--customer-brand-100);
+  color: var(--customer-heading);
+}
+
+.customer-shell .join .btn {
+  min-height: 36px;
 }
 
 .customer-shell .customer-customizer {
@@ -605,7 +703,7 @@
 .customer-shell .customer-customizer .btn-primary:hover {
   border-color: var(--customer-brand);
   background: var(--customer-brand);
-  color: #ffffff;
+  color: var(--customer-brand-50);
 }
 
 .customer-shell .customer-customizer .btn-primary:hover {

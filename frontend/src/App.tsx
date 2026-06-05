@@ -7116,20 +7116,20 @@ export default function App() {
                             <ul className="space-y-1 text-sm">
                               {order.items.map((item, index) => {
                                 const checkboxId = `${order.id}-${item.id ?? item.menuItemId}-${index}`;
-                                const itemDone =
-                                  checkedPosItems[checkboxId] ??
-                                  order.status !== "submitted";
+                                const itemDone = Boolean(
+                                  checkedPosItems[checkboxId],
+                                );
                                 return (
                                   <li
                                     key={checkboxId}
-                                    className={`flex items-center gap-2 rounded-md px-2 py-1 ${
+                                    className={`flex min-h-12 items-center gap-3 rounded-md px-3 py-2 text-base ${
                                       itemDone
                                         ? "bg-success/20 text-success"
                                         : "bg-base-200/40"
                                     }`}
                                   >
                                     <input
-                                      className="checkbox checkbox-success checkbox-sm shrink-0"
+                                      className="checkbox checkbox-success checkbox-md shrink-0"
                                       type="checkbox"
                                       checked={itemDone}
                                       onChange={(event) => {

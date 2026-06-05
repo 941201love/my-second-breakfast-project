@@ -398,6 +398,64 @@ test("orders keep their branch code and branch pickup numbers are independent", 
   }
 });
 
+test("coupon store restrictions are enforced on submit", async () => {
+  const store = new JsonFileStore({
+    dataFilePath: join(tempDir, "store.json"),
+  });
+  await store.init();
+
+  await store.createCoupon({
+    code: "TAINANONLY",
+    name: "台南限定",
+    discountType: "amount",
+    discountValue: 10,
+    minSpend: 0,
+    maxDiscount: 0,
+    usageLimitPerUser: 1,
+    usageLimitTotal: 0,
+    applicableStoreCodes: ["tainan"],
+    startsAt: new Date(Date.now() - 60_000).toISOString(),
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    isActive: true,
+  });
+
+  const item = store.getMenu()[0]!;
+  const taipeiOrder = await store.createOrder({
+    userId: "user-taipei",
+    storeCode: "taipei",
+  });
+  await store.updateOrderItem(taipeiOrder.id, {
+    userId: "user-taipei",
+    itemId: item.id,
+    qty: 1,
+  });
+
+  const rejected = await store.submitOrder(taipeiOrder.id, {
+    userId: "user-taipei",
+    couponCode: "TAINANONLY",
+  });
+  expect(rejected.ok).toBe(false);
+  if (!rejected.ok) {
+    expect(rejected.code).toBe("COUPON_NOT_AVAILABLE");
+  }
+
+  const tainanOrder = await store.createOrder({
+    userId: "user-tainan",
+    storeCode: "tainan",
+  });
+  await store.updateOrderItem(tainanOrder.id, {
+    userId: "user-tainan",
+    itemId: item.id,
+    qty: 1,
+  });
+
+  const accepted = await store.submitOrder(tainanOrder.id, {
+    userId: "user-tainan",
+    couponCode: "TAINANONLY",
+  });
+  expect(accepted.ok).toBe(true);
+});
+
 test("order progress is filtered by selected branch", () => {
   const today = new Date("2026-06-04T08:00:00+08:00");
   const submittedAt = "2026-06-04T01:30:00.000Z";

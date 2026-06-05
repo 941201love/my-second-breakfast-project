@@ -669,6 +669,7 @@ app.post(
       maxDiscount: body.maxDiscount,
       usageLimitPerUser: body.usageLimitPerUser,
       usageLimitTotal: body.usageLimitTotal,
+      applicableStoreCodes: body.applicableStoreCodes,
       startsAt: body.startsAt,
       expiresAt: body.expiresAt,
       isActive: body.isActive,

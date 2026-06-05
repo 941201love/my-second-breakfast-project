@@ -347,6 +347,17 @@ const branchStoreOptions = [
 const branchStoreCodeSet = new Set(
   branchStoreOptions.map((store) => store.code),
 );
+function normalizedSearch(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function matchesSearch(query: string, values: Array<string | number | null | undefined>) {
+  const normalizedQuery = normalizedSearch(query);
+  if (!normalizedQuery) return true;
+  return values.some((value) =>
+    String(value ?? "").toLowerCase().includes(normalizedQuery),
+  );
+}
 
 function branchStoreCodeFromPath(path: string) {
   const match = path.match(/^\/([^/]+)(?:\/(.*))?$/);
@@ -1251,6 +1262,7 @@ type CouponFormState = {
   maxDiscount: string;
   usageLimitPerUser: string;
   usageLimitTotal: string;
+  applicableStoreCodes: string[];
   startsDate: string;
   endsDate: string;
 };
@@ -1366,6 +1378,14 @@ export default function App() {
   const orderProgressRequestIdRef = useRef(0);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [resignedEmployeeSearch, setResignedEmployeeSearch] = useState("");
+  const [employeeWorkSearch, setEmployeeWorkSearch] = useState("");
+  const [adminMenuSearch, setAdminMenuSearch] = useState("");
+  const [promotionSearch, setPromotionSearch] = useState("");
+  const [couponSearch, setCouponSearch] = useState("");
+  const [adminOrderSearch, setAdminOrderSearch] = useState("");
+  const [customerMenuSearch, setCustomerMenuSearch] = useState("");
   const [employeeDraft, setEmployeeDraft] = useState<Employee>({
     employeeId: "",
     name: "",
@@ -1412,6 +1432,7 @@ export default function App() {
     maxDiscount: "",
     usageLimitPerUser: "",
     usageLimitTotal: "",
+    applicableStoreCodes: [],
     startsDate: todayTaipeiDate(),
     endsDate: todayTaipeiDate(),
   });
@@ -2361,9 +2382,28 @@ export default function App() {
     void loadOrderHistory();
   }, [isOrderHistoryPage, user]);
 
+  const visibleMenuItems = useMemo(
+    () =>
+      items.filter((item) => {
+        const copy = menuCopy(item);
+        return matchesSearch(customerMenuSearch, [
+          copy.name,
+          copy.description,
+          item.name,
+          item.description,
+          item.category,
+          item.logicalId,
+          item.price,
+        ]);
+      }),
+    [customerMenuSearch, items, profile.language],
+  );
+
   const grouped = useMemo(() => {
-    const recentItems = items.filter((item) => item.isRecentlyUpdated);
-    const groupedItems = items.reduce(
+    const recentItems = visibleMenuItems.filter(
+      (item) => item.isRecentlyUpdated,
+    );
+    const groupedItems = visibleMenuItems.reduce(
       (acc, item) => {
         if (item.isRecentlyUpdated) return acc;
         const category = item?.category || "未分類";
@@ -2381,7 +2421,7 @@ export default function App() {
     );
 
     return { groupedItems, categories, recentItems };
-  }, [items]);
+  }, [visibleMenuItems]);
   const promotionalItems = items.filter((item) => item.activePromotion);
 
   useEffect(() => {
@@ -2586,6 +2626,39 @@ export default function App() {
     [adminOrders],
   );
 
+  const filteredAdminOrders = useMemo(
+    () =>
+      adminOrders.filter((order) =>
+        matchesSearch(adminOrderSearch, [
+          order.dailySequence,
+          order.id,
+          order.status,
+          order.paymentMethod,
+          order.customerName,
+          order.customerPhone,
+          order.note,
+          order.couponCode,
+          formatMoney(order.total),
+          order.items.map((item) => item.menuItemName).join(" "),
+        ]),
+      ),
+    [adminOrderSearch, adminOrders],
+  );
+
+  const filteredAdminMenuItems = useMemo(
+    () =>
+      items.filter((item) =>
+        matchesSearch(adminMenuSearch, [
+          item.logicalId,
+          item.name,
+          item.category,
+          item.description,
+          item.price,
+        ]),
+      ),
+    [adminMenuSearch, items],
+  );
+
   const kitchenPageCount = Math.max(1, Math.ceil(kitchenOrders.length / 8));
 
   const kitchenPageOrders = useMemo(
@@ -2614,6 +2687,36 @@ export default function App() {
   const resignedEmployees = useMemo(
     () => employees.filter((employee) => !employee.isActive),
     [employees],
+  );
+
+  const filteredActiveEmployees = useMemo(
+    () =>
+      activeEmployees.filter((employee) =>
+        matchesSearch(employeeSearch, [
+          employee.employeeId,
+          employee.name,
+          storeNameMapping[employee.storeCode],
+          employee.storeCode,
+          employee.title,
+          "在職",
+        ]),
+      ),
+    [activeEmployees, employeeSearch],
+  );
+
+  const filteredResignedEmployees = useMemo(
+    () =>
+      resignedEmployees.filter((employee) =>
+        matchesSearch(resignedEmployeeSearch, [
+          employee.employeeId,
+          employee.name,
+          storeNameMapping[employee.storeCode],
+          employee.storeCode,
+          employee.title,
+          "離職",
+        ]),
+      ),
+    [resignedEmployees, resignedEmployeeSearch],
   );
 
   const suggestedEmployeeId = useMemo(() => {
@@ -2659,12 +2762,42 @@ export default function App() {
     [activePromotions],
   );
 
+  const filteredCurrentPromotions = useMemo(
+    () =>
+      currentPromotions.filter((promotion) =>
+        matchesSearch(promotionSearch, [
+          promotion.name,
+          promotion.menuItemLogicalId,
+          promotion.discountType,
+          promotion.discountValue,
+          formatTaipeiDateTime(promotion.startsAt),
+          formatTaipeiDateTime(promotion.endsAt),
+        ]),
+      ),
+    [currentPromotions, promotionSearch],
+  );
+
   const historicalPromotions = useMemo(
     () =>
       activePromotions.filter(
         (promotion) => new Date(promotion.endsAt).getTime() < Date.now(),
       ),
     [activePromotions],
+  );
+
+  const filteredHistoricalPromotions = useMemo(
+    () =>
+      historicalPromotions.filter((promotion) =>
+        matchesSearch(promotionSearch, [
+          promotion.name,
+          promotion.menuItemLogicalId,
+          promotion.discountType,
+          promotion.discountValue,
+          formatTaipeiDateTime(promotion.startsAt),
+          formatTaipeiDateTime(promotion.endsAt),
+        ]),
+      ),
+    [historicalPromotions, promotionSearch],
   );
 
   const currentCoupons = useMemo(
@@ -2689,6 +2822,46 @@ export default function App() {
           ),
       ),
     [coupons],
+  );
+
+  const couponStoreScopeText = (coupon: Coupon) => {
+    const codes = coupon.applicableStoreCodes ?? [];
+    if (codes.length === 0) return "全部門市";
+    return codes
+      .map((code) => `${storeNameMapping[code] ?? code}分店`)
+      .join("、");
+  };
+
+  const filteredCurrentCoupons = useMemo(
+    () =>
+      currentCoupons.filter((coupon) =>
+        matchesSearch(couponSearch, [
+          coupon.code,
+          coupon.name,
+          coupon.discountType,
+          coupon.discountValue,
+          couponStoreScopeText(coupon),
+          formatTaipeiDateTime(coupon.startsAt),
+          formatTaipeiDateTime(coupon.expiresAt),
+        ]),
+      ),
+    [couponSearch, currentCoupons],
+  );
+
+  const filteredHistoricalCoupons = useMemo(
+    () =>
+      historicalCoupons.filter((coupon) =>
+        matchesSearch(couponSearch, [
+          coupon.code,
+          coupon.name,
+          coupon.discountType,
+          coupon.discountValue,
+          couponStoreScopeText(coupon),
+          formatTaipeiDateTime(coupon.startsAt),
+          formatTaipeiDateTime(coupon.expiresAt),
+        ]),
+      ),
+    [couponSearch, historicalCoupons],
   );
 
   const kitchenEmployeeSummaries = useMemo(() => {
@@ -2772,7 +2945,16 @@ export default function App() {
           return (
             record.date >= employeeWorkStartDate &&
             record.date <= employeeWorkEndDate &&
-            (!employeeWorkStoreCode || storeCode === employeeWorkStoreCode)
+            (!employeeWorkStoreCode || storeCode === employeeWorkStoreCode) &&
+            matchesSearch(employeeWorkSearch, [
+              record.employeeId ?? record.employee,
+              record.employeeName ?? record.employee,
+              employee?.name,
+              employee?.title,
+              storeNameMapping[storeCode],
+              storeCode,
+              record.note,
+            ])
           );
         })
         .sort(
@@ -2782,6 +2964,7 @@ export default function App() {
     [
       allClockRecords,
       employeeWorkEndDate,
+      employeeWorkSearch,
       employeeWorkStartDate,
       employeeWorkStoreCode,
       employees,
@@ -3714,6 +3897,7 @@ export default function App() {
         maxDiscount,
         usageLimitPerUser,
         usageLimitTotal,
+        applicableStoreCodes: newCoupon.applicableStoreCodes,
         startsAt: taipeiDayBoundaryIso(newCoupon.startsDate, false),
         expiresAt: taipeiDayBoundaryIso(newCoupon.endsDate, true),
         isActive: true,
@@ -3746,6 +3930,7 @@ export default function App() {
       usageLimitTotal: coupon.usageLimitTotal
         ? String(coupon.usageLimitTotal)
         : "",
+      applicableStoreCodes: coupon.applicableStoreCodes ?? [],
       startsDate: dateInputValue(coupon.startsAt),
       endsDate: dateInputValue(coupon.expiresAt),
     });
@@ -3763,6 +3948,7 @@ export default function App() {
       maxDiscount: "",
       usageLimitPerUser: "",
       usageLimitTotal: "",
+      applicableStoreCodes: [],
       startsDate: todayTaipeiDate(),
       endsDate: todayTaipeiDate(),
     });
@@ -4546,6 +4732,13 @@ export default function App() {
 
   function isCouponCollectable(coupon: Coupon): boolean {
     if (coupon.isActive === false || hasUsedCoupon(coupon)) return false;
+    const applicableStoreCodes = coupon.applicableStoreCodes ?? [];
+    if (
+      applicableStoreCodes.length > 0 &&
+      (!selectedStoreCode || !applicableStoreCodes.includes(selectedStoreCode))
+    ) {
+      return false;
+    }
     if (coupon.startsAt && new Date(coupon.startsAt).getTime() > Date.now()) {
       return false;
     }
@@ -4559,6 +4752,7 @@ export default function App() {
     return [
       couponBenefitText(coupon),
       `${text.couponMinSpend} ${formatMoney(coupon.minSpend ?? 0)}`,
+      couponStoreScopeText(coupon),
       text.couponLimitOnce,
       coupon.usageLimitTotal ? text.couponLimitedQuantity : "",
     ]
@@ -4672,6 +4866,13 @@ export default function App() {
       return false;
     }
     if (coupon.expiresAt && new Date(coupon.expiresAt).getTime() < Date.now()) {
+      return false;
+    }
+    const applicableStoreCodes = coupon.applicableStoreCodes ?? [];
+    if (
+      applicableStoreCodes.length > 0 &&
+      (!selectedStoreCode || !applicableStoreCodes.includes(selectedStoreCode))
+    ) {
       return false;
     }
 
@@ -5914,57 +6115,157 @@ export default function App() {
                         在職 {activeEmployees.length} 位
                       </span>
                     </div>
-                    <div className="overflow-x-auto">
-                      <table className="table">
-                        <thead>
-                          <tr>
-                            <th>員工編號</th>
-                            <th>姓名</th>
-                            <th>門市</th>
-                            <th>職稱</th>
-                            <th>狀態</th>
-                            <th>操作</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {activeEmployees
-                            .slice()
-                            .sort((a, b) =>
-                              a.storeCode === b.storeCode
-                                ? a.employeeId.localeCompare(b.employeeId)
-                                : a.storeCode.localeCompare(b.storeCode),
-                            )
-                            .map((employee) => (
-                              <tr key={employee.employeeId}>
-                                <td className="font-mono font-semibold">
-                                  {employee.employeeId}
-                                </td>
-                                <td>{employee.name}</td>
-                                <td>
-                                  {storeNameMapping[employee.storeCode] ??
-                                    employee.storeCode}
-                                  分店
-                                </td>
-                                <td>{employee.title || "店員"}</td>
-                                <td>
-                                  <span
-                                    className={`badge ${
-                                      employee.isActive
-                                        ? "badge-success"
-                                        : "badge-ghost"
-                                    }`}
+                    <label className="form-control mb-4">
+                      <span className="label-text">搜尋在職員工</span>
+                      <input
+                        className="input input-bordered"
+                        value={employeeSearch}
+                        onChange={(event) =>
+                          setEmployeeSearch(event.currentTarget.value)
+                        }
+                        placeholder="輸入員編、姓名、門市或職稱"
+                      />
+                    </label>
+                    <details className="collapse collapse-arrow bg-base-200" open>
+                      <summary className="collapse-title font-bold">
+                        員工清單（{filteredActiveEmployees.length} /{" "}
+                        {activeEmployees.length} 位）
+                      </summary>
+                      <div className="collapse-content">
+                        {filteredActiveEmployees.length === 0 ? (
+                          <div className="rounded-lg bg-base-100 p-4 text-sm opacity-60">
+                            目前沒有符合條件的在職員工。
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="table">
+                              <thead>
+                                <tr>
+                                  <th>員工編號</th>
+                                  <th>姓名</th>
+                                  <th>門市</th>
+                                  <th>職稱</th>
+                                  <th>狀態</th>
+                                  <th>操作</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {filteredActiveEmployees
+                                  .slice()
+                                  .sort((a, b) =>
+                                    a.storeCode === b.storeCode
+                                      ? a.employeeId.localeCompare(b.employeeId)
+                                      : a.storeCode.localeCompare(b.storeCode),
+                                  )
+                                  .map((employee) => (
+                                    <tr key={employee.employeeId}>
+                                      <td className="font-mono font-semibold">
+                                        {employee.employeeId}
+                                      </td>
+                                      <td>{employee.name}</td>
+                                      <td>
+                                        {storeNameMapping[employee.storeCode] ??
+                                          employee.storeCode}
+                                        分店
+                                      </td>
+                                      <td>{employee.title || "店員"}</td>
+                                      <td>
+                                        <span
+                                          className={`badge ${
+                                            employee.isActive
+                                              ? "badge-success"
+                                              : "badge-ghost"
+                                          }`}
+                                        >
+                                          {employee.isActive ? "在職" : "停用"}
+                                        </span>
+                                      </td>
+                                      <td>
+                                        <div className="flex flex-wrap gap-2">
+                                          <button
+                                            className="btn btn-xs btn-outline"
+                                            onClick={() =>
+                                              editEmployee(employee)
+                                            }
+                                          >
+                                            編輯
+                                          </button>
+                                          <button
+                                            className="btn btn-xs btn-outline"
+                                            onClick={() =>
+                                              void toggleEmployeeActive(
+                                                employee.employeeId,
+                                              )
+                                            }
+                                          >
+                                            離職
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                    <details className="collapse collapse-arrow mt-4 bg-base-200">
+                      <summary className="collapse-title font-bold">
+                        離職員工資料（{filteredResignedEmployees.length} /{" "}
+                        {resignedEmployees.length} 位）
+                      </summary>
+                      <div className="collapse-content">
+                        <label className="form-control mb-4">
+                          <span className="label-text">搜尋離職員工</span>
+                          <input
+                            className="input input-bordered"
+                            value={resignedEmployeeSearch}
+                            onChange={(event) =>
+                              setResignedEmployeeSearch(
+                                event.currentTarget.value,
+                              )
+                            }
+                            placeholder="輸入員編、姓名、門市或職稱"
+                          />
+                        </label>
+                        <div className="rounded-lg border border-base-300 bg-base-100 p-4">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <h4 className="font-bold">離職員工資料</h4>
+                            <span className="badge badge-ghost">
+                              {resignedEmployees.length} 位
+                            </span>
+                          </div>
+                          {filteredResignedEmployees.length === 0 ? (
+                            <div className="text-sm opacity-60">
+                              目前沒有符合條件的離職員工資料。
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {filteredResignedEmployees
+                                .slice()
+                                .sort((a, b) =>
+                                  a.storeCode === b.storeCode
+                                    ? a.employeeId.localeCompare(b.employeeId)
+                                    : a.storeCode.localeCompare(b.storeCode),
+                                )
+                                .map((employee) => (
+                                  <div
+                                    key={employee.employeeId}
+                                    className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-base-100 p-3"
                                   >
-                                    {employee.isActive ? "在職" : "停用"}
-                                  </span>
-                                </td>
-                                <td>
-                                  <div className="flex flex-wrap gap-2">
-                                    <button
-                                      className="btn btn-xs btn-outline"
-                                      onClick={() => editEmployee(employee)}
-                                    >
-                                      編輯
-                                    </button>
+                                    <div>
+                                      <div className="font-mono font-semibold">
+                                        {employee.employeeId}
+                                      </div>
+                                      <div className="text-sm opacity-70">
+                                        {employee.name} ·{" "}
+                                        {storeNameMapping[
+                                          employee.storeCode
+                                        ] ?? employee.storeCode}
+                                        分店 · {employee.title || "店員"}
+                                      </div>
+                                    </div>
                                     <button
                                       className="btn btn-xs btn-outline"
                                       onClick={() =>
@@ -5973,66 +6274,15 @@ export default function App() {
                                         )
                                       }
                                     >
-                                      離職
+                                      復職
                                     </button>
                                   </div>
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="mt-6 rounded-lg border border-base-300 bg-base-200 p-4">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <h4 className="font-bold">離職員工資料</h4>
-                        <span className="badge badge-ghost">
-                          {resignedEmployees.length} 位
-                        </span>
+                                ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      {resignedEmployees.length === 0 ? (
-                        <div className="text-sm opacity-60">
-                          目前沒有離職員工資料。
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {resignedEmployees
-                            .slice()
-                            .sort((a, b) =>
-                              a.storeCode === b.storeCode
-                                ? a.employeeId.localeCompare(b.employeeId)
-                                : a.storeCode.localeCompare(b.storeCode),
-                            )
-                            .map((employee) => (
-                              <div
-                                key={employee.employeeId}
-                                className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-base-100 p-3"
-                              >
-                                <div>
-                                  <div className="font-mono font-semibold">
-                                    {employee.employeeId}
-                                  </div>
-                                  <div className="text-sm opacity-70">
-                                    {employee.name} ·{" "}
-                                    {storeNameMapping[employee.storeCode] ??
-                                      employee.storeCode}
-                                    分店 · {employee.title || "店員"}
-                                  </div>
-                                </div>
-                                <button
-                                  className="btn btn-xs btn-outline"
-                                  onClick={() =>
-                                    void toggleEmployeeActive(
-                                      employee.employeeId,
-                                    )
-                                  }
-                                >
-                                  復職
-                                </button>
-                              </div>
-                            ))}
-                        </div>
-                      )}
-                    </div>
+                    </details>
                   </section>
                 </div>
 
@@ -6086,6 +6336,18 @@ export default function App() {
                       </label>
                     </div>
                   </div>
+
+                  <label className="form-control mb-4">
+                    <span className="label-text">搜尋工時資料</span>
+                    <input
+                      className="input input-bordered"
+                      value={employeeWorkSearch}
+                      onChange={(event) =>
+                        setEmployeeWorkSearch(event.currentTarget.value)
+                      }
+                      placeholder="輸入員編、姓名、門市、職稱或補卡備註"
+                    />
+                  </label>
 
                   <div className="grid gap-3 md:grid-cols-4">
                     <div className="rounded-lg bg-base-200 p-4">
@@ -7057,8 +7319,19 @@ export default function App() {
                 }
               >
                 <h2 className="text-2xl font-bold mb-3">POS 訂單看板</h2>
+                <label className="form-control mb-4">
+                  <span className="label-text">搜尋訂單</span>
+                  <input
+                    className="input input-bordered"
+                    value={adminOrderSearch}
+                    onChange={(event) =>
+                      setAdminOrderSearch(event.currentTarget.value)
+                    }
+                    placeholder="輸入單號、客人、電話、品項或付款方式"
+                  />
+                </label>
                 <div className="grid gap-3 xl:grid-cols-2">
-                  {adminOrders
+                  {filteredAdminOrders
                     .filter(
                       (order) =>
                         order.status === "submitted" ||
@@ -7531,6 +7804,17 @@ export default function App() {
                     菜單商品管理
                   </summary>
                   <div className="collapse-content">
+                    <label className="form-control mb-4">
+                      <span className="label-text">搜尋菜單商品</span>
+                      <input
+                        className="input input-bordered"
+                        value={adminMenuSearch}
+                        onChange={(event) =>
+                          setAdminMenuSearch(event.currentTarget.value)
+                        }
+                        placeholder="輸入商品名稱、分類、代碼或價格"
+                      />
+                    </label>
                     <div className="overflow-x-auto rounded-lg border border-base-300">
                       <table className="table min-w-[1080px]">
                         <thead>
@@ -7544,7 +7828,11 @@ export default function App() {
                           </tr>
                         </thead>
                         {Array.from(
-                          new Set(items.map((item) => item.category)),
+                          new Set(
+                            filteredAdminMenuItems.map(
+                              (item) => item.category,
+                            ),
+                          ),
                         ).map((category) => (
                           <tbody key={category}>
                             <tr className="bg-base-300">
@@ -7555,7 +7843,7 @@ export default function App() {
                                 {category}
                               </td>
                             </tr>
-                            {items
+                            {filteredAdminMenuItems
                               .filter((item) => item.category === category)
                               .map((item) => {
                                 const histories =
@@ -7678,6 +7966,17 @@ export default function App() {
                   </div>
                 ) : null}
                 <h2 className="text-2xl font-bold mb-3">目前促銷</h2>
+                <label className="form-control mb-4">
+                  <span className="label-text">搜尋促銷</span>
+                  <input
+                    className="input input-bordered"
+                    value={promotionSearch}
+                    onChange={(event) =>
+                      setPromotionSearch(event.currentTarget.value)
+                    }
+                    placeholder="輸入活動名稱、品項、折扣或日期"
+                  />
+                </label>
                 <div className="mb-4 rounded-lg bg-base-100 p-4 shadow">
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                     <label className="form-control">
@@ -7826,12 +8125,12 @@ export default function App() {
                   </button>
                 </div>
                 <div className="space-y-3">
-                  {currentPromotions.length === 0 ? (
+                  {filteredCurrentPromotions.length === 0 ? (
                     <div className="alert bg-base-100">
-                      <span>目前沒有啟用中的促銷。</span>
+                      <span>目前沒有符合條件的啟用中促銷。</span>
                     </div>
                   ) : (
-                    currentPromotions.map((promotion) => (
+                    filteredCurrentPromotions.map((promotion) => (
                       <article
                         key={promotion.id}
                         className="card bg-base-100 shadow"
@@ -7867,15 +8166,16 @@ export default function App() {
                 </div>
                 <details className="collapse collapse-arrow mt-4 bg-base-100 shadow">
                   <summary className="collapse-title text-xl font-bold">
-                    歷史促銷（{historicalPromotions.length}）
+                    歷史促銷（{filteredHistoricalPromotions.length} /{" "}
+                    {historicalPromotions.length}）
                   </summary>
                   <div className="collapse-content space-y-3">
-                    {historicalPromotions.length === 0 ? (
+                    {filteredHistoricalPromotions.length === 0 ? (
                       <div className="text-sm opacity-60">
-                        目前沒有過期促銷。
+                        目前沒有符合條件的過期促銷。
                       </div>
                     ) : (
-                      historicalPromotions.map((promotion) => (
+                      filteredHistoricalPromotions.map((promotion) => (
                         <div
                           key={`history-promotion-${promotion.id}`}
                           className="rounded-lg border border-base-300 bg-base-200 p-3"
@@ -8135,6 +8435,65 @@ export default function App() {
                           />
                         </label>
                       </div>
+                      <div className="rounded-lg border border-base-300 bg-base-200 p-3">
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-sm font-semibold">
+                            適用門市
+                          </span>
+                          <button
+                            className="btn btn-xs btn-outline"
+                            onClick={() =>
+                              setNewCoupon((current) => ({
+                                ...current,
+                                applicableStoreCodes: [],
+                              }))
+                            }
+                          >
+                            全部門市適用
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {branchStoreOptions.map((store) => {
+                            const checked =
+                              newCoupon.applicableStoreCodes.includes(
+                                store.code,
+                              );
+                            return (
+                              <button
+                                key={`coupon-store-${store.code}`}
+                                className={`btn btn-sm ${
+                                  checked ? "btn-primary" : "btn-outline"
+                                }`}
+                                onClick={() =>
+                                  setNewCoupon((current) => ({
+                                    ...current,
+                                    applicableStoreCodes: checked
+                                      ? current.applicableStoreCodes.filter(
+                                          (code) => code !== store.code,
+                                        )
+                                      : [
+                                          ...current.applicableStoreCodes,
+                                          store.code,
+                                        ],
+                                  }))
+                                }
+                              >
+                                {store.name.replace("分店", "")}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="mt-2 text-xs opacity-60">
+                          {newCoupon.applicableStoreCodes.length === 0
+                            ? "目前設定：全部門市皆可使用。"
+                            : `目前設定：只限 ${newCoupon.applicableStoreCodes
+                                .map(
+                                  (code) =>
+                                    `${storeNameMapping[code] ?? code}分店`,
+                                )
+                                .join("、")} 使用。`}
+                        </p>
+                      </div>
                       <p className="text-xs opacity-60">
                         使用期間：
                         {newCoupon.startsDate
@@ -8165,9 +8524,26 @@ export default function App() {
                     </div>
                   </div>
                   <div className="bg-base-100 rounded-lg shadow p-4">
-                    <h3 className="mb-3 text-lg font-bold">目前優惠券</h3>
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                      <h3 className="text-lg font-bold">目前優惠券</h3>
+                      <span className="badge badge-outline">
+                        {filteredCurrentCoupons.length} /{" "}
+                        {currentCoupons.length} 張
+                      </span>
+                    </div>
+                    <label className="form-control mb-3">
+                      <span className="label-text">搜尋優惠券</span>
+                      <input
+                        className="input input-bordered"
+                        value={couponSearch}
+                        onChange={(event) =>
+                          setCouponSearch(event.currentTarget.value)
+                        }
+                        placeholder="輸入優惠碼、名稱、門市或日期"
+                      />
+                    </label>
                     <ul className="space-y-2">
-                      {currentCoupons.map((coupon) => (
+                      {filteredCurrentCoupons.map((coupon) => (
                         <li
                           key={coupon.code}
                           className="flex flex-col gap-3 border-b border-base-300 pb-3 sm:flex-row sm:items-start sm:justify-between"
@@ -8191,6 +8567,8 @@ export default function App() {
                               {coupon.expiresAt
                                 ? ` · 到期 ${formatTaipeiDateTime(coupon.expiresAt)}`
                                 : ""}
+                              {" · "}
+                              {couponStoreScopeText(coupon)}
                             </p>
                           </div>
                           <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
@@ -8217,22 +8595,23 @@ export default function App() {
                         </li>
                       ))}
                     </ul>
-                    {currentCoupons.length === 0 ? (
+                    {filteredCurrentCoupons.length === 0 ? (
                       <div className="text-sm opacity-60">
-                        目前沒有可使用優惠券。
+                        目前沒有符合條件的可使用優惠券。
                       </div>
                     ) : null}
                     <details className="collapse collapse-arrow mt-4 bg-base-200">
                       <summary className="collapse-title font-bold">
-                        歷史優惠券（{historicalCoupons.length}）
+                        歷史優惠券（{filteredHistoricalCoupons.length} /{" "}
+                        {historicalCoupons.length}）
                       </summary>
                       <div className="collapse-content space-y-2">
-                        {historicalCoupons.length === 0 ? (
+                        {filteredHistoricalCoupons.length === 0 ? (
                           <div className="text-sm opacity-60">
-                            目前沒有過期或停用優惠券。
+                            目前沒有符合條件的過期或停用優惠券。
                           </div>
                         ) : (
-                          historicalCoupons.map((coupon) => (
+                          filteredHistoricalCoupons.map((coupon) => (
                             <div
                               key={`history-coupon-${coupon.code}`}
                               className="rounded-lg border border-base-300 bg-base-100 p-3"
@@ -8246,6 +8625,8 @@ export default function App() {
                                     {coupon.expiresAt
                                       ? `到期 ${formatTaipeiDateTime(coupon.expiresAt)}`
                                       : "已停用"}
+                                    {" · "}
+                                    {couponStoreScopeText(coupon)}
                                   </div>
                                 </div>
                                 <span className="badge badge-ghost">歷史</span>
@@ -8497,6 +8878,22 @@ export default function App() {
           </div>
         ) : (
           <>
+            <label className="form-control mb-6">
+              <span className="label-text">搜尋菜單</span>
+              <input
+                className="input input-bordered"
+                value={customerMenuSearch}
+                onChange={(event) =>
+                  setCustomerMenuSearch(event.currentTarget.value)
+                }
+                placeholder="輸入餐點名稱、分類或描述"
+              />
+            </label>
+            {visibleMenuItems.length === 0 ? (
+              <div className="alert bg-base-100">
+                <span>目前沒有符合搜尋條件的餐點。</span>
+              </div>
+            ) : null}
             {grouped.recentItems.length > 0 ? (
               <div className="mb-10">
                 <h2 className="text-3xl font-bold mb-4 text-primary border-b-2 border-primary pb-2">

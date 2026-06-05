@@ -194,6 +194,7 @@ export const createCouponBodySchema = z.object({
   maxDiscount: z.number().int().min(0).default(0),
   usageLimitPerUser: z.number().int().min(1).default(1),
   usageLimitTotal: z.number().int().min(0).default(0),
+  applicableStoreCodes: z.array(z.string().min(1)).default([]),
   startsAt: z.string().optional(),
   expiresAt: z.string().optional(),
   isActive: z.boolean().default(true),

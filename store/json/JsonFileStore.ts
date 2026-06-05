@@ -499,6 +499,11 @@ export class JsonFileStore implements Store {
               maxDiscount: coupon.maxDiscount ?? 0,
               usageLimitPerUser: coupon.usageLimitPerUser ?? 1,
               usageLimitTotal: coupon.usageLimitTotal ?? 0,
+              applicableStoreCodes: Array.isArray(coupon.applicableStoreCodes)
+                ? coupon.applicableStoreCodes.filter((code) =>
+                    typeof code === "string" && code.trim(),
+                  )
+                : [],
               startsAt: coupon.startsAt,
               expiresAt: coupon.expiresAt,
               isActive: coupon.isActive,
@@ -1100,6 +1105,7 @@ export class JsonFileStore implements Store {
       maxDiscount: input.maxDiscount ?? 0,
       usageLimitPerUser: input.usageLimitPerUser ?? 1,
       usageLimitTotal: input.usageLimitTotal ?? 0,
+      applicableStoreCodes: input.applicableStoreCodes ?? [],
       startsAt: input.startsAt || undefined,
       expiresAt: input.expiresAt || undefined,
     };
@@ -1155,6 +1161,13 @@ export class JsonFileStore implements Store {
       return false;
     }
     if (coupon.expiresAt && new Date(coupon.expiresAt).getTime() < Date.now()) {
+      return false;
+    }
+    const applicableStoreCodes = coupon.applicableStoreCodes ?? [];
+    if (
+      applicableStoreCodes.length > 0 &&
+      !applicableStoreCodes.includes(order.storeCode ?? "default")
+    ) {
       return false;
     }
     const totalUsedCount = this.orders.filter(

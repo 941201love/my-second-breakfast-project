@@ -92,6 +92,7 @@ export const couponSchema = z.object({
   maxDiscount: z.number().int().min(0).optional(),
   usageLimitPerUser: z.number().int().min(1).optional(),
   usageLimitTotal: z.number().int().min(0).optional(),
+  applicableStoreCodes: z.array(z.string().min(1)).optional(),
   startsAt: z.string().min(1).optional(),
   expiresAt: z.string().min(1).optional(),
   isActive: z.boolean(),

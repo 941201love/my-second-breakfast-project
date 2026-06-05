@@ -113,6 +113,20 @@ const defaultEmployees: Employee[] = [
   },
 ];
 
+function serializeStoreCodes(storeCodes: string[] | undefined): string {
+  return (storeCodes ?? [])
+    .map((code) => code.trim())
+    .filter(Boolean)
+    .join(",");
+}
+
+function parseStoreCodes(value: string | null | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((code) => code.trim())
+    .filter(Boolean);
+}
+
 export class PgStore implements Store {
   private readonly dataFilePath: string;
   private menu: MenuItem[] = [];
@@ -758,6 +772,7 @@ export class PgStore implements Store {
         maxDiscount: input.maxDiscount ?? 0,
         usageLimitPerUser: input.usageLimitPerUser ?? 1,
         usageLimitTotal: input.usageLimitTotal ?? 0,
+        applicableStoreCodes: serializeStoreCodes(input.applicableStoreCodes),
         startsAt: input.startsAt ? new Date(input.startsAt) : null,
         expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
       })
@@ -771,6 +786,7 @@ export class PgStore implements Store {
           maxDiscount: input.maxDiscount ?? 0,
           usageLimitPerUser: input.usageLimitPerUser ?? 1,
           usageLimitTotal: input.usageLimitTotal ?? 0,
+          applicableStoreCodes: serializeStoreCodes(input.applicableStoreCodes),
           startsAt: input.startsAt ? new Date(input.startsAt) : null,
           expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
           isActive: input.isActive,
@@ -788,6 +804,10 @@ export class PgStore implements Store {
       maxDiscount: row?.maxDiscount ?? input.maxDiscount ?? 0,
       usageLimitPerUser: row?.usageLimitPerUser ?? input.usageLimitPerUser ?? 1,
       usageLimitTotal: row?.usageLimitTotal ?? input.usageLimitTotal ?? 0,
+      applicableStoreCodes:
+        row?.applicableStoreCodes !== undefined
+          ? parseStoreCodes(row.applicableStoreCodes)
+          : (input.applicableStoreCodes ?? []),
       startsAt: row?.startsAt?.toISOString() ?? input.startsAt,
       expiresAt: row?.expiresAt?.toISOString() ?? input.expiresAt,
       isActive: row?.isActive ?? input.isActive,
@@ -986,6 +1006,7 @@ export class PgStore implements Store {
       maxDiscount: row.maxDiscount,
       usageLimitPerUser: row.usageLimitPerUser,
       usageLimitTotal: row.usageLimitTotal,
+      applicableStoreCodes: parseStoreCodes(row.applicableStoreCodes),
       startsAt: row.startsAt?.toISOString(),
       expiresAt: row.expiresAt?.toISOString(),
       isActive: row.isActive,
@@ -1008,6 +1029,10 @@ export class PgStore implements Store {
     await db.execute(sql`
       ALTER TABLE ${sql.raw(`"${schemaName}"`)}."coupons"
         ADD COLUMN IF NOT EXISTS "usage_limit_total" integer DEFAULT 0 NOT NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."coupons"
+        ADD COLUMN IF NOT EXISTS "applicable_store_codes" text DEFAULT '' NOT NULL
     `);
     await db.execute(sql`
       ALTER TABLE ${sql.raw(`"${schemaName}"`)}."coupons"
@@ -1149,6 +1174,13 @@ export class PgStore implements Store {
       return false;
     }
     if (coupon.expiresAt && new Date(coupon.expiresAt).getTime() < Date.now()) {
+      return false;
+    }
+    const applicableStoreCodes = coupon.applicableStoreCodes ?? [];
+    if (
+      applicableStoreCodes.length > 0 &&
+      !applicableStoreCodes.includes(order.storeCode ?? "default")
+    ) {
       return false;
     }
     const totalUsedCount = this.orders.filter(

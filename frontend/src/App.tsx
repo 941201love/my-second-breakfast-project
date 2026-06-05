@@ -27,22 +27,9 @@ function isDrink(item: MenuItem) {
   return item.category.includes("飲") || item.category.includes("茶");
 }
 
-type CustomerMenuCategoryFilter = "main" | "drink" | "dessert";
+const newItemsTabKey = "__new_items__";
+type CustomerMenuCategoryFilter = string;
 type CustomerPriceSort = "none" | "asc" | "desc";
-
-function customerMenuCategory(item: MenuItem): CustomerMenuCategoryFilter {
-  const category = item.category;
-  if (category.includes("飲") || category.includes("茶")) return "drink";
-  if (
-    category.includes("甜") ||
-    category.includes("點心") ||
-    category.includes("蛋糕") ||
-    category.includes("餅乾")
-  ) {
-    return "dessert";
-  }
-  return "main";
-}
 
 function customerMenuRating(item: MenuItem): number {
   const key = `${item.logicalId || item.id}-${item.name}`;
@@ -929,6 +916,13 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     noCollectedCoupons: "目前尚未新增優惠券。",
     promotionNoticeTitle: "限時優惠",
     promotionNoticeDescription: "活動期間點選商品即可享有優惠價。",
+    searchMenu: "搜尋菜單",
+    searchPlaceholder: "今天想吃什麼早餐？",
+    ratingFilter: "評分 4.5+",
+    priceFilter: "價格",
+    promoFilter: "優惠",
+    noMenuData: "目前沒有菜單資料",
+    noMenuMatches: "目前沒有符合搜尋或篩選條件的餐點。",
     clearing: "清空中...",
     clearCart: "清空購物車",
     submitting: "結帳中...",
@@ -1043,6 +1037,13 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     promotionNoticeTitle: "Limited-time offers",
     promotionNoticeDescription:
       "Select an item to enjoy its promotional price.",
+    searchMenu: "Search menu",
+    searchPlaceholder: "What would you like for breakfast?",
+    ratingFilter: "Rating 4.5+",
+    priceFilter: "Price",
+    promoFilter: "Promo",
+    noMenuData: "No menu items yet.",
+    noMenuMatches: "No items match your search or filters.",
     clearing: "Clearing...",
     clearCart: "Clear cart",
     submitting: "Checking out...",
@@ -1158,6 +1159,13 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     promotionNoticeTitle: "期間限定キャンペーン",
     promotionNoticeDescription:
       "対象商品を選ぶとキャンペーン価格が適用されます。",
+    searchMenu: "メニュー検索",
+    searchPlaceholder: "今日は何を食べますか？",
+    ratingFilter: "評価 4.5+",
+    priceFilter: "価格",
+    promoFilter: "キャンペーン",
+    noMenuData: "メニューはまだありません。",
+    noMenuMatches: "検索または絞り込み条件に合う商品はありません。",
     clearing: "削除中...",
     clearCart: "カートを空にする",
     submitting: "会計中...",
@@ -1272,6 +1280,13 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     noCollectedCoupons: "아직 추가한 쿠폰이 없습니다.",
     promotionNoticeTitle: "기간 한정 할인",
     promotionNoticeDescription: "상품을 선택하면 할인 가격이 적용됩니다.",
+    searchMenu: "메뉴 검색",
+    searchPlaceholder: "오늘 아침은 무엇을 드실래요?",
+    ratingFilter: "평점 4.5+",
+    priceFilter: "가격",
+    promoFilter: "할인",
+    noMenuData: "아직 메뉴가 없습니다.",
+    noMenuMatches: "검색 또는 필터 조건에 맞는 메뉴가 없습니다.",
     clearing: "비우는 중...",
     clearCart: "장바구니 비우기",
     submitting: "결제 중...",
@@ -1413,12 +1428,11 @@ export default function App() {
   const [adminOrderSearch, setAdminOrderSearch] = useState("");
   const [customerMenuSearch, setCustomerMenuSearch] = useState("");
   const [customerCategoryFilter, setCustomerCategoryFilter] =
-    useState<CustomerMenuCategoryFilter>("main");
+    useState<CustomerMenuCategoryFilter>("");
   const [customerRatingOnly, setCustomerRatingOnly] = useState(false);
   const [customerPromoOnly, setCustomerPromoOnly] = useState(false);
   const [customerPriceSort, setCustomerPriceSort] =
     useState<CustomerPriceSort>("none");
-  const [isCustomerFilterOpen, setIsCustomerFilterOpen] = useState(true);
   const [employeeDraft, setEmployeeDraft] = useState<Employee>({
     employeeId: "",
     name: "",
@@ -1721,6 +1735,44 @@ export default function App() {
   };
   const categoryLabel = (category: string) =>
     categoryLabels[profile.language]?.[category] ?? category;
+  const customerCategoryTabs = useMemo(() => {
+    const categories = Array.from(
+      new Set(items.map((item) => item.category || "未分類")),
+    ).sort((a, b) => {
+      const aIndex = breakfastCategoryOptions.indexOf(a);
+      const bIndex = breakfastCategoryOptions.indexOf(b);
+      if (aIndex !== -1 || bIndex !== -1) {
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
+        return aIndex - bIndex;
+      }
+      return a.localeCompare(b, "zh-Hant");
+    });
+
+    return [
+      ...(items.some((item) => item.isRecentlyUpdated)
+        ? [{ key: newItemsTabKey, label: text.newItems }]
+        : []),
+      ...categories.map((category) => ({
+        key: category,
+        label: categoryLabel(category),
+      })),
+    ];
+  }, [items, profile.language, text.newItems]);
+  const activeCustomerCategoryLabel =
+    customerCategoryTabs.find((tab) => tab.key === customerCategoryFilter)
+      ?.label ?? "";
+
+  useEffect(() => {
+    if (customerCategoryTabs.length === 0) {
+      if (customerCategoryFilter) setCustomerCategoryFilter("");
+      return;
+    }
+
+    if (!customerCategoryTabs.some((tab) => tab.key === customerCategoryFilter)) {
+      setCustomerCategoryFilter(customerCategoryTabs[0].key);
+    }
+  }, [customerCategoryFilter, customerCategoryTabs]);
   const normalizeSugarOption = (option: string) =>
     option === "預設糖" ||
     option === "Default sugar" ||
@@ -2419,7 +2471,17 @@ export default function App() {
     () => {
       const filtered = items.filter((item) => {
         const copy = menuCopy(item);
-        if (customerMenuCategory(item) !== customerCategoryFilter) {
+        if (
+          customerCategoryFilter === newItemsTabKey &&
+          !item.isRecentlyUpdated
+        ) {
+          return false;
+        }
+        if (
+          customerCategoryFilter &&
+          customerCategoryFilter !== newItemsTabKey &&
+          (item.category || "未分類") !== customerCategoryFilter
+        ) {
           return false;
         }
         if (customerRatingOnly && customerMenuRating(item) < 4.5) {
@@ -2459,28 +2521,11 @@ export default function App() {
   );
 
   const grouped = useMemo(() => {
-    const recentItems = visibleMenuItems.filter(
-      (item) => item.isRecentlyUpdated,
-    );
-    const groupedItems = visibleMenuItems.reduce(
-      (acc, item) => {
-        if (item.isRecentlyUpdated) return acc;
-        const category = item?.category || "未分類";
-        if (!acc[category]) {
-          acc[category] = [];
-        }
-        acc[category].push(item);
-        return acc;
-      },
-      {} as Record<string, MenuItem[]>,
-    );
-
-    const categories = Object.keys(groupedItems).sort((a, b) =>
-      a.localeCompare(b, "zh-Hant"),
-    );
-
-    return { groupedItems, categories, recentItems };
-  }, [visibleMenuItems]);
+    return {
+      sectionTitle: activeCustomerCategoryLabel,
+      items: visibleMenuItems,
+    };
+  }, [activeCustomerCategoryLabel, visibleMenuItems]);
   const promotionalItems = items.filter((item) => item.activePromotion);
 
   useEffect(() => {
@@ -8934,57 +8979,41 @@ export default function App() {
           </div>
         ) : items.length === 0 ? (
           <div className="alert alert-info">
-            <span>目前沒有菜單資料</span>
+            <span>{text.noMenuData}</span>
           </div>
         ) : (
           <>
             <section className="customer-menu-toolbar">
-              {isCustomerFilterOpen ? (
-                <label className="customer-search-control">
-                  <span>搜尋菜單</span>
-                  <div className="customer-search-box">
-                    <span aria-hidden="true">⌕</span>
-                    <input
-                      value={customerMenuSearch}
-                      onChange={(event) =>
-                        setCustomerMenuSearch(event.currentTarget.value)
-                      }
-                      placeholder="今天想吃什麼早餐？"
-                    />
-                  </div>
-                </label>
-              ) : null}
+              <label className="customer-search-control">
+                <span>{text.searchMenu}</span>
+                <div className="customer-search-box">
+                  <span className="customer-search-icon" aria-hidden="true">
+                    ⌕
+                  </span>
+                  <input
+                    value={customerMenuSearch}
+                    onChange={(event) =>
+                      setCustomerMenuSearch(event.currentTarget.value)
+                    }
+                    placeholder={text.searchPlaceholder}
+                  />
+                </div>
+              </label>
               <div className="customer-filter-row">
-                {[
-                  ["main", "主食"],
-                  ["drink", "飲品"],
-                  ["dessert", "甜點"],
-                ].map(([value, label]) => (
+                {customerCategoryTabs.map((tab) => (
                   <button
-                    key={value}
+                    key={tab.key}
                     type="button"
                     className={`customer-category-tab ${
-                      customerCategoryFilter === value ? "active" : ""
+                      customerCategoryFilter === tab.key ? "active" : ""
                     }`}
                     onClick={() =>
-                      setCustomerCategoryFilter(
-                        value as CustomerMenuCategoryFilter,
-                      )
+                      setCustomerCategoryFilter(tab.key)
                     }
                   >
-                    {label}
+                    {tab.label}
                   </button>
                 ))}
-                <button
-                  type="button"
-                  className={`customer-pill ${isCustomerFilterOpen ? "active" : ""}`}
-                  onClick={() =>
-                    setIsCustomerFilterOpen((current) => !current)
-                  }
-                >
-                  <span aria-hidden="true">▽</span>
-                  Filter
-                </button>
                 <button
                   type="button"
                   className={`customer-pill ${customerRatingOnly ? "active" : ""}`}
@@ -8993,7 +9022,7 @@ export default function App() {
                   }
                 >
                   <span aria-hidden="true">☆</span>
-                  Rating 4.5+
+                  {text.ratingFilter}
                 </button>
                 <button
                   type="button"
@@ -9009,7 +9038,7 @@ export default function App() {
                   }
                 >
                   <span aria-hidden="true">$</span>
-                  Price
+                  {text.priceFilter}
                   {customerPriceSort === "asc"
                     ? " ↑"
                     : customerPriceSort === "desc"
@@ -9022,27 +9051,27 @@ export default function App() {
                   onClick={() => setCustomerPromoOnly((current) => !current)}
                 >
                   <span aria-hidden="true">✺</span>
-                  Promo
+                  {text.promoFilter}
                 </button>
               </div>
             </section>
 
             {visibleMenuItems.length === 0 ? (
               <div className="customer-empty-state">
-                目前沒有符合搜尋或篩選條件的餐點。
+                {text.noMenuMatches}
               </div>
             ) : null}
-            {grouped.recentItems.length > 0 ? (
+            {grouped.items.length > 0 ? (
               <div className="customer-menu-section">
                 <h2 className="customer-section-title">
-                  {text.newItems}
+                  {grouped.sectionTitle}
                 </h2>
                 <div className="customer-menu-list">
-                  {grouped.recentItems.map((item) => {
+                  {grouped.items.map((item) => {
                     const copy = menuCopy(item);
                     return (
                       <article
-                        key={`recent-${item.id}`}
+                        key={item.id}
                         className="customer-menu-card"
                       >
                         <figure className="customer-menu-image">
@@ -9068,10 +9097,16 @@ export default function App() {
                             </p>
                           </div>
                           <div className="customer-menu-meta">
-                            <span className="customer-badge">
-                              {text.newBadge}
-                            </span>
-                            <span>{categoryLabel(item.category)}</span>
+                            {item.isRecentlyUpdated ? (
+                              <span className="customer-badge">
+                                {text.newBadge}
+                              </span>
+                            ) : null}
+                            {item.activePromotion ? (
+                              <span className="customer-badge">
+                                {item.activePromotion.name}
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                         <div className="customer-card-actions">
@@ -9101,76 +9136,6 @@ export default function App() {
                 </div>
               </div>
             ) : null}
-
-            {grouped.categories.map((category) => (
-              <div key={category} className="customer-menu-section">
-                <h2 className="customer-section-title">
-                  {categoryLabel(category)}
-                </h2>
-                <div className="customer-menu-list">
-                  {(grouped.groupedItems[category] || []).map((item) => {
-                    const copy = menuCopy(item);
-                    return (
-                      <article
-                        key={item.id}
-                        className="customer-menu-card"
-                      >
-                        <figure className="customer-menu-image">
-                          <img
-                            src={item.imageUrl}
-                            alt={copy.name}
-                            loading="lazy"
-                            onError={(event) => {
-                              const target = event.currentTarget;
-                              target.src =
-                                "https://images.unsplash.com/photo-1526318896980-cf78c088247c?auto=format&fit=crop&w=800&q=80";
-                            }}
-                          />
-                          <div className="customer-rating-badge">
-                            ★ {customerMenuRating(item)}
-                          </div>
-                        </figure>
-                        <div className="customer-menu-info">
-                          <div>
-                            <h3>{copy.name}</h3>
-                            <p>{copy.description}</p>
-                          </div>
-                          <div className="customer-menu-meta">
-                            {item.activePromotion ? (
-                              <span className="customer-badge">
-                                {item.activePromotion.name}
-                              </span>
-                            ) : null}
-                            <span>{categoryLabel(item.category)}</span>
-                          </div>
-                        </div>
-                        <div className="customer-card-actions">
-                          <div className="customer-card-price">
-                            {item.activePromotion ? (
-                              <span>{formatMoney(item.price)}</span>
-                            ) : null}
-                            <strong>
-                              {formatMoney(promotionalMenuItemPrice(item))}
-                            </strong>
-                          </div>
-                          <button
-                            className="customer-add-button"
-                            onClick={() => {
-                              openAddToCart(item);
-                            }}
-                            disabled={activeItemId === item.id}
-                          >
-                            {activeItemId === item.id
-                              ? text.adding
-                              : `${text.addToCart}${cartQtyByItemId[item.id] ? ` (${cartQtyByItemId[item.id]})` : ""}`}
-                          </button>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
           </>
         )}
       </main>

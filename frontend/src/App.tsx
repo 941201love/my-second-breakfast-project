@@ -78,9 +78,15 @@ function orderWaitMinutes(order: Order) {
 }
 
 function orderWaitClass(minutes: number) {
-  if (minutes >= 15) return "bg-error/20";
-  if (minutes >= 10) return "bg-warning/20";
+  if (minutes >= 15) return "border-error/60 bg-error/25";
+  if (minutes >= 10) return "border-warning/60 bg-warning/20";
   return "";
+}
+
+function orderWaitTextClass(minutes: number) {
+  if (minutes >= 15) return "text-error";
+  if (minutes >= 10) return "text-warning";
+  return "text-base-content";
 }
 
 function formatMoney(amount: number) {
@@ -125,6 +131,14 @@ function taipeiDateTimeToIso(date: string, time: string) {
   const parsed = new Date(`${date}T${time}:00+08:00`);
   if (Number.isNaN(parsed.getTime())) return "";
   return parsed.toISOString();
+}
+
+function buildClockTimeOptions() {
+  return Array.from({ length: 24 * 4 }, (_, index) => {
+    const hour = Math.floor(index / 4);
+    const minute = (index % 4) * 15;
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  });
 }
 
 function taipeiDayBoundaryIso(date: string, endOfDay: boolean) {
@@ -1417,6 +1431,7 @@ export default function App() {
   const [manualClockIn, setManualClockIn] = useState("");
   const [manualClockOut, setManualClockOut] = useState("");
   const [manualClockNote, setManualClockNote] = useState("");
+  const clockTimeOptions = useMemo(() => buildClockTimeOptions(), []);
   const [checkedPosItems, setCheckedPosItems] = useState<
     Record<string, boolean>
   >({});
@@ -1584,9 +1599,16 @@ export default function App() {
     );
   const orderItemIsDrink = (detail: OrderItem) => {
     const currentItem = orderItemMenuItem(detail);
+    const itemName = `${detail.menuItemName ?? ""} ${currentItem?.name ?? ""} ${
+      currentItem?.category ?? ""
+    }`;
     return currentItem
       ? isDrink(currentItem)
-      : Boolean(detail.sugarLevel || detail.iceLevel);
+      : Boolean(
+          detail.sugarLevel ||
+            detail.iceLevel ||
+            /飲|茶|奶茶|紅茶|綠茶|咖啡|豆漿|可樂|果汁/.test(itemName),
+        );
   };
   const categoryLabel = (category: string) =>
     categoryLabels[profile.language]?.[category] ?? category;
@@ -2498,7 +2520,14 @@ export default function App() {
   );
 
   const kitchenOrders = useMemo(
-    () => adminOrders.filter((order) => order.status === "submitted"),
+    () =>
+      adminOrders
+        .filter((order) => order.status === "submitted")
+        .sort(
+          (a, b) =>
+            new Date(a.submittedAt ?? a.createdAt).getTime() -
+            new Date(b.submittedAt ?? b.createdAt).getTime(),
+        ),
     [adminOrders],
   );
 
@@ -2996,6 +3025,11 @@ export default function App() {
     }
 
     setAdminAuthed(true);
+    setAdminLogin({
+      username: "",
+      password: "",
+      storeCode: "",
+    });
     if (adminLoginMode === "branch") {
       const branchCode = trimmedStoreCode;
       setAdminStoreCode(branchCode);
@@ -3017,6 +3051,11 @@ export default function App() {
     });
     setAdminAuthed(false);
     setAdminStoreCode(null);
+    setAdminLogin({
+      username: "",
+      password: "",
+      storeCode: "",
+    });
     window.localStorage.removeItem("breakfast-admin-store-code");
     setAdminError("");
     setAdminOrders([]);
@@ -5012,14 +5051,28 @@ export default function App() {
                   <button
                     className={`btn btn-sm ${adminLoginMode === "branch" ? "btn-primary" : "btn-outline"}`}
                     type="button"
-                    onClick={() => setAdminLoginMode("branch")}
+                    onClick={() => {
+                      setAdminLoginMode("branch");
+                      setAdminLogin({
+                        username: "",
+                        password: "",
+                        storeCode: "",
+                      });
+                    }}
                   >
                     分店登入
                   </button>
                   <button
                     className={`btn btn-sm ${adminLoginMode === "headquarter" ? "btn-primary" : "btn-outline"}`}
                     type="button"
-                    onClick={() => setAdminLoginMode("headquarter")}
+                    onClick={() => {
+                      setAdminLoginMode("headquarter");
+                      setAdminLogin({
+                        username: "",
+                        password: "",
+                        storeCode: "",
+                      });
+                    }}
                   >
                     總部登入
                   </button>
@@ -5029,6 +5082,8 @@ export default function App() {
                   <>
                     <input
                       className="input input-bordered"
+                      autoComplete="off"
+                      name="admin-store-code"
                       value={adminLogin.storeCode}
                       onChange={(event) => {
                         const storeCode = event.currentTarget.value;
@@ -5047,6 +5102,8 @@ export default function App() {
                   <>
                     <input
                       className="input input-bordered"
+                      autoComplete="off"
+                      name="admin-username"
                       value={adminLogin.username}
                       onChange={(event) => {
                         const username = event.currentTarget.value;
@@ -5066,6 +5123,8 @@ export default function App() {
                 <input
                   className="input input-bordered"
                   type="password"
+                  autoComplete="new-password"
+                  name="admin-password"
                   value={adminLogin.password}
                   onChange={(event) => {
                     const password = event.currentTarget.value;
@@ -5245,7 +5304,7 @@ export default function App() {
                           key={order.id}
                           className={`rounded-lg border p-2 shadow transition ${
                             order.status === "submitted"
-                              ? "bg-base-100"
+                              ? orderWaitClass(waitMinutes) || "bg-base-100"
                               : "bg-success/10"
                           }`}
                         >
@@ -5270,14 +5329,18 @@ export default function App() {
                               <p className="text-[11px] font-semibold leading-none text-base-content/60">
                                 製作時間
                               </p>
-                              <p className="text-base font-bold leading-tight">
+                              <p
+                                className={`text-base font-bold leading-tight ${orderWaitTextClass(waitMinutes)}`}
+                              >
                                 {waitMinutes} 分鐘
                               </p>
                             </div>
                           </div>
                           <div className="mb-2 grid auto-rows-[3.75rem] grid-cols-1 gap-1 text-sm sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                             {kitchenItems.map(({ item, key, unitIndex }) => {
-                              const itemDone = Boolean(checkedPosItems[key]);
+                              const itemDone =
+                                checkedPosItems[key] ??
+                                order.status !== "submitted";
                               const details = kitchenOrderItemDetails(item);
                               return (
                                 <button
@@ -5858,25 +5921,37 @@ export default function App() {
                         </label>
                         <label className="form-control">
                           <span className="label-text mb-1">上班</span>
-                          <input
-                            className="input input-bordered"
-                            type="time"
+                          <select
+                            className="select select-bordered"
                             value={manualClockIn}
                             onChange={(event) =>
                               setManualClockIn(event.currentTarget.value)
                             }
-                          />
+                          >
+                            <option value="">選擇時間</option>
+                            {clockTimeOptions.map((time) => (
+                              <option key={`clock-in-${time}`} value={time}>
+                                {time}
+                              </option>
+                            ))}
+                          </select>
                         </label>
                         <label className="form-control">
                           <span className="label-text mb-1">下班</span>
-                          <input
-                            className="input input-bordered"
-                            type="time"
+                          <select
+                            className="select select-bordered"
                             value={manualClockOut}
                             onChange={(event) =>
                               setManualClockOut(event.currentTarget.value)
                             }
-                          />
+                          >
+                            <option value="">未下班</option>
+                            {clockTimeOptions.map((time) => (
+                              <option key={`clock-out-${time}`} value={time}>
+                                {time}
+                              </option>
+                            ))}
+                          </select>
                         </label>
                         <label className="form-control">
                           <span className="label-text mb-1">備註</span>
@@ -6457,6 +6532,11 @@ export default function App() {
                         order.status === "submitted" ||
                         order.status === "completed",
                     )
+                    .sort(
+                      (a, b) =>
+                        new Date(a.submittedAt ?? a.createdAt).getTime() -
+                        new Date(b.submittedAt ?? b.createdAt).getTime(),
+                    )
                     .slice(0, 20)
                     .map((order) => {
                       const waitMinutes = orderWaitMinutes(order);
@@ -6479,7 +6559,13 @@ export default function App() {
                                 >
                                   {orderStatusLabel(order.status)}
                                 </span>
-                                <div className="mt-1 text-xs opacity-70">
+                                <div
+                                  className={`mt-1 text-xs ${
+                                    order.status === "submitted"
+                                      ? orderWaitTextClass(waitMinutes)
+                                      : "opacity-70"
+                                  }`}
+                                >
                                   {order.status === "completed"
                                     ? "待顧客取貨"
                                     : `等待 ${waitMinutes} 分鐘`}
@@ -6498,11 +6584,14 @@ export default function App() {
                             <ul className="space-y-1 text-sm">
                               {order.items.map((item, index) => {
                                 const checkboxId = `${order.id}-${item.id ?? item.menuItemId}-${index}`;
+                                const itemDone =
+                                  checkedPosItems[checkboxId] ??
+                                  order.status !== "submitted";
                                 return (
                                   <li
                                     key={checkboxId}
                                     className={`flex items-start gap-2 rounded-md px-2 py-1 ${
-                                      checkedPosItems[checkboxId]
+                                      itemDone
                                         ? "bg-success/20 text-success"
                                         : "bg-base-200/40"
                                     }`}
@@ -6510,9 +6599,7 @@ export default function App() {
                                     <input
                                       className="checkbox checkbox-success checkbox-sm mt-1"
                                       type="checkbox"
-                                      checked={Boolean(
-                                        checkedPosItems[checkboxId],
-                                      )}
+                                      checked={itemDone}
                                       onChange={(event) => {
                                         const checked =
                                           event.currentTarget.checked;
@@ -6524,7 +6611,7 @@ export default function App() {
                                     />
                                     <span
                                       className={
-                                        checkedPosItems[checkboxId]
+                                        itemDone
                                           ? "line-through opacity-50"
                                           : ""
                                       }

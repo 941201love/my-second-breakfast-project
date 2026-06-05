@@ -3904,7 +3904,11 @@ export default function App() {
       }
 
       const payload = (await response.json()) as ApiDataResponse<Order>;
-      const completedOrder = payload.data;
+      const completedOrder = {
+        ...payload.data,
+        completedAt: payload.data.completedAt ?? new Date().toISOString(),
+        status: "completed" as const,
+      };
       setAdminOrders((current) =>
         current.map((order) =>
           order.id === orderId ? completedOrder : order,
@@ -6756,14 +6760,14 @@ export default function App() {
                                 return (
                                   <li
                                     key={checkboxId}
-                                    className={`flex items-start gap-2 rounded-md px-2 py-1 ${
+                                    className={`flex items-center gap-2 rounded-md px-2 py-1 ${
                                       itemDone
                                         ? "bg-success/20 text-success"
                                         : "bg-base-200/40"
                                     }`}
                                   >
                                     <input
-                                      className="checkbox checkbox-success checkbox-sm mt-1"
+                                      className="checkbox checkbox-success checkbox-sm shrink-0"
                                       type="checkbox"
                                       checked={itemDone}
                                       onChange={(event) => {
@@ -6835,12 +6839,12 @@ export default function App() {
                               <div className="text-base-content/80">
                                 下單：{formatTaipeiDateTime(order.submittedAt)}
                               </div>
-                              {order.completedAt ? (
-                                <div className="text-base-content/80">
-                                  完成：
-                                  {formatTaipeiDateTime(order.completedAt)}
-                                </div>
-                              ) : null}
+                              <div className="text-base-content/80">
+                                完成：
+                                {order.completedAt
+                                  ? formatTaipeiDateTime(order.completedAt)
+                                  : "-"}
+                              </div>
                             </div>
                           </div>
 

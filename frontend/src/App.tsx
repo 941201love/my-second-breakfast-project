@@ -133,12 +133,35 @@ function taipeiDateTimeToIso(date: string, time: string) {
   return parsed.toISOString();
 }
 
-function buildClockTimeOptions() {
-  return Array.from({ length: 24 * 4 }, (_, index) => {
-    const hour = Math.floor(index / 4);
-    const minute = (index % 4) * 15;
-    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-  });
+function timeToPickerParts(time: string) {
+  const [hourText = "09", minuteText = "00"] = time.split(":");
+  const hour24 = Number.parseInt(hourText, 10);
+  const minute = Number.parseInt(minuteText, 10);
+  const safeHour = Number.isFinite(hour24) ? hour24 : 9;
+  const safeMinute = Number.isFinite(minute) ? minute : 0;
+  const period: "am" | "pm" = safeHour >= 12 ? "pm" : "am";
+  const hour12 = safeHour % 12 || 12;
+
+  return {
+    period,
+    hour: String(hour12).padStart(2, "0"),
+    minute: String(safeMinute).padStart(2, "0"),
+  };
+}
+
+function pickerPartsToTime(
+  period: "am" | "pm",
+  hourText: string,
+  minuteText: string,
+) {
+  const hour12 = Number.parseInt(hourText, 10);
+  const minute = Number.parseInt(minuteText, 10);
+  const normalizedHour =
+    period === "pm" ? (hour12 % 12) + 12 : hour12 === 12 ? 0 : hour12;
+
+  return `${String(normalizedHour).padStart(2, "0")}:${String(
+    Number.isFinite(minute) ? minute : 0,
+  ).padStart(2, "0")}`;
 }
 
 function taipeiDayBoundaryIso(date: string, endOfDay: boolean) {
@@ -1431,7 +1454,22 @@ export default function App() {
   const [manualClockIn, setManualClockIn] = useState("");
   const [manualClockOut, setManualClockOut] = useState("");
   const [manualClockNote, setManualClockNote] = useState("");
-  const clockTimeOptions = useMemo(() => buildClockTimeOptions(), []);
+  const clockHourOptions = useMemo(
+    () => Array.from({ length: 12 }, (_, index) => String(index + 1)),
+    [],
+  );
+  const clockMinuteOptions = useMemo(
+    () => ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"],
+    [],
+  );
+  const [clockPickerTarget, setClockPickerTarget] = useState<
+    "in" | "out" | null
+  >(null);
+  const [clockPickerDraft, setClockPickerDraft] = useState({
+    period: "am" as "am" | "pm",
+    hour: "09",
+    minute: "00",
+  });
   const [checkedPosItems, setCheckedPosItems] = useState<
     Record<string, boolean>
   >({});
@@ -3217,6 +3255,27 @@ export default function App() {
       kitchenClockStorageKey,
       JSON.stringify(allData),
     );
+  }
+
+  function openClockPicker(target: "in" | "out") {
+    const currentTime = target === "in" ? manualClockIn : manualClockOut;
+    setClockPickerDraft(timeToPickerParts(currentTime || "09:00"));
+    setClockPickerTarget(target);
+  }
+
+  function applyClockPicker() {
+    if (!clockPickerTarget) return;
+    const nextTime = pickerPartsToTime(
+      clockPickerDraft.period,
+      clockPickerDraft.hour,
+      clockPickerDraft.minute,
+    );
+    if (clockPickerTarget === "in") {
+      setManualClockIn(nextTime);
+    } else {
+      setManualClockOut(nextTime);
+    }
+    setClockPickerTarget(null);
   }
 
   function handleKitchenClockToggle(): void {
@@ -5043,6 +5102,121 @@ export default function App() {
             </section>
           </div>
         ) : null}
+        {clockPickerTarget ? (
+          <div
+            className="fixed inset-0 z-[2147483646] flex items-center justify-center bg-black/70 p-4"
+            onClick={() => setClockPickerTarget(null)}
+          >
+            <section
+              className="w-full max-w-xl rounded-2xl border border-base-300 bg-base-100 p-4 shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <button
+                  className="btn btn-circle btn-outline"
+                  type="button"
+                  onClick={() => setClockPickerTarget(null)}
+                >
+                  ×
+                </button>
+                <div className="text-2xl font-black">
+                  {clockPickerTarget === "in" ? "編輯上班時間" : "編輯下班時間"}
+                </div>
+                <button
+                  className="btn btn-circle btn-warning"
+                  type="button"
+                  onClick={applyClockPicker}
+                >
+                  ✓
+                </button>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 rounded-xl bg-base-200 p-3">
+                <div className="max-h-64 snap-y overflow-y-auto rounded-lg bg-base-100 p-2">
+                  {[
+                    { value: "am" as const, label: "上午" },
+                    { value: "pm" as const, label: "下午" },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      className={`mb-2 h-14 w-full snap-center rounded-lg text-xl font-bold last:mb-0 ${
+                        clockPickerDraft.period === option.value
+                          ? "bg-primary text-primary-content"
+                          : "hover:bg-base-200"
+                      }`}
+                      type="button"
+                      onClick={() =>
+                        setClockPickerDraft((current) => ({
+                          ...current,
+                          period: option.value,
+                        }))
+                      }
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="max-h-64 snap-y overflow-y-auto rounded-lg bg-base-100 p-2">
+                  {clockHourOptions.map((hour) => {
+                    const paddedHour = hour.padStart(2, "0");
+                    return (
+                      <button
+                        key={hour}
+                        className={`mb-2 h-14 w-full snap-center rounded-lg text-2xl font-bold last:mb-0 ${
+                          clockPickerDraft.hour === paddedHour
+                            ? "bg-primary text-primary-content"
+                            : "hover:bg-base-200"
+                        }`}
+                        type="button"
+                        onClick={() =>
+                          setClockPickerDraft((current) => ({
+                            ...current,
+                            hour: paddedHour,
+                          }))
+                        }
+                      >
+                        {hour}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="max-h-64 snap-y overflow-y-auto rounded-lg bg-base-100 p-2">
+                  {clockMinuteOptions.map((minute) => (
+                    <button
+                      key={minute}
+                      className={`mb-2 h-14 w-full snap-center rounded-lg text-2xl font-bold last:mb-0 ${
+                        clockPickerDraft.minute === minute
+                          ? "bg-primary text-primary-content"
+                          : "hover:bg-base-200"
+                      }`}
+                      type="button"
+                      onClick={() =>
+                        setClockPickerDraft((current) => ({
+                          ...current,
+                          minute,
+                        }))
+                      }
+                    >
+                      {minute}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {clockPickerTarget === "out" ? (
+                <button
+                  className="btn btn-outline mt-3 w-full"
+                  type="button"
+                  onClick={() => {
+                    setManualClockOut("");
+                    setClockPickerTarget(null);
+                  }}
+                >
+                  清除下班時間
+                </button>
+              ) : null}
+            </section>
+          </div>
+        ) : null}
 
         <main className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 space-y-6">
           {!adminAuthed ? (
@@ -5744,27 +5918,29 @@ export default function App() {
                           }
                         />
                       </label>
-                      <div className="rounded-lg border border-base-300 bg-base-200 p-3">
-                        <div className="text-sm font-semibold opacity-70">
+                      <label className="form-control">
+                        <span className="label-text mb-1 font-semibold">
                           當日值班
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {dutyEmployeesForQueryDate.length === 0 ? (
-                            <span className="text-sm opacity-60">
-                              這天尚無打卡紀錄。
-                            </span>
-                          ) : (
-                            dutyEmployeesForQueryDate.map((employee) => (
-                              <span
-                                key={`duty-${employee.employeeId}`}
-                                className="badge badge-outline"
-                              >
-                                {employee.employeeId} {employee.name}
+                        </span>
+                        <div className="min-h-14 rounded-lg border border-base-300 bg-base-200 p-3">
+                          <div className="flex flex-wrap gap-2">
+                            {dutyEmployeesForQueryDate.length === 0 ? (
+                              <span className="text-sm opacity-60">
+                                這天尚無打卡紀錄。
                               </span>
-                            ))
-                          )}
+                            ) : (
+                              dutyEmployeesForQueryDate.map((employee) => (
+                                <span
+                                  key={`duty-${employee.employeeId}`}
+                                  className="badge badge-outline"
+                                >
+                                  {employee.employeeId} {employee.name}
+                                </span>
+                              ))
+                            )}
+                          </div>
                         </div>
-                      </div>
+                      </label>
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-[1fr_220px]">
@@ -5923,37 +6099,25 @@ export default function App() {
                         </label>
                         <label className="form-control">
                           <span className="label-text mb-1">上班</span>
-                          <select
-                            className="select select-bordered"
-                            value={manualClockIn}
-                            onChange={(event) =>
-                              setManualClockIn(event.currentTarget.value)
-                            }
+                          <button
+                            className="btn min-h-12 justify-between border-base-300 bg-base-100 px-4 text-left font-semibold"
+                            type="button"
+                            onClick={() => openClockPicker("in")}
                           >
-                            <option value="">選擇時間</option>
-                            {clockTimeOptions.map((time) => (
-                              <option key={`clock-in-${time}`} value={time}>
-                                {time}
-                              </option>
-                            ))}
-                          </select>
+                            <span>{manualClockIn || "選擇時間"}</span>
+                            <span className="text-sm opacity-60">▼</span>
+                          </button>
                         </label>
                         <label className="form-control">
                           <span className="label-text mb-1">下班</span>
-                          <select
-                            className="select select-bordered"
-                            value={manualClockOut}
-                            onChange={(event) =>
-                              setManualClockOut(event.currentTarget.value)
-                            }
+                          <button
+                            className="btn min-h-12 justify-between border-base-300 bg-base-100 px-4 text-left font-semibold"
+                            type="button"
+                            onClick={() => openClockPicker("out")}
                           >
-                            <option value="">未下班</option>
-                            {clockTimeOptions.map((time) => (
-                              <option key={`clock-out-${time}`} value={time}>
-                                {time}
-                              </option>
-                            ))}
-                          </select>
+                            <span>{manualClockOut || "未下班"}</span>
+                            <span className="text-sm opacity-60">▼</span>
+                          </button>
                         </label>
                         <label className="form-control">
                           <span className="label-text mb-1">備註</span>

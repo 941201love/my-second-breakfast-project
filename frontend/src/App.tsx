@@ -27,6 +27,32 @@ function isDrink(item: MenuItem) {
   return item.category.includes("飲") || item.category.includes("茶");
 }
 
+type CustomerMenuCategoryFilter = "main" | "drink" | "dessert";
+type CustomerPriceSort = "none" | "asc" | "desc";
+
+function customerMenuCategory(item: MenuItem): CustomerMenuCategoryFilter {
+  const category = item.category;
+  if (category.includes("飲") || category.includes("茶")) return "drink";
+  if (
+    category.includes("甜") ||
+    category.includes("點心") ||
+    category.includes("蛋糕") ||
+    category.includes("餅乾")
+  ) {
+    return "dessert";
+  }
+  return "main";
+}
+
+function customerMenuRating(item: MenuItem): number {
+  const key = `${item.logicalId || item.id}-${item.name}`;
+  let hash = 0;
+  for (const char of key) {
+    hash = (hash * 31 + char.charCodeAt(0)) % 1000;
+  }
+  return Number((4.2 + (hash % 8) / 10).toFixed(1));
+}
+
 function formatTaipeiDateTime(value?: string) {
   if (!value) return "-";
   const date = new Date(value);
@@ -1386,6 +1412,13 @@ export default function App() {
   const [couponSearch, setCouponSearch] = useState("");
   const [adminOrderSearch, setAdminOrderSearch] = useState("");
   const [customerMenuSearch, setCustomerMenuSearch] = useState("");
+  const [customerCategoryFilter, setCustomerCategoryFilter] =
+    useState<CustomerMenuCategoryFilter>("main");
+  const [customerRatingOnly, setCustomerRatingOnly] = useState(false);
+  const [customerPromoOnly, setCustomerPromoOnly] = useState(false);
+  const [customerPriceSort, setCustomerPriceSort] =
+    useState<CustomerPriceSort>("none");
+  const [isCustomerFilterOpen, setIsCustomerFilterOpen] = useState(true);
   const [employeeDraft, setEmployeeDraft] = useState<Employee>({
     employeeId: "",
     name: "",
@@ -2383,9 +2416,18 @@ export default function App() {
   }, [isOrderHistoryPage, user]);
 
   const visibleMenuItems = useMemo(
-    () =>
-      items.filter((item) => {
+    () => {
+      const filtered = items.filter((item) => {
         const copy = menuCopy(item);
+        if (customerMenuCategory(item) !== customerCategoryFilter) {
+          return false;
+        }
+        if (customerRatingOnly && customerMenuRating(item) < 4.5) {
+          return false;
+        }
+        if (customerPromoOnly && !item.activePromotion) {
+          return false;
+        }
         return matchesSearch(customerMenuSearch, [
           copy.name,
           copy.description,
@@ -2395,8 +2437,25 @@ export default function App() {
           item.logicalId,
           item.price,
         ]);
-      }),
-    [customerMenuSearch, items, profile.language],
+      });
+
+      if (customerPriceSort === "none") return filtered;
+
+      return filtered.slice().sort((a, b) => {
+        const aPrice = promotionalMenuItemPrice(a);
+        const bPrice = promotionalMenuItemPrice(b);
+        return customerPriceSort === "asc" ? aPrice - bPrice : bPrice - aPrice;
+      });
+    },
+    [
+      customerCategoryFilter,
+      customerMenuSearch,
+      customerPriceSort,
+      customerPromoOnly,
+      customerRatingOnly,
+      items,
+      profile.language,
+    ],
   );
 
   const grouped = useMemo(() => {
@@ -8687,22 +8746,23 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-base-200">
-      <div className="border-b border-base-300 bg-base-100 shadow-lg">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="customer-shell min-h-screen">
+      <div className="customer-topbar">
+        <div className="customer-topbar-inner">
           <div className="min-w-0">
-            <div className="normal-case text-2xl font-bold leading-tight">
-              🍔 {text.appTitle}
+            <div className="customer-brand">
+              <span className="customer-brand-mark">🍔</span>
+              <span>{text.appTitle}</span>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(220px,1fr)_auto_auto_auto_auto] lg:w-auto lg:min-w-[720px] lg:max-w-4xl lg:flex lg:items-end lg:justify-end">
+          <div className="customer-action-grid">
             {!adminStoreCode ? (
-              <div className="form-control col-span-2 min-w-0 sm:col-span-1 sm:min-w-64">
-                <span className="label-text text-xs font-semibold opacity-70">
+              <div className="customer-store-control col-span-2 min-w-0 sm:col-span-1 sm:min-w-64">
+                <span className="customer-store-label">
                   取餐門市
                 </span>
                 <details className="dropdown dropdown-bottom w-full">
-                  <summary className="btn btn-outline h-12 w-full justify-between border-base-300 bg-base-100 px-4 text-left font-bold outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0">
+                  <summary className="customer-store-button">
                     <span>
                       {branchStoreOptions.find(
                         (store) => store.code === orderStoreCode,
@@ -8710,7 +8770,7 @@ export default function App() {
                     </span>
                     <span className="text-xs opacity-70">▼</span>
                   </summary>
-                  <div className="dropdown-content z-[2147483647] mt-2 w-full rounded-lg border border-base-300 bg-base-100 p-2 shadow-2xl">
+                  <div className="customer-store-menu dropdown-content z-[2147483647] mt-2 w-full p-2 shadow-2xl">
                     {branchStoreOptions.map((store) => (
                       <button
                         key={store.code}
@@ -8732,8 +8792,8 @@ export default function App() {
                 </details>
               </div>
             ) : (
-              <div className="col-span-2 rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm sm:col-span-1 sm:min-w-52">
-                <div className="text-xs font-semibold opacity-70">取餐門市</div>
+              <div className="customer-store-static col-span-2 sm:col-span-1 sm:min-w-52">
+                <div className="customer-store-label">取餐門市</div>
                 <div className="font-bold">
                   {adminStoreCode === "taipei"
                     ? "台北分店"
@@ -8746,7 +8806,7 @@ export default function App() {
               </div>
             )}
             <button
-              className="btn btn-outline h-12"
+              className="customer-nav-button"
               onClick={() => {
                 setIsPickupStatusOpen(true);
                 void loadOrderProgress(selectedStoreCode);
@@ -8758,7 +8818,7 @@ export default function App() {
               {text.pickupStatus}
             </button>
             <button
-              className="btn btn-outline h-12"
+              className="customer-nav-button"
               onClick={() => {
                 if (user) {
                   setCustomerName(profile.nickname || user.name);
@@ -8772,7 +8832,7 @@ export default function App() {
               {`${text.cartDetails} (${cartItemCount})`}
             </button>
             <button
-              className="btn btn-outline h-12"
+              className="customer-nav-button"
               onClick={() => {
                 navigateCustomer("/orders");
                 void loadOrderHistory();
@@ -8783,7 +8843,7 @@ export default function App() {
             </button>
             {user ? (
               <button
-                className="btn btn-outline h-12"
+                className="customer-nav-button"
                 onClick={() => navigateCustomer("/profile")}
               >
                 {text.profile}
@@ -8791,7 +8851,7 @@ export default function App() {
             ) : null}
             {user ? (
               <button
-                className="btn h-12 bg-base-200"
+                className="customer-nav-button customer-nav-button-filled"
                 onClick={() => {
                   void handleLogout();
                 }}
@@ -8803,7 +8863,7 @@ export default function App() {
         </div>
       </div>
 
-      <main className="container mx-auto p-6">
+      <main className="customer-main">
         {!user ? (
           <section className="max-w-xl mx-auto card bg-base-100 shadow-md mb-8">
             <div className="card-body">
@@ -8836,27 +8896,27 @@ export default function App() {
         ) : null}
 
         {user && promotionalItems.length > 0 ? (
-          <section className="mb-8 border-l-4 border-warning bg-warning/10 px-4 py-3">
-            <h2 className="font-bold text-lg">{text.promotionNoticeTitle}</h2>
-            <p className="text-sm opacity-70">
+          <section className="customer-promo-strip">
+            <h2>{text.promotionNoticeTitle}</h2>
+            <p>
               {text.promotionNoticeDescription}
             </p>
-            <div className="mt-3 divide-y divide-base-300">
+            <div className="customer-promo-list">
               {promotionalItems.map((item) => {
                 const copy = menuCopy(item);
                 return (
                   <div
                     key={`promotion-${item.id}`}
-                    className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+                    className="customer-promo-row"
                   >
                     <span className="font-semibold">
                       {item.activePromotion?.name} · {copy.name}
                     </span>
-                    <span className="flex items-center gap-2">
-                      <span className="line-through opacity-50">
+                    <span className="customer-price-inline">
+                      <span className="customer-old-price">
                         {formatMoney(item.price)}
                       </span>
-                      <strong className="text-success">
+                      <strong>
                         {formatMoney(promotionalMenuItemPrice(item))}
                       </strong>
                     </span>
@@ -8878,40 +8938,117 @@ export default function App() {
           </div>
         ) : (
           <>
-            <label className="form-control mb-6">
-              <span className="label-text">搜尋菜單</span>
-              <input
-                className="input input-bordered"
-                value={customerMenuSearch}
-                onChange={(event) =>
-                  setCustomerMenuSearch(event.currentTarget.value)
-                }
-                placeholder="輸入餐點名稱、分類或描述"
-              />
-            </label>
+            <section className="customer-menu-toolbar">
+              {isCustomerFilterOpen ? (
+                <label className="customer-search-control">
+                  <span>搜尋菜單</span>
+                  <div className="customer-search-box">
+                    <span aria-hidden="true">⌕</span>
+                    <input
+                      value={customerMenuSearch}
+                      onChange={(event) =>
+                        setCustomerMenuSearch(event.currentTarget.value)
+                      }
+                      placeholder="今天想吃什麼早餐？"
+                    />
+                  </div>
+                </label>
+              ) : null}
+              <div className="customer-filter-row">
+                {[
+                  ["main", "主食"],
+                  ["drink", "飲品"],
+                  ["dessert", "甜點"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`customer-category-tab ${
+                      customerCategoryFilter === value ? "active" : ""
+                    }`}
+                    onClick={() =>
+                      setCustomerCategoryFilter(
+                        value as CustomerMenuCategoryFilter,
+                      )
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={`customer-pill ${isCustomerFilterOpen ? "active" : ""}`}
+                  onClick={() =>
+                    setIsCustomerFilterOpen((current) => !current)
+                  }
+                >
+                  <span aria-hidden="true">▽</span>
+                  Filter
+                </button>
+                <button
+                  type="button"
+                  className={`customer-pill ${customerRatingOnly ? "active" : ""}`}
+                  onClick={() =>
+                    setCustomerRatingOnly((current) => !current)
+                  }
+                >
+                  <span aria-hidden="true">☆</span>
+                  Rating 4.5+
+                </button>
+                <button
+                  type="button"
+                  className={`customer-pill ${customerPriceSort !== "none" ? "active" : ""}`}
+                  onClick={() =>
+                    setCustomerPriceSort((current) =>
+                      current === "none"
+                        ? "asc"
+                        : current === "asc"
+                          ? "desc"
+                          : "none",
+                    )
+                  }
+                >
+                  <span aria-hidden="true">$</span>
+                  Price
+                  {customerPriceSort === "asc"
+                    ? " ↑"
+                    : customerPriceSort === "desc"
+                      ? " ↓"
+                      : ""}
+                </button>
+                <button
+                  type="button"
+                  className={`customer-pill ${customerPromoOnly ? "active" : ""}`}
+                  onClick={() => setCustomerPromoOnly((current) => !current)}
+                >
+                  <span aria-hidden="true">✺</span>
+                  Promo
+                </button>
+              </div>
+            </section>
+
             {visibleMenuItems.length === 0 ? (
-              <div className="alert bg-base-100">
-                <span>目前沒有符合搜尋條件的餐點。</span>
+              <div className="customer-empty-state">
+                目前沒有符合搜尋或篩選條件的餐點。
               </div>
             ) : null}
             {grouped.recentItems.length > 0 ? (
-              <div className="mb-10">
-                <h2 className="text-3xl font-bold mb-4 text-primary border-b-2 border-primary pb-2">
+              <div className="customer-menu-section">
+                <h2 className="customer-section-title">
                   {text.newItems}
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="customer-menu-list">
                   {grouped.recentItems.map((item) => {
                     const copy = menuCopy(item);
                     return (
-                      <div
+                      <article
                         key={`recent-${item.id}`}
-                        className="card bg-base-100 shadow-md hover:shadow-lg transition-shadow"
+                        className="customer-menu-card"
                       >
-                        <figure className="h-44 overflow-hidden bg-base-300">
+                        <figure className="customer-menu-image">
                           <img
                             src={item.imageUrl}
                             alt={copy.name}
-                            className="w-full h-full object-cover"
                             loading="lazy"
                             onError={(event) => {
                               const target = event.currentTarget;
@@ -8919,42 +9056,46 @@ export default function App() {
                                 "https://images.unsplash.com/photo-1526318896980-cf78c088247c?auto=format&fit=crop&w=800&q=80";
                             }}
                           />
+                          <div className="customer-rating-badge">
+                            ★ {customerMenuRating(item)}
+                          </div>
                         </figure>
-                        <div className="card-body">
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className="card-title text-lg">{copy.name}</h3>
-                            <span className="badge badge-accent shrink-0">
+                        <div className="customer-menu-info">
+                          <div>
+                            <h3>{copy.name}</h3>
+                            <p>
+                              {copy.description}
+                            </p>
+                          </div>
+                          <div className="customer-menu-meta">
+                            <span className="customer-badge">
                               {text.newBadge}
                             </span>
-                          </div>
-                          <p className="text-sm opacity-80 line-clamp-2 min-h-[2.75rem]">
-                            {copy.description}
-                          </p>
-                          <div className="card-actions justify-between items-center">
-                            <div className="flex items-baseline gap-2">
-                              {item.activePromotion ? (
-                                <span className="text-sm line-through opacity-60">
-                                  {formatMoney(item.price)}
-                                </span>
-                              ) : null}
-                              <span className="text-xl font-bold text-success">
-                                {formatMoney(promotionalMenuItemPrice(item))}
-                              </span>
-                            </div>
-                            <button
-                              className="btn btn-sm btn-primary"
-                              onClick={() => {
-                                openAddToCart(item);
-                              }}
-                              disabled={activeItemId === item.id}
-                            >
-                              {activeItemId === item.id
-                                ? text.adding
-                                : `${text.addToCart}${cartQtyByItemId[item.id] ? ` (${cartQtyByItemId[item.id]})` : ""}`}
-                            </button>
+                            <span>{categoryLabel(item.category)}</span>
                           </div>
                         </div>
-                      </div>
+                        <div className="customer-card-actions">
+                          <div className="customer-card-price">
+                            {item.activePromotion ? (
+                              <span>{formatMoney(item.price)}</span>
+                            ) : null}
+                            <strong>
+                              {formatMoney(promotionalMenuItemPrice(item))}
+                            </strong>
+                          </div>
+                          <button
+                            className="customer-add-button"
+                            onClick={() => {
+                              openAddToCart(item);
+                            }}
+                            disabled={activeItemId === item.id}
+                          >
+                            {activeItemId === item.id
+                              ? text.adding
+                              : `${text.addToCart}${cartQtyByItemId[item.id] ? ` (${cartQtyByItemId[item.id]})` : ""}`}
+                          </button>
+                        </div>
+                      </article>
                     );
                   })}
                 </div>
@@ -8962,23 +9103,22 @@ export default function App() {
             ) : null}
 
             {grouped.categories.map((category) => (
-              <div key={category} className="mb-8">
-                <h2 className="text-3xl font-bold mb-4 text-primary border-b-2 border-primary pb-2">
+              <div key={category} className="customer-menu-section">
+                <h2 className="customer-section-title">
                   {categoryLabel(category)}
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="customer-menu-list">
                   {(grouped.groupedItems[category] || []).map((item) => {
                     const copy = menuCopy(item);
                     return (
-                      <div
+                      <article
                         key={item.id}
-                        className="card bg-base-100 shadow-md hover:shadow-lg transition-shadow"
+                        className="customer-menu-card"
                       >
-                        <figure className="h-44 overflow-hidden bg-base-300">
+                        <figure className="customer-menu-image">
                           <img
                             src={item.imageUrl}
                             alt={copy.name}
-                            className="w-full h-full object-cover"
                             loading="lazy"
                             onError={(event) => {
                               const target = event.currentTarget;
@@ -8986,44 +9126,46 @@ export default function App() {
                                 "https://images.unsplash.com/photo-1526318896980-cf78c088247c?auto=format&fit=crop&w=800&q=80";
                             }}
                           />
+                          <div className="customer-rating-badge">
+                            ★ {customerMenuRating(item)}
+                          </div>
                         </figure>
-                        <div className="card-body">
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className="card-title text-lg">{copy.name}</h3>
+                        <div className="customer-menu-info">
+                          <div>
+                            <h3>{copy.name}</h3>
+                            <p>{copy.description}</p>
+                          </div>
+                          <div className="customer-menu-meta">
                             {item.activePromotion ? (
-                              <span className="badge badge-accent shrink-0">
+                              <span className="customer-badge">
                                 {item.activePromotion.name}
                               </span>
                             ) : null}
-                          </div>
-                          <p className="text-sm opacity-80 line-clamp-2 min-h-[2.75rem]">
-                            {copy.description}
-                          </p>
-                          <div className="card-actions justify-between items-center">
-                            <div className="flex items-baseline gap-2">
-                              {item.activePromotion ? (
-                                <span className="text-sm line-through opacity-60">
-                                  {formatMoney(item.price)}
-                                </span>
-                              ) : null}
-                              <span className="text-xl font-bold text-success">
-                                {formatMoney(promotionalMenuItemPrice(item))}
-                              </span>
-                            </div>
-                            <button
-                              className="btn btn-sm btn-primary"
-                              onClick={() => {
-                                openAddToCart(item);
-                              }}
-                              disabled={activeItemId === item.id}
-                            >
-                              {activeItemId === item.id
-                                ? text.adding
-                                : `${text.addToCart}${cartQtyByItemId[item.id] ? ` (${cartQtyByItemId[item.id]})` : ""}`}
-                            </button>
+                            <span>{categoryLabel(item.category)}</span>
                           </div>
                         </div>
-                      </div>
+                        <div className="customer-card-actions">
+                          <div className="customer-card-price">
+                            {item.activePromotion ? (
+                              <span>{formatMoney(item.price)}</span>
+                            ) : null}
+                            <strong>
+                              {formatMoney(promotionalMenuItemPrice(item))}
+                            </strong>
+                          </div>
+                          <button
+                            className="customer-add-button"
+                            onClick={() => {
+                              openAddToCart(item);
+                            }}
+                            disabled={activeItemId === item.id}
+                          >
+                            {activeItemId === item.id
+                              ? text.adding
+                              : `${text.addToCart}${cartQtyByItemId[item.id] ? ` (${cartQtyByItemId[item.id]})` : ""}`}
+                          </button>
+                        </div>
+                      </article>
                     );
                   })}
                 </div>

@@ -57,6 +57,19 @@ function formatTaipeiDateTime(value?: string) {
   });
 }
 
+function formatTaipeiDate(value?: string) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleDateString("zh-TW", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
 function formatTaipeiTime(value?: string) {
   if (!value) return "-";
   const date = new Date(value);
@@ -1723,6 +1736,12 @@ export default function App() {
     if (status === "submitted") return text.making;
     return text.pendingCart;
   };
+  const promotionPeriodText = (promotion?: ActivePromotion) => {
+    if (!promotion) return "";
+    return `${formatTaipeiDate(promotion.startsAt)} - ${formatTaipeiDate(
+      promotion.endsAt,
+    )}`;
+  };
   const menuCopy = (item: MenuItem) =>
     builtInMenuTranslations[item.name]?.[profile.language] ??
     item.translations?.[profile.language] ??
@@ -1792,10 +1811,6 @@ export default function App() {
       })),
     ];
   }, [items, profile.language, text.allItems, text.newItems]);
-  const activeCustomerCategoryLabel =
-    customerCategoryTabs.find((tab) => tab.key === customerCategoryFilter)
-      ?.label ?? "";
-
   useEffect(() => {
     if (customerCategoryTabs.length === 0) {
       if (customerCategoryFilter) setCustomerCategoryFilter("");
@@ -2556,27 +2571,13 @@ export default function App() {
     ],
   );
 
-  const grouped = useMemo(() => {
-    const showSectionTitle =
-      customerPromoOnly ||
-      customerCategoryFilter === allItemsTabKey ||
-      customerCategoryFilter === newItemsTabKey;
-
-    return {
-      sectionTitle: showSectionTitle
-        ? customerPromoOnly
-          ? text.promoFilter
-          : activeCustomerCategoryLabel
-        : "",
+  const grouped = useMemo(
+    () => ({
+      sectionTitle: "",
       items: visibleMenuItems,
-    };
-  }, [
-    activeCustomerCategoryLabel,
-    customerCategoryFilter,
-    customerPromoOnly,
-    text.promoFilter,
-    visibleMenuItems,
-  ]);
+    }),
+    [visibleMenuItems],
+  );
   const promotionalItems = items.filter((item) => item.activePromotion);
 
   useEffect(() => {
@@ -9002,13 +9003,17 @@ export default function App() {
             <div className="customer-promo-list">
               {promotionalItems.map((item) => {
                 const copy = menuCopy(item);
+                const period = promotionPeriodText(item.activePromotion);
                 return (
                   <div
                     key={`promotion-${item.id}`}
                     className="customer-promo-row"
                   >
-                    <span className="font-semibold">
-                      {item.activePromotion?.name} · {copy.name}
+                    <span className="customer-promo-copy">
+                      <strong>
+                        {item.activePromotion?.name} · {copy.name}
+                      </strong>
+                      {period ? <small>{period}</small> : null}
                     </span>
                     <span className="customer-price-inline">
                       <span className="customer-old-price">
@@ -9158,7 +9163,10 @@ export default function App() {
                               </span>
                             ) : null}
                             {item.activePromotion ? (
-                              <span className="customer-badge">
+                              <span
+                                className="customer-badge customer-promo-badge"
+                                title={item.activePromotion.name}
+                              >
                                 {item.activePromotion.name}
                               </span>
                             ) : null}

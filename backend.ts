@@ -51,13 +51,18 @@ import { calculateOrderProgress } from "./order-progress.ts";
 const port = parseInt(process.env.PORT || "3000", 10);
 const host = process.env.HOST || "localhost";
 const allowedOrigin = process.env.API_ALLOWED_ORIGIN || "*";
+const isProduction =
+  process.env.NODE_ENV === "production" || process.env.RENDER === "true";
 const adminUsername = process.env.ADMIN_USERNAME || "admin";
-const adminPassword = process.env.ADMIN_PASSWORD || "admin1234";
-const defaultAdminBranchPasswords: Record<string, string> = {
-  taipei: "taipei1234",
-  tainan: "tainan1234",
-  kaohsiung: "kaohsiung1234",
-};
+const adminPassword =
+  process.env.ADMIN_PASSWORD || (isProduction ? "" : "admin1234");
+const devAdminBranchPasswords: Record<string, string> = isProduction
+  ? {}
+  : {
+      taipei: "dev-taipei-password",
+      tainan: "dev-tainan-password",
+      kaohsiung: "dev-kaohsiung-password",
+    };
 const adminBranchPasswords = (process.env.ADMIN_BRANCH_PASSWORDS || "")
   .split(",")
   .map((entry) => entry.trim())
@@ -70,24 +75,26 @@ const adminBranchPasswords = (process.env.ADMIN_BRANCH_PASSWORDS || "")
     return mapping;
   }, {});
 if (Object.keys(adminBranchPasswords).length === 0) {
-  Object.assign(adminBranchPasswords, defaultAdminBranchPasswords);
+  Object.assign(adminBranchPasswords, devAdminBranchPasswords);
 }
 const adminSessionSecret =
-  process.env.ADMIN_SESSION_SECRET || "change-this-admin-session-secret";
-const isProduction =
-  process.env.NODE_ENV === "production" || process.env.RENDER === "true";
+  process.env.ADMIN_SESSION_SECRET ||
+  (isProduction ? "" : "change-this-admin-session-secret");
 const store = createStore({ dataFilePath: "./data/store.json" });
 const hasPublicAssets =
   existsSync("./public") && existsSync("./public/index.html");
 
-if (isProduction && adminSessionSecret === "change-this-admin-session-secret") {
+if (isProduction && !adminSessionSecret) {
   throw new Error(
     "Production ADMIN_SESSION_SECRET is unsafe. Set ADMIN_SESSION_SECRET.",
   );
 }
-if (isProduction && adminPassword === "admin1234") {
-  console.warn(
-    "Production ADMIN_PASSWORD is still the development default. Change it in Render environment variables.",
+if (isProduction && !adminPassword) {
+  throw new Error("Production ADMIN_PASSWORD is required.");
+}
+if (isProduction && Object.keys(adminBranchPasswords).length === 0) {
+  throw new Error(
+    "Production ADMIN_BRANCH_PASSWORDS is required. Example: taipei:<password>,tainan:<password>,kaohsiung:<password>",
   );
 }
 

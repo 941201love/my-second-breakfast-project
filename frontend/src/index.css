@@ -12,6 +12,34 @@ textarea {
   color: hsl(var(--bc));
 }
 
+.input:focus,
+.input:focus-within,
+.input:focus-visible,
+.select:focus,
+.select:focus-within,
+.select:focus-visible,
+.textarea:focus,
+.textarea:focus-within,
+.textarea:focus-visible,
+.file-input:focus,
+.file-input:focus-within,
+.file-input:focus-visible {
+  outline: 0;
+  outline-offset: 0;
+  box-shadow: none;
+}
+
+.input-bordered:focus,
+.input-bordered:focus-within,
+.select-bordered:focus,
+.select-bordered:focus-within,
+.textarea-bordered:focus,
+.textarea-bordered:focus-within,
+.file-input-bordered:focus,
+.file-input-bordered:focus-within {
+  border-color: hsl(var(--p));
+}
+
 #root {
   width: 100%;
   margin: 0 auto;

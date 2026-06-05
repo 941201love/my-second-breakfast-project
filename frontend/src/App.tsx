@@ -2471,18 +2471,20 @@ export default function App() {
     () => {
       const filtered = items.filter((item) => {
         const copy = menuCopy(item);
-        if (
-          customerCategoryFilter === newItemsTabKey &&
-          !item.isRecentlyUpdated
-        ) {
-          return false;
-        }
-        if (
-          customerCategoryFilter &&
-          customerCategoryFilter !== newItemsTabKey &&
-          (item.category || "未分類") !== customerCategoryFilter
-        ) {
-          return false;
+        if (!customerPromoOnly) {
+          if (
+            customerCategoryFilter === newItemsTabKey &&
+            !item.isRecentlyUpdated
+          ) {
+            return false;
+          }
+          if (
+            customerCategoryFilter &&
+            customerCategoryFilter !== newItemsTabKey &&
+            (item.category || "未分類") !== customerCategoryFilter
+          ) {
+            return false;
+          }
         }
         if (customerRatingOnly && customerMenuRating(item) < 4.5) {
           return false;
@@ -2522,10 +2524,17 @@ export default function App() {
 
   const grouped = useMemo(() => {
     return {
-      sectionTitle: activeCustomerCategoryLabel,
+      sectionTitle: customerPromoOnly
+        ? text.promoFilter
+        : activeCustomerCategoryLabel,
       items: visibleMenuItems,
     };
-  }, [activeCustomerCategoryLabel, visibleMenuItems]);
+  }, [
+    activeCustomerCategoryLabel,
+    customerPromoOnly,
+    text.promoFilter,
+    visibleMenuItems,
+  ]);
   const promotionalItems = items.filter((item) => item.activePromotion);
 
   useEffect(() => {

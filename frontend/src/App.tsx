@@ -3827,6 +3827,7 @@ export default function App() {
   }
 
   async function completeAdminOrder(orderId: number): Promise<void> {
+    const scrollY = window.scrollY;
     setAdminOrderActionId(orderId);
     setAdminError("正在更新訂單狀態...");
     try {
@@ -3845,11 +3846,12 @@ export default function App() {
 
       const payload = (await response.json()) as ApiDataResponse<Order>;
       const completedOrder = payload.data;
-      // Immediately remove the completed order from the kitchen view so it disappears
-      // after staff marks it complete. We still refresh admin data in background.
       setAdminOrders((current) =>
-        current.filter((order) => order.id !== orderId),
+        current.map((order) =>
+          order.id === orderId ? completedOrder : order,
+        ),
       );
+      window.requestAnimationFrame(() => window.scrollTo(0, scrollY));
       const dailySequence = completedOrder.dailySequence ?? orderId;
       setAdminError(`今日單號 #${dailySequence} 已完成，等待顧客取貨。`);
       void Promise.all([
@@ -6678,10 +6680,45 @@ export default function App() {
                             </div>
                           </div>
 
-                          <div className="mt-3 flex justify-end gap-2">
-                            {order.status === "submitted" ? (
+                          <div className="mt-3 grid min-h-10 grid-cols-2 gap-2 sm:ml-auto sm:w-56">
+                            <button
+                              className={`btn btn-sm min-h-10 whitespace-nowrap ${
+                                order.status === "completed"
+                                  ? "btn-outline"
+                                  : "btn-ghost pointer-events-none opacity-0"
+                              }`}
+                              tabIndex={
+                                order.status === "completed" ? undefined : -1
+                              }
+                              disabled={
+                                order.status !== "completed" ||
+                                (adminOrderActionId !== null &&
+                                  adminOrderActionId !== order.id)
+                              }
+                              onClick={() => {
+                                void reopenAdminOrder(order.id);
+                              }}
+                            >
+                              退回製作
+                            </button>
+                            {order.status === "completed" ? (
                               <button
-                                className="btn btn-sm btn-success min-w-20 whitespace-nowrap"
+                                className="btn btn-sm btn-primary min-h-10 whitespace-nowrap"
+                                disabled={
+                                  adminOrderActionId !== null &&
+                                  adminOrderActionId !== order.id
+                                }
+                                onClick={() => {
+                                  void pickUpAdminOrder(order.id);
+                                }}
+                              >
+                                {adminOrderActionId === order.id
+                                  ? "處理中..."
+                                  : "已取貨"}
+                              </button>
+                            ) : (
+                              <button
+                                className="btn btn-sm btn-success min-h-10 whitespace-nowrap"
                                 disabled={
                                   adminOrderActionId !== null &&
                                   adminOrderActionId !== order.id
@@ -6694,39 +6731,6 @@ export default function App() {
                                   ? "處理中..."
                                   : "完成"}
                               </button>
-                            ) : order.status === "completed" ? (
-                              <>
-                                <button
-                                  className="btn btn-sm btn-outline min-w-24 whitespace-nowrap"
-                                  disabled={
-                                    adminOrderActionId !== null &&
-                                    adminOrderActionId !== order.id
-                                  }
-                                  onClick={() => {
-                                    void reopenAdminOrder(order.id);
-                                  }}
-                                >
-                                  退回製作
-                                </button>
-                                <button
-                                  className="btn btn-sm btn-primary min-w-20 whitespace-nowrap"
-                                  disabled={
-                                    adminOrderActionId !== null &&
-                                    adminOrderActionId !== order.id
-                                  }
-                                  onClick={() => {
-                                    void pickUpAdminOrder(order.id);
-                                  }}
-                                >
-                                  {adminOrderActionId === order.id
-                                    ? "處理中..."
-                                    : "已取貨"}
-                                </button>
-                              </>
-                            ) : (
-                              <span className="text-xs opacity-50">
-                                已歸檔
-                              </span>
                             )}
                           </div>
                         </article>

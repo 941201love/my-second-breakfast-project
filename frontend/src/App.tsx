@@ -1476,7 +1476,7 @@ export default function App() {
     [],
   );
   const clockMinuteOptions = useMemo(
-    () => ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"],
+    () => Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0")),
     [],
   );
   const [clockPickerTarget, setClockPickerTarget] = useState<

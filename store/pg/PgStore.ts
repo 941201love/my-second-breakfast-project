@@ -1049,6 +1049,10 @@ export class PgStore implements Store {
   private async ensureProductOptionColumns(): Promise<void> {
     await db.execute(sql`
       ALTER TABLE ${sql.raw(`"${schemaName}"`)}."menu_items"
+        ADD COLUMN IF NOT EXISTS "is_recommended" boolean DEFAULT false NOT NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."menu_items"
         ADD COLUMN IF NOT EXISTS "large_price" integer
     `);
     await db.execute(sql`

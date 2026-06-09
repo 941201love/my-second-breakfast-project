@@ -46,6 +46,7 @@ export interface Store {
     category: string;
     description?: string;
     imageUrl: string;
+    isRecommended?: boolean;
     translations?: MenuTranslations;
     createdBy?: string;
   }): Promise<MenuItem>;
@@ -62,6 +63,7 @@ export interface Store {
         category?: string;
         description?: string;
         imageUrl?: string;
+        isRecommended?: boolean;
         translations?: MenuTranslations;
         testGroup?: string;
       };

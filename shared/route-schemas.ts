@@ -76,6 +76,7 @@ export const createMenuItemBodySchema = z.object({
   addonKeys: z.array(z.string().min(1)).default([]),
   category: z.string().min(1),
   imageUrl: z.string().min(1),
+  isRecommended: z.boolean().optional(),
   translations: menuTranslationsBodySchema,
 });
 
@@ -96,6 +97,7 @@ export const updateMenuItemBodySchema = z.object({
       category: z.string().min(1).optional(),
       description: z.string().min(1).optional(),
       imageUrl: z.string().min(1).optional(),
+      isRecommended: z.boolean().optional(),
       translations: menuTranslationsBodySchema.optional(),
       testGroup: z.string().min(1).optional(),
     })

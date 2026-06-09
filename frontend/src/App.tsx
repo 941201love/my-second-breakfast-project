@@ -23,22 +23,29 @@ function buildApiUrl(path: string) {
   return `${apiBaseUrl}${path}`;
 }
 
-function isDrink(item: MenuItem) {
-  return item.category.includes("飲") || item.category.includes("茶");
-}
-
 const newItemsTabKey = "__new_items__";
 const allItemsTabKey = "__all_items__";
 type CustomerMenuCategoryFilter = string;
 type CustomerPriceSort = "none" | "asc" | "desc";
 
-function customerMenuRating(item: MenuItem): number {
-  const key = `${item.logicalId || item.id}-${item.name}`;
-  let hash = 0;
-  for (const char of key) {
-    hash = (hash * 31 + char.charCodeAt(0)) % 1000;
+function normalizeMenuCategory(category?: string | null, name = ""): string {
+  const rawCategory = (category || "").trim();
+  const source = `${rawCategory} ${name}`.trim();
+  if (/蘿蔔糕|蘿蔔/.test(source)) return "點心";
+  if (/吐司/.test(source)) return "吐司";
+  if (/漢堡|堡/.test(source)) return "漢堡";
+  if (/蛋餅/.test(source)) return "蛋餅";
+  if (/飯糰|飯糉|飯糬/.test(source)) return "飯糰";
+  if (/麵|炒麵|鍋燒/.test(source)) return "麵食";
+  if (/飲料|飲品|飲|茶|奶茶|紅茶|綠茶|咖啡|豆漿|可樂|果汁/.test(source)) {
+    return "飲料";
   }
-  return Number((4.2 + (hash % 8) / 10).toFixed(1));
+  if (rawCategory === "主餐" || rawCategory === "餐點") return "其他";
+  return rawCategory || "未分類";
+}
+
+function isDrink(item: MenuItem) {
+  return normalizeMenuCategory(item.category, item.name) === "飲料";
 }
 
 function formatTaipeiDateTime(value?: string) {
@@ -549,12 +556,11 @@ const categoryLabels: Record<
   },
 };
 const breakfastCategoryOptions = [
-  "飲料",
-  "主餐",
-  "蛋餅",
   "吐司",
   "漢堡",
+  "蛋餅",
   "飯糰",
+  "飲料",
   "麵食",
   "點心",
   "套餐",
@@ -939,7 +945,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     promotionNoticeDescription: "活動期間點選商品即可享有優惠價。",
     searchMenu: "搜尋菜單",
     searchPlaceholder: "今天想吃什麼早餐？",
-    ratingFilter: "評分 4.5+",
+    ratingFilter: "店長推薦",
     priceFilter: "價格",
     promoFilter: "優惠",
     noMenuData: "目前沒有菜單資料",
@@ -1068,7 +1074,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
       "Select an item to enjoy its promotional price.",
     searchMenu: "Search menu",
     searchPlaceholder: "What would you like for breakfast?",
-    ratingFilter: "Rating 4.5+",
+    ratingFilter: "Manager picks",
     priceFilter: "Price",
     promoFilter: "Promo",
     noMenuData: "No menu items yet.",
@@ -1198,7 +1204,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
       "対象商品を選ぶとキャンペーン価格が適用されます。",
     searchMenu: "メニュー検索",
     searchPlaceholder: "今日は何を食べますか？",
-    ratingFilter: "評価 4.5+",
+    ratingFilter: "店長おすすめ",
     priceFilter: "価格",
     promoFilter: "キャンペーン",
     noMenuData: "メニューはまだありません。",
@@ -1327,7 +1333,7 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     promotionNoticeDescription: "상품을 선택하면 할인 가격이 적용됩니다.",
     searchMenu: "메뉴 검색",
     searchPlaceholder: "오늘 아침은 무엇을 드실래요?",
-    ratingFilter: "평점 4.5+",
+    ratingFilter: "점장 추천",
     priceFilter: "가격",
     promoFilter: "할인",
     noMenuData: "아직 메뉴가 없습니다.",
@@ -1536,7 +1542,8 @@ export default function App() {
     allowCheese: false,
     cheesePrice: "10",
     addonKeys: [] as string[],
-    category: "主餐",
+    category: "吐司",
+    isRecommended: false,
     imageUrl: "",
     translations: {
       "zh-TW": { name: "", description: "" },
@@ -1695,7 +1702,8 @@ export default function App() {
       allowCheese: false,
       cheesePrice: "10",
       addonKeys: [],
-      category: "主餐",
+      category: "吐司",
+      isRecommended: false,
       imageUrl: "",
       translations: {
         "zh-TW": { name: "", description: "" },
@@ -1717,7 +1725,8 @@ export default function App() {
       cheesePrice:
         item.cheesePrice === undefined ? "10" : String(item.cheesePrice),
       addonKeys: item.addonKeys ?? [],
-      category: item.category,
+      category: normalizeMenuCategory(item.category, item.name),
+      isRecommended: Boolean(item.isRecommended),
       imageUrl: item.imageUrl,
       translations: item.translations ?? {
         "zh-TW": { name: item.name, description: item.description },
@@ -1788,7 +1797,9 @@ export default function App() {
     categoryLabels[profile.language]?.[category] ?? category;
   const customerCategoryTabs = useMemo(() => {
     const categories = Array.from(
-      new Set(items.map((item) => item.category || "未分類")),
+      new Set(
+        items.map((item) => normalizeMenuCategory(item.category, item.name)),
+      ),
     ).sort((a, b) => {
       const aIndex = breakfastCategoryOptions.indexOf(a);
       const bIndex = breakfastCategoryOptions.indexOf(b);
@@ -2519,23 +2530,22 @@ export default function App() {
     () => {
       const filtered = items.filter((item) => {
         const copy = menuCopy(item);
-        if (!customerPromoOnly) {
-          if (
-            customerCategoryFilter === newItemsTabKey &&
-            !item.isRecentlyUpdated
-          ) {
-            return false;
-          }
-          if (
-            customerCategoryFilter &&
-            customerCategoryFilter !== allItemsTabKey &&
-            customerCategoryFilter !== newItemsTabKey &&
-            (item.category || "未分類") !== customerCategoryFilter
-          ) {
-            return false;
-          }
+        const normalizedCategory = normalizeMenuCategory(item.category, item.name);
+        if (
+          customerCategoryFilter === newItemsTabKey &&
+          !item.isRecentlyUpdated
+        ) {
+          return false;
         }
-        if (customerRatingOnly && customerMenuRating(item) < 4.5) {
+        if (
+          customerCategoryFilter &&
+          customerCategoryFilter !== allItemsTabKey &&
+          customerCategoryFilter !== newItemsTabKey &&
+          normalizedCategory !== customerCategoryFilter
+        ) {
+          return false;
+        }
+        if (customerRatingOnly && !item.isRecommended) {
           return false;
         }
         if (customerPromoOnly && !item.activePromotion) {
@@ -2546,7 +2556,7 @@ export default function App() {
           copy.description,
           item.name,
           item.description,
-          item.category,
+          normalizedCategory,
           item.logicalId,
           item.price,
         ]);
@@ -4249,6 +4259,7 @@ export default function App() {
               : addonSettings.cheesePrice,
             addonKeys: newMenuItem.addonKeys,
             category: newMenuItem.category,
+            isRecommended: newMenuItem.isRecommended,
             imageUrl: newMenuItem.imageUrl,
             translations: newMenuItem.translations,
           },
@@ -4267,6 +4278,7 @@ export default function App() {
             : addonSettings.cheesePrice,
           addonKeys: newMenuItem.addonKeys,
           category: newMenuItem.category,
+          isRecommended: newMenuItem.isRecommended,
           imageUrl: newMenuItem.imageUrl,
           translations: newMenuItem.translations,
         };
@@ -5348,6 +5360,7 @@ export default function App() {
                     {breakfastCategoryOptions.map((category) => (
                       <li key={category}>
                         <button
+                          type="button"
                           onClick={() =>
                             setNewMenuItem((current) => ({
                               ...current,
@@ -5362,6 +5375,26 @@ export default function App() {
                   </ul>
                 </details>
               </div>
+              <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-200 p-4">
+                <span>
+                  <span className="block font-semibold">店長推薦</span>
+                  <span className="text-sm opacity-70">
+                    開啟後前台會顯示推薦星號，並可被店長推薦篩選找到。
+                  </span>
+                </span>
+                <input
+                  className="toggle toggle-primary"
+                  type="checkbox"
+                  checked={newMenuItem.isRecommended}
+                  onChange={(event) => {
+                    const isRecommended = event.currentTarget.checked;
+                    setNewMenuItem((current) => ({
+                      ...current,
+                      isRecommended,
+                    }));
+                  }}
+                />
+              </label>
 
               <div className="divide-y divide-base-300 border-y border-base-300">
                 {menuLanguageOptions.map((option) => (
@@ -7326,6 +7359,7 @@ export default function App() {
                                 {breakfastCategoryOptions.map((category) => (
                                   <li key={category}>
                                     <button
+                                      type="button"
                                       onClick={() =>
                                         setNewMenuItem((current) => ({
                                           ...current,
@@ -7340,6 +7374,29 @@ export default function App() {
                               </ul>
                             </details>
                           </div>
+                          <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-200 p-4 lg:col-span-2">
+                            <span>
+                              <span className="block font-semibold">
+                                店長推薦
+                              </span>
+                              <span className="text-sm opacity-70">
+                                開啟後前台會顯示推薦星號，並可被店長推薦篩選找到。
+                              </span>
+                            </span>
+                            <input
+                              className="toggle toggle-primary"
+                              type="checkbox"
+                              checked={newMenuItem.isRecommended}
+                              onChange={(event) => {
+                                const isRecommended =
+                                  event.currentTarget.checked;
+                                setNewMenuItem((current) => ({
+                                  ...current,
+                                  isRecommended,
+                                }));
+                              }}
+                            />
+                          </label>
                           <div className="space-y-2 lg:col-span-2">
                             <span className="label-text block">照片</span>
                             <input
@@ -8169,6 +8226,7 @@ export default function App() {
                           {items.map((item) => (
                             <li key={item.logicalId}>
                               <button
+                                type="button"
                                 onClick={() => {
                                   setNewPromotion((current) => ({
                                     ...current,
@@ -8206,6 +8264,7 @@ export default function App() {
                   <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_180px_1fr_1fr]">
                     <div className="join">
                       <button
+                        type="button"
                         className={`btn join-item flex-1 ${newPromotion.discountType === "amount" ? "btn-primary" : "btn-outline"}`}
                         onClick={() =>
                           setNewPromotion((current) => ({
@@ -8217,6 +8276,7 @@ export default function App() {
                         金額 NT
                       </button>
                       <button
+                        type="button"
                         className={`btn join-item flex-1 ${newPromotion.discountType === "percent" ? "btn-primary" : "btn-outline"}`}
                         onClick={() =>
                           setNewPromotion((current) => ({
@@ -8273,6 +8333,7 @@ export default function App() {
                     />
                   </div>
                   <button
+                    type="button"
                     className="btn btn-primary mt-3 w-full"
                     onClick={() => void createAdminPromotion()}
                     disabled={Boolean(adminStoreCode)}
@@ -8308,6 +8369,7 @@ export default function App() {
                             {formatTaipeiDateTime(promotion.endsAt)}
                           </p>
                           <button
+                            type="button"
                             className="btn btn-xs btn-error btn-outline mt-2"
                             onClick={() =>
                               void deleteAdminPromotion(promotion.id)
@@ -8416,6 +8478,7 @@ export default function App() {
                           </span>
                           <div className="join w-full">
                             <button
+                              type="button"
                               className={`btn join-item flex-1 ${
                                 newCoupon.discountType === "amount"
                                   ? "btn-primary"
@@ -8431,6 +8494,7 @@ export default function App() {
                               金額 NT
                             </button>
                             <button
+                              type="button"
                               className={`btn join-item flex-1 ${
                                 newCoupon.discountType === "percent"
                                   ? "btn-primary"
@@ -8597,6 +8661,7 @@ export default function App() {
                             適用門市
                           </span>
                           <button
+                            type="button"
                             className="btn btn-xs btn-outline"
                             onClick={() =>
                               setNewCoupon((current) => ({
@@ -8616,6 +8681,7 @@ export default function App() {
                               );
                             return (
                               <button
+                                type="button"
                                 key={`coupon-store-${store.code}`}
                                 className={`btn btn-sm ${
                                   checked ? "btn-primary" : "btn-outline"
@@ -8661,6 +8727,7 @@ export default function App() {
                           : "請選結束日"}
                       </p>
                       <button
+                        type="button"
                         className="btn btn-primary"
                         onClick={() => {
                           void createAdminCoupon();
@@ -8846,17 +8913,15 @@ export default function App() {
     <div className="customer-shell min-h-screen">
       <div className="customer-topbar">
         <div className="customer-topbar-inner">
-          <div className="min-w-0">
+          <div className="customer-brand-column">
             <div className="customer-brand">
               <span className="customer-brand-mark">🍔</span>
               <span className="customer-brand-text" title={text.appTitle}>
                 {text.appTitle}
               </span>
             </div>
-          </div>
-          <div className="customer-action-grid">
             {!adminStoreCode ? (
-              <div className="customer-store-control col-span-2 min-w-0 sm:col-span-1 sm:min-w-64">
+              <div className="customer-store-control">
                 <span className="customer-store-label">
                   {text.pickupStore}
                 </span>
@@ -8891,7 +8956,7 @@ export default function App() {
                 </details>
               </div>
             ) : (
-              <div className="customer-store-static col-span-2 sm:col-span-1 sm:min-w-52">
+              <div className="customer-store-static">
                 <div className="customer-store-label">{text.pickupStore}</div>
                 <div className="font-bold">
                   {adminStoreCode === "taipei"
@@ -8904,6 +8969,8 @@ export default function App() {
                 </div>
               </div>
             )}
+          </div>
+          <div className="customer-action-grid">
             <button
               className="customer-nav-button"
               onClick={() => {
@@ -8917,7 +8984,7 @@ export default function App() {
               {text.pickupStatus}
             </button>
             <button
-              className="customer-nav-button"
+              className="customer-nav-button customer-cart-button"
               onClick={() => {
                 if (user) {
                   setCustomerName(profile.nickname || user.name);
@@ -8950,7 +9017,7 @@ export default function App() {
             ) : null}
             {user ? (
               <button
-                className="customer-nav-button customer-nav-button-filled"
+                className="customer-nav-button customer-nav-button-filled customer-logout-button"
                 onClick={() => {
                   void handleLogout();
                 }}
@@ -9010,10 +9077,11 @@ export default function App() {
                     className="customer-promo-row"
                   >
                     <span className="customer-promo-copy">
-                      <strong>
-                        {item.activePromotion?.name} · {copy.name}
-                      </strong>
-                      {period ? <small>{period}</small> : null}
+                      <strong>{text.promotionNoticeTitle}</strong>
+                      <small>
+                        {copy.name}
+                        {period ? ` · ${period}` : ""}
+                      </small>
                     </span>
                     <span className="customer-price-inline">
                       <span className="customer-old-price">
@@ -9041,7 +9109,7 @@ export default function App() {
           </div>
         ) : (
           <>
-            <section className="customer-menu-toolbar">
+            <section className="customer-menu-search-panel">
               <label className="customer-search-control">
                 <span>{text.searchMenu}</span>
                 <div className="customer-search-box">
@@ -9057,6 +9125,8 @@ export default function App() {
                   />
                 </div>
               </label>
+            </section>
+            <section className="customer-menu-toolbar">
               <div className="customer-filter-row">
                 {customerCategoryTabs.map((tab) => (
                   <button
@@ -9121,11 +9191,6 @@ export default function App() {
             ) : null}
             {grouped.items.length > 0 ? (
               <div className="customer-menu-section">
-                {grouped.sectionTitle ? (
-                  <h2 className="customer-section-title">
-                    {grouped.sectionTitle}
-                  </h2>
-                ) : null}
                 <div className="customer-menu-list">
                   {grouped.items.map((item) => {
                     const copy = menuCopy(item);
@@ -9145,9 +9210,14 @@ export default function App() {
                                 "https://images.unsplash.com/photo-1526318896980-cf78c088247c?auto=format&fit=crop&w=800&q=80";
                             }}
                           />
-                          <div className="customer-rating-badge">
-                            ★ {customerMenuRating(item)}
-                          </div>
+                          {item.isRecommended ? (
+                            <div
+                              className="customer-recommend-badge"
+                              title={text.ratingFilter}
+                            >
+                              ★
+                            </div>
+                          ) : null}
                         </figure>
                         <div className="customer-menu-info">
                           <div>
@@ -9165,9 +9235,9 @@ export default function App() {
                             {item.activePromotion ? (
                               <span
                                 className="customer-badge customer-promo-badge"
-                                title={item.activePromotion.name}
+                                title={`${item.activePromotion.name} ${promotionPeriodText(item.activePromotion)}`}
                               >
-                                {item.activePromotion.name}
+                                {text.promotionNoticeTitle}
                               </span>
                             ) : null}
                           </div>
@@ -9205,7 +9275,7 @@ export default function App() {
 
       {user && (isHistoryOpen || isOrderHistoryPage) ? (
         <>
-          <section className="fixed inset-0 z-[2147483600] flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-none bg-base-100 shadow-2xl">
+        <section className="customer-panel-page fixed inset-0 z-[2147483600] flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-none bg-base-100 shadow-2xl">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
               <h2 className="text-xl font-bold">{text.orderHistory}</h2>
               <button
@@ -9333,7 +9403,7 @@ export default function App() {
       ) : null}
 
       {user && isCheckoutCouponsPage ? (
-        <section className="fixed inset-0 z-[2147483600] flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-none bg-base-100">
+        <section className="customer-panel-page fixed inset-0 z-[2147483600] flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-none bg-base-100">
           <div className="flex items-center justify-between border-b border-base-300 p-4">
             <h2 className="text-xl font-bold">{text.useCouponTitle}</h2>
             <button
@@ -9569,7 +9639,7 @@ export default function App() {
             className="fixed inset-0 bg-black/35 z-40 pointer-events-none"
             aria-hidden="true"
           />
-          <section className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-base-100 shadow-2xl">
+          <section className="customer-profile-modal fixed left-1/2 top-1/2 z-[2147483646] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-base-100 shadow-2xl">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
               <h2 className="text-xl font-bold">{text.profileTitle}</h2>
               <button
@@ -10706,7 +10776,7 @@ export default function App() {
 
       {isPickupStatusOpen ? (
         <div className="fixed inset-0 z-[2147483646] flex items-center justify-center bg-black/60 px-4">
-          <section className="w-full max-w-lg rounded-lg bg-base-100 shadow-2xl">
+          <section className="customer-pickup-modal w-full max-w-lg rounded-lg bg-base-100 shadow-2xl">
             <div className="flex items-center justify-between border-b border-base-300 p-4">
               <h2 className="text-xl font-bold">{text.pickupStatus}</h2>
               <button
@@ -10717,7 +10787,7 @@ export default function App() {
               </button>
             </div>
             <div className="space-y-4 p-4">
-              <div className="rounded-lg bg-primary px-4 py-3 text-primary-content">
+              <div className="customer-pickup-number-card rounded-lg bg-primary px-4 py-3 text-primary-content">
                 <span className="block text-sm opacity-80">
                   {text.myPickupNumber}
                 </span>
@@ -10729,7 +10799,7 @@ export default function App() {
                   <strong className="mt-1 block">{text.noActiveOrder}</strong>
                 )}
               </div>
-              <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-base-300 bg-base-200">
+              <div className="customer-pickup-status-grid grid grid-cols-2 overflow-hidden rounded-lg border border-base-300 bg-base-200">
                 <div className="border-r border-base-300 p-4">
                   <span className="block text-sm opacity-70">
                     {text.readyForPickup}
@@ -10778,7 +10848,7 @@ export default function App() {
 
       {confirmDialog ? (
         <div className="fixed inset-0 z-[2147483647] flex items-center justify-center bg-black/60 px-4">
-          <section className="w-full max-w-sm rounded-lg bg-base-100 p-5 shadow-2xl">
+          <section className="customer-confirm-modal w-full max-w-sm rounded-lg bg-base-100 p-5 shadow-2xl">
             <p className="text-lg">{confirmDialog.message}</p>
             <div className="mt-6 flex justify-end gap-2">
               <button

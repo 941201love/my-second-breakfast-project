@@ -213,6 +213,7 @@ export class PgStore implements Store {
     category: string;
     description?: string;
     imageUrl: string;
+    isRecommended?: boolean;
     translations?: MenuItem["translations"];
     createdBy?: string;
   }): Promise<MenuItem> {
@@ -240,6 +241,7 @@ export class PgStore implements Store {
         category?: string;
         description?: string;
         imageUrl?: string;
+        isRecommended?: boolean;
         translations?: MenuItem["translations"];
         testGroup?: string;
       };

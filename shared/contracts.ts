@@ -41,6 +41,7 @@ export const menuItemSchema = z.object({
     .optional(),
   imageUrl: z.string().min(1),
   isCurrentVersion: z.boolean(),
+  isRecommended: z.boolean().optional(),
   testGroup: z.string().min(1),
   displayOrder: z.number().int().min(0).optional(),
   activePromotion: z
@@ -49,6 +50,8 @@ export const menuItemSchema = z.object({
       name: z.string().min(1),
       discountType: z.enum(["amount", "percent"]),
       discountValue: z.number().int().min(1),
+      startsAt: z.string().min(1).optional(),
+      endsAt: z.string().min(1).optional(),
     })
     .optional(),
   isRecentlyUpdated: z.boolean().optional(),

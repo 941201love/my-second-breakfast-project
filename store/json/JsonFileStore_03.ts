@@ -18,7 +18,7 @@ const defaultMenu: MenuItem[] = [
     id: 1,
     name: "火腿蛋吐司",
     price: 40,
-    category: "餐點",
+    category: "吐司",
     description: "現煎雞蛋搭配火腿與生菜，使用微烤白吐司，口感清爽不油膩。",
     image_url:
       "https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=800&q=80",
@@ -27,7 +27,7 @@ const defaultMenu: MenuItem[] = [
     id: 2,
     name: "起司豬排堡",
     price: 65,
-    category: "餐點",
+    category: "漢堡",
     description: "厚切豬排搭配起司與生菜，外酥內嫩，適合喜歡有咬勁的你。",
     image_url:
       "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80",
@@ -36,7 +36,7 @@ const defaultMenu: MenuItem[] = [
     id: 3,
     name: "鮪魚蛋吐司",
     price: 45,
-    category: "餐點",
+    category: "吐司",
     description: "自調鮪魚沙拉配上煎蛋與生菜，口味濃郁但不會太鹹。",
     image_url:
       "https://images.unsplash.com/photo-1523987355523-c7b5b0dd90d2?auto=format&fit=crop&w=800&q=80",
@@ -45,7 +45,7 @@ const defaultMenu: MenuItem[] = [
     id: 4,
     name: "培根蛋餅",
     price: 45,
-    category: "餐點",
+    category: "蛋餅",
     description: "煎到微酥的蛋餅皮包裹煙燻培根與雞蛋，是經典台式早餐選擇。",
     image_url:
       "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=800&q=80",

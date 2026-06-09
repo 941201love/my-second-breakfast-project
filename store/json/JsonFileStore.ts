@@ -84,7 +84,7 @@ const defaultMenu: MenuItem[] = [
     minorVersion: 0,
     name: "火腿蛋吐司",
     price: 40,
-    category: "餐點",
+    category: "吐司",
     description: "現煎雞蛋搭配火腿與生菜，使用微烤白吐司，口感清爽不油膩。",
     translations: {
       "zh-TW": {
@@ -121,7 +121,7 @@ const defaultMenu: MenuItem[] = [
     minorVersion: 0,
     name: "起司豬排堡",
     price: 65,
-    category: "餐點",
+    category: "漢堡",
     description: "厚切豬排搭配起司與生菜，外酥內嫩，適合喜歡有咬勁的你。",
     translations: {
       "zh-TW": {
@@ -157,7 +157,7 @@ const defaultMenu: MenuItem[] = [
     minorVersion: 0,
     name: "鮪魚蛋吐司",
     price: 45,
-    category: "餐點",
+    category: "吐司",
     description: "自調鮪魚沙拉配上煎蛋與生菜，口味濃郁但不會太鹹。",
     translations: {
       "zh-TW": {
@@ -194,7 +194,7 @@ const defaultMenu: MenuItem[] = [
     minorVersion: 0,
     name: "培根蛋餅",
     price: 45,
-    category: "餐點",
+    category: "蛋餅",
     description: "煎到微酥的蛋餅皮包裹煙燻培根與雞蛋，是經典台式早餐選擇。",
     translations: {
       "zh-TW": {
@@ -578,6 +578,7 @@ export class JsonFileStore implements Store {
     category: string;
     description?: string;
     imageUrl: string;
+    isRecommended?: boolean;
     translations?: MenuItem["translations"];
     createdBy?: string;
   }): Promise<MenuItem> {
@@ -602,6 +603,7 @@ export class JsonFileStore implements Store {
       translations: input.translations,
       imageUrl: input.imageUrl,
       isCurrentVersion: true,
+      isRecommended: input.isRecommended ?? false,
       testGroup: "default",
       displayOrder: Number(logicalId),
     };
@@ -625,6 +627,7 @@ export class JsonFileStore implements Store {
         category?: string;
         description?: string;
         imageUrl?: string;
+        isRecommended?: boolean;
         translations?: MenuItem["translations"];
         testGroup?: string;
       };

@@ -4,49 +4,55 @@
       "id": 1,
       "name": "火腿蛋吐司",
       "price": 40,
-      "category": "餐點",
+      "category": "吐司",
       "description": "現煎雞蛋搭配火腿與生菜，使用微烤白吐司，口感清爽不油膩。",
-      "image_url": "https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=800&q=80"
+      "image_url": "https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=800&q=80",
+      "isRecommended": false
     },
     {
       "id": 2,
       "name": "起司豬排堡",
       "price": 65,
-      "category": "餐點",
+      "category": "漢堡",
       "description": "厚切豬排搭配起司與生菜，外酥內嫩，適合喜歡有咬勁的你。",
-      "image_url": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80"
+      "image_url": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80",
+      "isRecommended": false
     },
     {
       "id": 3,
       "name": "鮪魚蛋吐司",
       "price": 45,
-      "category": "餐點",
+      "category": "吐司",
       "description": "自調鮪魚沙拉配上煎蛋與生菜，口味濃郁但不會太鹹。",
-      "image_url": "https://images.unsplash.com/photo-1523987355523-c7b5b0dd90d2?auto=format&fit=crop&w=800&q=80"
+      "image_url": "https://images.unsplash.com/photo-1523987355523-c7b5b0dd90d2?auto=format&fit=crop&w=800&q=80",
+      "isRecommended": false
     },
     {
       "id": 4,
       "name": "培根蛋餅",
       "price": 45,
-      "category": "餐點",
+      "category": "蛋餅",
       "description": "煎到微酥的蛋餅皮包裹煙燻培根與雞蛋，是經典台式早餐選擇。",
-      "image_url": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=800&q=80"
+      "image_url": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=800&q=80",
+      "isRecommended": false
     },
     {
       "id": 5,
       "name": "起司蔬菜蛋餅",
       "price": 45,
-      "category": "餐點",
+      "category": "蛋餅",
       "description": "加入起司與高麗菜絲，口感滑順、起司香氣濃郁，適合想吃清爽一點的客人。",
-      "image_url": "https://images.unsplash.com/photo-1466637574441-749b8f19452f?auto=format&fit=crop&w=800&q=80"
+      "image_url": "https://images.unsplash.com/photo-1466637574441-749b8f19452f?auto=format&fit=crop&w=800&q=80",
+      "isRecommended": false
     },
     {
       "id": 6,
       "name": "蘿蔔糕加蛋",
       "price": 50,
-      "category": "餐點",
+      "category": "點心",
       "description": "外表煎到金黃微酥的蘿蔔糕，搭配荷包蛋與特調醬油膏。",
-      "image_url": "https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=800&q=80"
+      "image_url": "https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=800&q=80",
+      "isRecommended": false
     },
     {
       "id": 7,
@@ -54,7 +60,8 @@
       "price": 25,
       "category": "飲料",
       "description": "古早味紅茶，微糖微冰為店內推薦比例，適合作為早餐基本配備。",
-      "image_url": "https://images.unsplash.com/photo-1505576399279-565b52d4ac71?auto=format&fit=crop&w=800&q=80"
+      "image_url": "https://images.unsplash.com/photo-1505576399279-565b52d4ac71?auto=format&fit=crop&w=800&q=80",
+      "isRecommended": false
     },
     {
       "id": 8,
@@ -62,7 +69,8 @@
       "price": 30,
       "category": "飲料",
       "description": "使用紅茶搭配奶精調和，香濃順口，是最受歡迎的經典飲品。",
-      "image_url": "https://images.unsplash.com/photo-1477764227684-8c4e5bca6f0d?auto=format&fit=crop&w=800&q=80"
+      "image_url": "https://images.unsplash.com/photo-1477764227684-8c4e5bca6f0d?auto=format&fit=crop&w=800&q=80",
+      "isRecommended": false
     },
     {
       "id": 9,
@@ -70,7 +78,8 @@
       "price": 30,
       "category": "飲料",
       "description": "每日現煮黃豆漿，口感濃郁不稀薄，提供無糖與微糖兩種甜度選擇。",
-      "image_url": "https://images.unsplash.com/photo-1513639725746-c5d3e861f32a?auto=format&fit=crop&w=800&q=80"
+      "image_url": "https://images.unsplash.com/photo-1513639725746-c5d3e861f32a?auto=format&fit=crop&w=800&q=80",
+      "isRecommended": false
     },
     {
       "id": 10,
@@ -78,7 +87,8 @@
       "price": 45,
       "category": "飲料",
       "description": "以鮮奶取代奶精，茶味與奶味平衡，適合喜歡濃郁口感的客人。",
-      "image_url": "https://images.unsplash.com/photo-1523906630133-f6934a1ab1b4?auto=format&fit=crop&w=800&q=80"
+      "image_url": "https://images.unsplash.com/photo-1523906630133-f6934a1ab1b4?auto=format&fit=crop&w=800&q=80",
+      "isRecommended": false
     },
     {
       "id": 11,
@@ -86,7 +96,8 @@
       "price": 55,
       "category": "飲料",
       "description": "使用中焙咖啡豆現萃，帶有堅果香氣與微微果酸，無糖風味清爽。",
-      "image_url": "https://images.unsplash.com/photo-1503481766315-7a586b20f66d?auto=format&fit=crop&w=800&q=80"
+      "image_url": "https://images.unsplash.com/photo-1503481766315-7a586b20f66d?auto=format&fit=crop&w=800&q=80",
+      "isRecommended": false
     },
     {
       "id": 12,
@@ -94,7 +105,8 @@
       "price": 65,
       "category": "飲料",
       "description": "義式濃縮搭配蒸煮鮮奶，奶泡綿密，適合作為慢慢享用的早晨飲品。",
-      "image_url": "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?auto=format&fit=crop&w=800&q=80"
+      "image_url": "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?auto=format&fit=crop&w=800&q=80",
+      "isRecommended": false
     }
   ],
   "orders": [

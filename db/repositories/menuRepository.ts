@@ -39,6 +39,7 @@ export interface MenuItemChanges {
   category?: string;
   description?: string;
   imageUrl?: string;
+  isRecommended?: boolean;
   translations?: MenuItem["translations"];
   testGroup?: string;
 }
@@ -63,6 +64,7 @@ function toMenuItem(row: MenuRow): MenuItem {
     translations: translations ?? fallbackTranslations(row.name, row.description),
     imageUrl: row.imageUrl,
     isCurrentVersion: row.isCurrentVersion,
+    isRecommended: row.isRecommended,
     testGroup: row.testGroup,
   };
 }
@@ -145,6 +147,8 @@ export class MenuRepository {
                 name: activePromotion.name,
                 discountType,
                 discountValue: activePromotion.discountValue,
+                startsAt: activePromotion.startsAt.toISOString(),
+                endsAt: activePromotion.endsAt.toISOString(),
               }
             : undefined,
           isRecentlyUpdated: row.createdAt.getTime() >= sevenDaysAgo,
@@ -206,6 +210,7 @@ export class MenuRepository {
     category: string;
     description?: string;
     imageUrl: string;
+    isRecommended?: boolean;
     translations?: MenuItem["translations"];
     createdBy?: string;
   }): Promise<MenuItem> {
@@ -231,6 +236,7 @@ export class MenuRepository {
         translations: input.translations,
         imageUrl: input.imageUrl,
         isCurrentVersion: true,
+        isRecommended: input.isRecommended ?? false,
         testGroup: "default",
         changeReason: "Initial creation",
         createdAt: now,
@@ -306,6 +312,7 @@ export class MenuRepository {
           translations: nextTranslations,
           imageUrl: changes.imageUrl ?? current.imageUrl,
           isCurrentVersion: true,
+          isRecommended: changes.isRecommended ?? current.isRecommended,
           supersedes: current.id,
           testGroup: changes.testGroup ?? current.testGroup,
           changeReason: reason,

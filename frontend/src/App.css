@@ -1282,7 +1282,6 @@ body,
   }
 
   .customer-logout-button {
-    order: -1;
     max-width: 190px;
   }
 
@@ -1311,6 +1310,25 @@ body,
   .customer-brand {
     justify-content: flex-start;
     font-size: 28px;
+  }
+
+  .customer-topbar-inner {
+    position: relative;
+    padding-top: 24px;
+  }
+
+  .customer-brand-column {
+    padding-right: 122px;
+  }
+
+  .customer-logout-button {
+    position: absolute;
+    top: 24px;
+    right: 22px;
+    width: 108px;
+    max-width: 108px;
+    min-height: 42px;
+    border-radius: 16px;
   }
 
   .customer-search-box {

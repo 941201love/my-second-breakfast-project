@@ -18,6 +18,7 @@ body,
   min-height: 100dvh;
   background: var(--customer-surface);
   color: var(--customer-heading);
+  color-scheme: light;
   font-family:
     Poppins,
     ui-sans-serif,
@@ -31,7 +32,7 @@ body,
 .customer-topbar {
   position: sticky;
   top: 0;
-  z-index: 60;
+  z-index: 80;
   border-bottom: 1px solid var(--customer-line);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 10px 24px rgba(40, 54, 24, 0.06);
@@ -40,21 +41,21 @@ body,
 
 .customer-topbar-inner {
   display: grid;
-  grid-template-columns: minmax(620px, 1fr) auto;
+  grid-template-columns: minmax(220px, 420px) minmax(0, 1fr);
   width: 100%;
   max-width: none;
   margin: 0 auto;
-  padding: 12px clamp(16px, 2vw, 28px);
+  padding: 12px clamp(14px, 1.8vw, 26px);
   align-items: center;
-  gap: 18px;
+  gap: 14px;
 }
 
 .customer-brand-column {
-  display: grid;
+  display: flex;
   min-width: 0;
-  grid-template-columns: minmax(300px, max-content) minmax(320px, 520px);
   align-items: center;
-  gap: 24px;
+  gap: 18px;
+  justify-content: start;
 }
 
 .customer-brand {
@@ -62,7 +63,7 @@ body,
   min-width: 0;
   max-width: none;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 10px;
   color: var(--customer-heading);
   font-size: 26px;
@@ -73,6 +74,7 @@ body,
 
 .customer-brand-text {
   min-width: 0;
+  max-width: clamp(180px, 24vw, 360px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -92,12 +94,14 @@ body,
   min-width: 0;
   align-items: center;
   justify-content: end;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+  row-gap: 8px;
 }
 
 .customer-store-control {
-  min-width: 320px;
-  width: min(520px, 38vw);
+  min-width: 240px;
+  width: clamp(250px, 26vw, 390px);
 }
 
 .customer-store-label {
@@ -112,7 +116,7 @@ body,
 .customer-store-static,
 .customer-nav-button {
   display: flex;
-  min-height: 48px;
+  min-height: 46px;
   align-items: center;
   border-radius: 16px;
   border: 1px solid rgba(40, 54, 24, 0.18);
@@ -144,23 +148,27 @@ body,
 
 .customer-store-menu {
   border: 1px solid rgba(40, 54, 24, 0.16);
-  border-radius: 16px;
+  border-radius: 18px;
   background: var(--customer-surface);
+  overflow: hidden;
+  z-index: 120;
 }
 
 .customer-store-menu .btn {
-  min-height: 50px;
+  min-height: 46px;
   justify-content: flex-start;
-  padding-inline: 18px;
+  padding-inline: 16px;
   border-radius: 14px;
   color: var(--customer-heading);
 }
 
 .customer-nav-button {
   justify-content: center;
-  width: 128px;
+  width: auto;
+  min-width: 96px;
   max-width: none;
   padding: 0 14px;
+  font-size: 14px;
   white-space: nowrap;
   transition:
     background 0.2s ease,
@@ -169,11 +177,11 @@ body,
 }
 
 .customer-cart-button {
-  width: 164px;
+  min-width: 132px;
 }
 
 .customer-logout-button {
-  width: 96px;
+  min-width: 82px;
 }
 
 .customer-nav-button:disabled {
@@ -403,12 +411,13 @@ body,
 
 .customer-menu-toolbar {
   position: sticky;
-  top: 67px;
-  z-index: 40;
+  top: 96px;
+  z-index: 45;
   margin: 0 calc(clamp(16px, 2vw, 28px) * -1) 26px;
   border-bottom: 1px solid var(--customer-line);
   background: rgba(255, 255, 255, 0.96);
-  padding: 8px clamp(16px, 2vw, 28px) 10px;
+  padding: 10px clamp(16px, 2vw, 28px) 12px;
+  box-shadow: 0 10px 22px rgba(40, 54, 24, 0.05);
   backdrop-filter: blur(10px);
 }
 
@@ -552,17 +561,17 @@ body,
 .customer-menu-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 18px;
 }
 
 .customer-menu-card {
   display: grid;
-  grid-template-columns: 124px minmax(220px, 1fr) 154px;
+  grid-template-columns: 112px minmax(0, 1fr) 132px;
   align-items: center;
   gap: 14px;
   width: 100%;
   max-width: none;
-  min-height: 158px;
+  min-height: 132px;
   border-radius: 18px;
   background: var(--customer-surface);
   padding: 14px;
@@ -571,8 +580,8 @@ body,
 
 .customer-menu-image {
   position: relative;
-  width: 124px;
-  height: 124px;
+  width: 112px;
+  height: 112px;
   overflow: hidden;
   border-radius: 14px;
   background: var(--customer-soft);
@@ -613,7 +622,12 @@ body,
   font-size: 17px;
   font-weight: 700;
   line-height: 1.25;
+  display: -webkit-box;
+  min-height: 2.5em;
+  overflow: hidden;
   overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .customer-menu-info p {
@@ -623,6 +637,7 @@ body,
   color: var(--customer-brand);
   font-size: 13px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -658,7 +673,7 @@ body,
 
 .customer-card-actions {
   display: grid;
-  min-width: 154px;
+  min-width: 124px;
   justify-items: end;
   align-content: center;
   gap: 10px;
@@ -683,8 +698,8 @@ body,
 
 .customer-add-button {
   min-height: 34px;
-  width: 142px;
-  max-width: 142px;
+  width: 124px;
+  max-width: 124px;
   border: 0;
   border-radius: 12px;
   background: var(--customer-brand);
@@ -819,8 +834,9 @@ body,
   --admin-surface: #ffffff;
   --admin-soft: rgba(96, 108, 56, 0.08);
   --admin-line: rgba(221, 161, 94, 0.4);
-  background: var(--admin-surface);
-  color: var(--admin-heading);
+  background: var(--admin-surface) !important;
+  color: var(--admin-heading) !important;
+  color-scheme: light;
   font-family:
     Poppins,
     ui-sans-serif,
@@ -831,9 +847,53 @@ body,
     sans-serif;
 }
 
-.admin-shell :where(.navbar, .bg-base-100, .bg-base-200, .bg-base-300, .card, .stats, .collapse, .modal-box) {
-  background-color: var(--admin-surface);
-  color: var(--admin-heading);
+.admin-shell.bg-base-100,
+.admin-shell.bg-base-200,
+.admin-shell.bg-base-300,
+.admin-shell.min-h-screen {
+  background: var(--admin-surface) !important;
+  color: var(--admin-heading) !important;
+}
+
+.admin-shell :where(.navbar, .bg-base-100, .bg-base-200, .bg-base-300, .card, .stats, .collapse, .modal-box, .dropdown-content, .alert) {
+  background-color: var(--admin-surface) !important;
+  color: var(--admin-heading) !important;
+  border-color: rgba(40, 54, 24, 0.14) !important;
+}
+
+.admin-shell :where(.bg-neutral, .bg-slate-900, .bg-gray-900, .bg-zinc-900, .bg-black) {
+  background-color: var(--admin-surface) !important;
+  color: var(--admin-heading) !important;
+}
+
+.admin-shell :where(.bg-base-content, .bg-neutral-content, .bg-primary-content, .bg-secondary-content, .bg-accent-content) {
+  background-color: var(--admin-brand-50) !important;
+  color: var(--admin-heading) !important;
+}
+
+.admin-shell :where(.bg-primary, .bg-secondary, .bg-accent, .bg-info) {
+  background-color: var(--admin-brand) !important;
+  color: var(--admin-brand-50) !important;
+}
+
+.admin-shell :where(.bg-primary):hover,
+.admin-shell :where(.bg-secondary):hover,
+.admin-shell :where(.bg-accent):hover,
+.admin-shell :where(.bg-info):hover {
+  background-color: var(--admin-brand-100) !important;
+  color: var(--admin-heading) !important;
+}
+
+.admin-shell :where(.border-primary, .border-secondary, .border-accent, .border-info) {
+  border-color: var(--admin-brand) !important;
+}
+
+.admin-shell :where(.text-primary-content, .text-secondary-content, .text-accent-content, .text-info-content) {
+  color: var(--admin-brand-50) !important;
+}
+
+.admin-shell :where(.text-base-content, .text-neutral, .text-neutral-content, .text-slate-900, .text-gray-900, .text-zinc-900) {
+  color: var(--admin-heading) !important;
 }
 
 .admin-shell :where(.rounded-lg, .rounded-xl, .rounded-2xl, .card, .stats, .collapse) {
@@ -844,47 +904,105 @@ body,
   box-shadow: 0 10px 26px rgba(40, 54, 24, 0.08);
 }
 
-.admin-shell :where(.btn-primary, .btn-primary:hover) {
-  border-color: var(--admin-brand);
-  background: var(--admin-brand);
-  color: var(--admin-brand-50);
+.admin-shell :where(.btn-primary, .btn-secondary, .btn-accent, .btn-info) {
+  border-color: var(--admin-brand) !important;
+  background: var(--admin-brand) !important;
+  color: var(--admin-brand-50) !important;
 }
 
-.admin-shell :where(.btn-primary:hover) {
-  border-color: var(--admin-brand-100);
-  background: var(--admin-brand-100);
-  color: var(--admin-heading);
+.admin-shell :where(.btn-primary, .btn-secondary, .btn-accent, .btn-info):hover {
+  border-color: var(--admin-brand-100) !important;
+  background: var(--admin-brand-100) !important;
+  color: var(--admin-heading) !important;
 }
 
-.admin-shell :where(.btn-outline, .btn-ghost, .btn:not(.btn-primary):not(.btn-error):not(.btn-warning)) {
-  border-color: rgba(40, 54, 24, 0.28);
-  background: var(--admin-surface);
-  color: var(--admin-heading);
+.admin-shell :where(.btn-outline, .btn-ghost, .btn:not(.btn-primary):not(.btn-secondary):not(.btn-accent):not(.btn-info):not(.btn-error):not(.btn-warning)) {
+  border-color: rgba(40, 54, 24, 0.28) !important;
+  background: var(--admin-surface) !important;
+  color: var(--admin-heading) !important;
+}
+
+.admin-shell :where(.btn-outline, .btn-ghost, .btn:not(.btn-primary):not(.btn-secondary):not(.btn-accent):not(.btn-info):not(.btn-error):not(.btn-warning)):hover {
+  border-color: var(--admin-brand-100) !important;
+  background: var(--admin-brand-50) !important;
+  color: var(--admin-heading) !important;
+}
+
+.admin-shell :where(.btn) {
+  min-height: 40px;
+  border-radius: 16px;
+  box-shadow: none !important;
+}
+
+.admin-shell :where(.btn-warning) {
+  border-color: #e6a34a !important;
+  background: #e6a34a !important;
+  color: var(--admin-heading) !important;
+}
+
+.admin-shell :where(.btn-error) {
+  border-color: #ef4444 !important;
+  background: #fff5f5 !important;
+  color: #b42318 !important;
 }
 
 .admin-shell :where(.input, .select, .textarea) {
-  border-color: rgba(40, 54, 24, 0.22);
-  background: #ffffff;
-  color: var(--admin-heading);
+  border-color: rgba(40, 54, 24, 0.22) !important;
+  background: #ffffff !important;
+  color: var(--admin-heading) !important;
 }
 
 .admin-shell :where(.input, .select, .textarea)::placeholder {
-  color: var(--admin-muted);
+  color: var(--admin-muted) !important;
+  opacity: 0.9 !important;
 }
 
-.admin-shell :where(.label-text, .card-title, h1, h2, h3, h4, p, span, td, th, li) {
+.admin-shell :where(.label-text, .card-title, h1, h2, h3, h4, p, td, th, li) {
+  color: var(--admin-heading) !important;
+}
+
+.admin-shell :where(span:not(.loading):not(.loading-spinner):not(.badge)) {
   color: inherit;
 }
 
 .admin-shell :where(.opacity-80, .opacity-75, .opacity-70, .opacity-60) {
-  color: var(--admin-muted);
-  opacity: 1;
+  color: var(--admin-muted) !important;
+  opacity: 1 !important;
 }
 
-.admin-shell :where(.badge-primary, .badge-success) {
-  border-color: var(--admin-brand);
-  background: var(--admin-brand);
-  color: var(--admin-brand-50);
+.admin-shell :where(.badge-primary, .badge-success, .badge-accent) {
+  border-color: var(--admin-brand) !important;
+  background: var(--admin-brand) !important;
+  color: var(--admin-brand-50) !important;
+}
+
+.admin-shell :where(.text-primary, .text-secondary, .text-accent, .text-success) {
+  color: var(--admin-brand) !important;
+}
+
+.admin-shell :where(.toggle:checked, .checkbox:checked, .radio:checked) {
+  border-color: var(--admin-brand) !important;
+  background-color: var(--admin-brand) !important;
+}
+
+.clock-picker-overlay {
+  position: fixed;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.clock-picker-dialog {
+  max-height: min(88vh, 640px);
+  color-scheme: light;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.clock-picker-wheel {
+  max-height: min(45vh, 16rem);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .customer-pickup-status-grid {
@@ -1025,7 +1143,8 @@ body,
   }
 
   .customer-brand-column {
-    grid-template-columns: minmax(260px, max-content) minmax(300px, 1fr);
+    flex-wrap: wrap;
+    gap: 12px;
   }
 
   .customer-action-grid {
@@ -1054,8 +1173,8 @@ body,
   }
 
   .customer-brand-column {
-    grid-template-columns: 1fr;
-    justify-items: stretch;
+    flex-direction: column;
+    align-items: stretch;
     gap: 14px;
   }
 

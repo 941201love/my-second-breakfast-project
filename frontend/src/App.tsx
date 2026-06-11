@@ -2419,6 +2419,7 @@ export default function App() {
       isItemPage ||
       isPickupStatusOpen;
     const shouldLockBody =
+      Boolean(clockPickerTarget) ||
       Boolean(adminPriceHistoryModal) ||
       (!isAdminPage && Boolean(confirmDialog)) ||
       (!isAdminPage && isCustomerFullPage);
@@ -2457,6 +2458,7 @@ export default function App() {
     };
   }, [
     isAdminPage,
+    clockPickerTarget,
     adminPriceHistoryModal,
     confirmDialog,
     isCartOpen,
@@ -5651,11 +5653,11 @@ export default function App() {
         ) : null}
         {clockPickerTarget ? (
           <div
-            className="fixed inset-0 z-[2147483646] flex items-center justify-center bg-black/70 p-4"
+            className="clock-picker-overlay fixed inset-0 z-[2147483646] flex items-center justify-center bg-black/70 p-4"
             onClick={() => setClockPickerTarget(null)}
           >
             <section
-              className="w-full max-w-xl rounded-2xl border border-base-300 bg-base-100 p-4 shadow-2xl"
+              className="clock-picker-dialog w-full max-w-xl rounded-2xl border border-base-300 bg-base-100 p-4 shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-4 flex items-center justify-between gap-4">
@@ -5679,7 +5681,11 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-3 gap-3 rounded-xl bg-base-200 p-3">
-                <div className="max-h-64 snap-y overflow-y-auto rounded-lg bg-base-100 p-2">
+                <div
+                  className="clock-picker-wheel max-h-64 snap-y overflow-y-auto rounded-lg bg-base-100 p-2"
+                  onWheel={(event) => event.stopPropagation()}
+                  onTouchMove={(event) => event.stopPropagation()}
+                >
                   {[
                     { value: "am" as const, label: "上午" },
                     { value: "pm" as const, label: "下午" },
@@ -5703,7 +5709,11 @@ export default function App() {
                     </button>
                   ))}
                 </div>
-                <div className="max-h-64 snap-y overflow-y-auto rounded-lg bg-base-100 p-2">
+                <div
+                  className="clock-picker-wheel max-h-64 snap-y overflow-y-auto rounded-lg bg-base-100 p-2"
+                  onWheel={(event) => event.stopPropagation()}
+                  onTouchMove={(event) => event.stopPropagation()}
+                >
                   {clockHourOptions.map((hour) => {
                     const paddedHour = hour.padStart(2, "0");
                     return (
@@ -5727,7 +5737,11 @@ export default function App() {
                     );
                   })}
                 </div>
-                <div className="max-h-64 snap-y overflow-y-auto rounded-lg bg-base-100 p-2">
+                <div
+                  className="clock-picker-wheel max-h-64 snap-y overflow-y-auto rounded-lg bg-base-100 p-2"
+                  onWheel={(event) => event.stopPropagation()}
+                  onTouchMove={(event) => event.stopPropagation()}
+                >
                   {clockMinuteOptions.map((minute) => (
                     <button
                       key={minute}
@@ -6733,7 +6747,7 @@ export default function App() {
 
                 {adminStoreCode ? (
                   <>
-                    <div className="mb-5 grid gap-3 md:grid-cols-[18rem_1fr]">
+                    <div className="mb-4 grid gap-3 md:grid-cols-[16rem_minmax(0,1fr)]">
                       <label className="form-control">
                         <span className="label-text mb-1">查詢日期</span>
                         <input
@@ -6749,7 +6763,7 @@ export default function App() {
                         <span className="label-text mb-1">
                           當日值班
                         </span>
-                        <div className="min-h-14 rounded-lg border border-base-300 bg-base-200 p-3">
+                        <div className="min-h-11 rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm">
                           <div className="flex flex-wrap gap-2">
                             {dutyEmployeesForQueryDate.length === 0 ? (
                               <span className="text-sm opacity-60">

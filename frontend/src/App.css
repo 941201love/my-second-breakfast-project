@@ -1282,6 +1282,7 @@ body,
   }
 
   .customer-logout-button {
+    order: -1;
     max-width: 190px;
   }
 

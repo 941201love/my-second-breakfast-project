@@ -9313,7 +9313,10 @@ export default function App() {
                     className="customer-promo-row"
                   >
                     <span className="customer-promo-copy">
-                      <strong>{text.promotionNoticeTitle}</strong>
+                      <strong>
+                        {item.activePromotion?.name ??
+                          text.promotionNoticeTitle}
+                      </strong>
                       <small>
                         {copy.name}
                         {period ? ` · ${period}` : ""}

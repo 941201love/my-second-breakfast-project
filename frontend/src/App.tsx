@@ -8212,8 +8212,8 @@ export default function App() {
                         placeholder="輸入商品名稱、分類、代碼或價格"
                       />
                     </label>
-                    <div className="overflow-x-auto rounded-lg border border-base-300">
-                      <table className="table min-w-[1080px]">
+                    <div className="admin-menu-table-wrap overflow-x-auto rounded-lg border border-base-300">
+                      <table className="admin-menu-table table min-w-[1080px]">
                         <thead>
                           <tr className="bg-base-200/80">
                             <th className="px-5">品項</th>

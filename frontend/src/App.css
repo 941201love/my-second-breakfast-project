@@ -1092,6 +1092,49 @@ body,
   box-shadow: 0 0 0 3px rgba(221, 161, 94, 0.22) !important;
 }
 
+.admin-shell .admin-menu-table-wrap {
+  border-color: rgba(96, 108, 56, 0.24) !important;
+  background:
+    linear-gradient(180deg, #eef2e4 0, #eef2e4 56px, #fffdfa 56px) !important;
+}
+
+.admin-shell .admin-menu-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fffdfa !important;
+}
+
+.admin-shell .admin-menu-table thead tr,
+.admin-shell .admin-menu-table thead th {
+  background: #e9f3dc !important;
+  color: var(--admin-heading) !important;
+}
+
+.admin-shell .admin-menu-table tbody {
+  background: transparent !important;
+}
+
+.admin-shell .admin-menu-table tbody tr.bg-base-300,
+.admin-shell .admin-menu-table tbody tr.bg-base-300 > td {
+  background: linear-gradient(90deg, #f3dfb8, #e7f0d6) !important;
+  color: var(--admin-heading) !important;
+}
+
+.admin-shell .admin-menu-table tbody tr:not(.bg-base-300),
+.admin-shell .admin-menu-table tbody tr:not(.bg-base-300) > td {
+  background: #fffaf0 !important;
+}
+
+.admin-shell .admin-menu-table tbody tr:not(.bg-base-300):nth-child(even),
+.admin-shell .admin-menu-table tbody tr:not(.bg-base-300):nth-child(even) > td {
+  background: #f4f8ec !important;
+}
+
+.admin-shell .admin-menu-table tbody tr:not(.bg-base-300):hover,
+.admin-shell .admin-menu-table tbody tr:not(.bg-base-300):hover > td {
+  background: #fefae0 !important;
+}
+
 .admin-shell :where(.input, .select, .textarea)::placeholder {
   color: var(--admin-muted) !important;
   opacity: 0.9 !important;

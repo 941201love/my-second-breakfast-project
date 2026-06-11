@@ -77,6 +77,7 @@ export const createMenuItemBodySchema = z.object({
   category: z.string().min(1),
   imageUrl: z.string().min(1),
   isRecommended: z.boolean().optional(),
+  isRecentlyUpdated: z.boolean().optional(),
   translations: menuTranslationsBodySchema,
 });
 
@@ -98,6 +99,7 @@ export const updateMenuItemBodySchema = z.object({
       description: z.string().min(1).optional(),
       imageUrl: z.string().min(1).optional(),
       isRecommended: z.boolean().optional(),
+      isRecentlyUpdated: z.boolean().optional(),
       translations: menuTranslationsBodySchema.optional(),
       testGroup: z.string().min(1).optional(),
     })
@@ -215,6 +217,8 @@ export const employeeParamsSchema = z.object({
 export const createPromotionBodySchema = activePromotionSchema.omit({
   id: true,
 });
+
+export const updatePromotionBodySchema = createPromotionBodySchema;
 
 export const promotionParamsSchema = z.object({
   id: z.string().regex(/^[0-9]+$/),

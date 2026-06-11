@@ -52,6 +52,7 @@ export const menuItemsTable = appSchema.table(
     imageUrl: text("image_url").notNull(),
     isCurrentVersion: boolean("is_current_version").notNull().default(true),
     isRecommended: boolean("is_recommended").notNull().default(false),
+    isRecentlyUpdated: boolean("is_recently_updated").notNull().default(false),
     supersedes: text("supersedes").references(
       (): AnyPgColumn => menuItemsTable.id,
     ),

@@ -98,6 +98,41 @@ test("menu content edits create a translated current version", async () => {
   expect(before.name).not.toBe(updated!.name);
 });
 
+test("new item showcase is controlled manually", async () => {
+  const store = new JsonFileStore({
+    dataFilePath: join(tempDir, "store.json"),
+  });
+  await store.init();
+
+  const created = await store.createMenuItem({
+    price: 60,
+    category: "吐司",
+    imageUrl: "/imgs/menu/showcase-toast.webp",
+    isRecentlyUpdated: true,
+    translations: {
+      "zh-TW": { name: "新品吐司", description: "手動新品展示" },
+      en: { name: "Showcase Toast", description: "Manual showcase" },
+      ja: { name: "新商品トースト", description: "手動表示" },
+      ko: { name: "신상 토스트", description: "수동 표시" },
+    },
+  });
+
+  expect(created.isRecentlyUpdated).toBe(true);
+
+  const updated = await store.updateMenuItem(created.logicalId, {
+    changes: { isRecentlyUpdated: false },
+    reason: "turn off showcase",
+    userId: "tester",
+  });
+
+  expect(updated).not.toBeNull();
+  expect(updated!.isRecentlyUpdated).toBe(false);
+  expect(
+    store.getMenu().find((item) => item.logicalId === created.logicalId)
+      ?.isRecentlyUpdated,
+  ).toBe(false);
+});
+
 test("submitting an order with a stale menu version is rejected", async () => {
   const store = new JsonFileStore({
     dataFilePath: join(tempDir, "store.json"),

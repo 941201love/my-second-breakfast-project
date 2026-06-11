@@ -40,6 +40,7 @@ export interface MenuItemChanges {
   description?: string;
   imageUrl?: string;
   isRecommended?: boolean;
+  isRecentlyUpdated?: boolean;
   translations?: MenuItem["translations"];
   testGroup?: string;
 }
@@ -65,6 +66,7 @@ function toMenuItem(row: MenuRow): MenuItem {
     imageUrl: row.imageUrl,
     isCurrentVersion: row.isCurrentVersion,
     isRecommended: row.isRecommended,
+    isRecentlyUpdated: row.isRecentlyUpdated,
     testGroup: row.testGroup,
   };
 }
@@ -127,7 +129,6 @@ export class MenuRepository {
         : [];
     const previousById = new Map(previousRows.map((row) => [row.id, row]));
 
-    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     return rows
       .map((row) => {
         const previous = row.supersedes
@@ -151,7 +152,6 @@ export class MenuRepository {
                 endsAt: activePromotion.endsAt.toISOString(),
               }
             : undefined,
-          isRecentlyUpdated: row.createdAt.getTime() >= sevenDaysAgo,
           priceChanged,
           previousPrice: priceChanged ? previous?.price : undefined,
         };
@@ -211,6 +211,7 @@ export class MenuRepository {
     description?: string;
     imageUrl: string;
     isRecommended?: boolean;
+    isRecentlyUpdated?: boolean;
     translations?: MenuItem["translations"];
     createdBy?: string;
   }): Promise<MenuItem> {
@@ -237,6 +238,7 @@ export class MenuRepository {
         imageUrl: input.imageUrl,
         isCurrentVersion: true,
         isRecommended: input.isRecommended ?? false,
+        isRecentlyUpdated: input.isRecentlyUpdated ?? false,
         testGroup: "default",
         changeReason: "Initial creation",
         createdAt: now,
@@ -313,6 +315,8 @@ export class MenuRepository {
           imageUrl: changes.imageUrl ?? current.imageUrl,
           isCurrentVersion: true,
           isRecommended: changes.isRecommended ?? current.isRecommended,
+          isRecentlyUpdated:
+            changes.isRecentlyUpdated ?? current.isRecentlyUpdated,
           supersedes: current.id,
           testGroup: changes.testGroup ?? current.testGroup,
           changeReason: reason,
@@ -378,6 +382,26 @@ export class MenuRepository {
       })
       .returning();
     return toPromotion(row!);
+  }
+
+  async updatePromotion(
+    id: number,
+    input: Omit<ActivePromotion, "id">,
+  ): Promise<ActivePromotion | null> {
+    const [row] = await db
+      .update(promotionsTable)
+      .set({
+        name: input.name,
+        menuItemLogicalId: input.menuItemLogicalId,
+        discountType: input.discountType,
+        discountValue: input.discountValue,
+        startsAt: new Date(input.startsAt),
+        endsAt: new Date(input.endsAt),
+        isActive: true,
+      })
+      .where(eq(promotionsTable.id, id))
+      .returning();
+    return row ? toPromotion(row) : null;
   }
 
   async deletePromotion(id: number): Promise<ActivePromotion | null> {

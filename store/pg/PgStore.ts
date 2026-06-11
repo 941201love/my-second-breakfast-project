@@ -214,6 +214,7 @@ export class PgStore implements Store {
     description?: string;
     imageUrl: string;
     isRecommended?: boolean;
+    isRecentlyUpdated?: boolean;
     translations?: MenuItem["translations"];
     createdBy?: string;
   }): Promise<MenuItem> {
@@ -242,6 +243,7 @@ export class PgStore implements Store {
         description?: string;
         imageUrl?: string;
         isRecommended?: boolean;
+        isRecentlyUpdated?: boolean;
         translations?: MenuItem["translations"];
         testGroup?: string;
       };
@@ -294,6 +296,8 @@ export class PgStore implements Store {
           description: updated.description,
           imageUrl: updated.imageUrl,
           isCurrentVersion: updated.isCurrentVersion,
+          isRecommended: updated.isRecommended,
+          isRecentlyUpdated: updated.isRecentlyUpdated,
           testGroup: updated.testGroup,
         }
       : null;
@@ -1050,6 +1054,10 @@ export class PgStore implements Store {
     await db.execute(sql`
       ALTER TABLE ${sql.raw(`"${schemaName}"`)}."menu_items"
         ADD COLUMN IF NOT EXISTS "is_recommended" boolean DEFAULT false NOT NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."menu_items"
+        ADD COLUMN IF NOT EXISTS "is_recently_updated" boolean DEFAULT false NOT NULL
     `);
     await db.execute(sql`
       ALTER TABLE ${sql.raw(`"${schemaName}"`)}."menu_items"

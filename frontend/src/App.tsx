@@ -1503,6 +1503,9 @@ export default function App() {
     startsDate: todayTaipeiDate(),
     endsDate: todayTaipeiDate(),
   });
+  const [editingPromotionId, setEditingPromotionId] = useState<number | null>(
+    null,
+  );
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [addonSettings, setAddonSettings] = useState<AddonSettings>({
     eggPrice: 10,
@@ -1544,6 +1547,7 @@ export default function App() {
     addonKeys: [] as string[],
     category: "吐司",
     isRecommended: false,
+    isRecentlyUpdated: false,
     imageUrl: "",
     translations: {
       "zh-TW": { name: "", description: "" },
@@ -1693,8 +1697,8 @@ export default function App() {
   }
 
   const confirmDialogElement = confirmDialog ? (
-    <div className="fixed inset-0 z-[2147483647] flex items-center justify-center bg-black/60 px-4">
-      <section className="customer-confirm-modal w-full max-w-sm rounded-lg bg-base-100 p-5 shadow-2xl">
+    <div className="app-confirm-overlay fixed inset-0 z-[2147483647] flex items-center justify-center px-4">
+      <section className="app-confirm-modal w-full max-w-sm rounded-lg bg-base-100 p-5 shadow-2xl">
         <p className="text-lg">{confirmDialog.message}</p>
         <div className="mt-6 flex justify-end gap-2">
           <button
@@ -1726,6 +1730,7 @@ export default function App() {
       addonKeys: [],
       category: "吐司",
       isRecommended: false,
+      isRecentlyUpdated: false,
       imageUrl: "",
       translations: {
         "zh-TW": { name: "", description: "" },
@@ -1749,6 +1754,7 @@ export default function App() {
       addonKeys: item.addonKeys ?? [],
       category: normalizeMenuCategory(item.category, item.name),
       isRecommended: Boolean(item.isRecommended),
+      isRecentlyUpdated: Boolean(item.isRecentlyUpdated),
       imageUrl: item.imageUrl,
       translations: item.translations ?? {
         "zh-TW": { name: item.name, description: item.description },
@@ -3986,29 +3992,75 @@ export default function App() {
       setAdminError("請填寫完整的促銷活動資料。");
       return;
     }
-    if (!(await requestConfirm(`確定要新增促銷「${name}」嗎？`))) return;
-
-    const responses = await Promise.all(
-      menuItemLogicalIds.map((menuItemLogicalId) =>
-        fetch(buildApiUrl("/api/promotions"), {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name,
-            menuItemLogicalId,
-            discountType: newPromotion.discountType,
-            discountValue,
-            startsAt: `${newPromotion.startsDate}T00:00:00+08:00`,
-            endsAt: `${newPromotion.endsDate}T23:59:59+08:00`,
-          }),
-        }),
-      ),
-    );
-    if (responses.some((response) => !response.ok)) {
-      setAdminError("新增促銷失敗，請確認商品代碼與欄位。");
+    if (editingPromotionId && menuItemLogicalIds.length !== 1) {
+      setAdminError("編輯促銷時請選擇一個適用商品。");
       return;
     }
+    if (
+      !(await requestConfirm(
+        `確定要${editingPromotionId ? "更新" : "新增"}促銷「${name}」嗎？`,
+      ))
+    ) {
+      return;
+    }
+
+    const buildPromotionBody = (menuItemLogicalId: string) =>
+      JSON.stringify({
+        name,
+        menuItemLogicalId,
+        discountType: newPromotion.discountType,
+        discountValue,
+        startsAt: `${newPromotion.startsDate}T00:00:00+08:00`,
+        endsAt: `${newPromotion.endsDate}T23:59:59+08:00`,
+      });
+
+    const responses = editingPromotionId
+      ? [
+          await fetch(buildApiUrl(`/api/promotions/${editingPromotionId}`), {
+            method: "PATCH",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: buildPromotionBody(menuItemLogicalIds[0]!),
+          }),
+        ]
+      : await Promise.all(
+          menuItemLogicalIds.map((menuItemLogicalId) =>
+            fetch(buildApiUrl("/api/promotions"), {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: buildPromotionBody(menuItemLogicalId),
+            }),
+          ),
+        );
+    if (responses.some((response) => !response.ok)) {
+      setAdminError(
+        editingPromotionId
+          ? "更新促銷失敗，請確認商品代碼與欄位。"
+          : "新增促銷失敗，請確認商品代碼與欄位。",
+      );
+      return;
+    }
+    resetPromotionForm();
+    await Promise.all([loadMenu(), loadAdminData()]);
+    setAdminError(editingPromotionId ? "促銷活動已更新。" : "促銷活動已新增。");
+  }
+
+  function startEditPromotion(promotion: ActivePromotion): void {
+    setEditingPromotionId(promotion.id);
+    setNewPromotion({
+      name: promotion.name,
+      menuItemLogicalIds: [promotion.menuItemLogicalId],
+      discountType: promotion.discountType,
+      discountValue: String(promotion.discountValue),
+      startsDate: dateInputValue(promotion.startsAt),
+      endsDate: dateInputValue(promotion.endsAt),
+    });
+    setAdminError(`正在編輯促銷：${promotion.name}`);
+  }
+
+  function resetPromotionForm(): void {
+    setEditingPromotionId(null);
     setNewPromotion({
       name: "",
       menuItemLogicalIds: [],
@@ -4017,8 +4069,6 @@ export default function App() {
       startsDate: todayTaipeiDate(),
       endsDate: todayTaipeiDate(),
     });
-    await Promise.all([loadMenu(), loadAdminData()]);
-    setAdminError("促銷活動已新增。");
   }
 
   async function deleteAdminPromotion(id: number): Promise<void> {
@@ -4294,6 +4344,7 @@ export default function App() {
             addonKeys: newMenuItem.addonKeys,
             category: newMenuItem.category,
             isRecommended: newMenuItem.isRecommended,
+            isRecentlyUpdated: newMenuItem.isRecentlyUpdated,
             imageUrl: newMenuItem.imageUrl,
             translations: newMenuItem.translations,
           },
@@ -4313,6 +4364,7 @@ export default function App() {
           addonKeys: newMenuItem.addonKeys,
           category: newMenuItem.category,
           isRecommended: newMenuItem.isRecommended,
+          isRecentlyUpdated: newMenuItem.isRecentlyUpdated,
           imageUrl: newMenuItem.imageUrl,
           translations: newMenuItem.translations,
         };
@@ -5425,6 +5477,26 @@ export default function App() {
                     setNewMenuItem((current) => ({
                       ...current,
                       isRecommended,
+                    }));
+                  }}
+                />
+              </label>
+              <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-200 p-4">
+                <span>
+                  <span className="block font-semibold">新品展示</span>
+                  <span className="text-sm opacity-70">
+                    手動控制是否出現在前台新品推出區，不再依照建立後 7 天自動判斷。
+                  </span>
+                </span>
+                <input
+                  className="toggle toggle-primary"
+                  type="checkbox"
+                  checked={newMenuItem.isRecentlyUpdated}
+                  onChange={(event) => {
+                    const isRecentlyUpdated = event.currentTarget.checked;
+                    setNewMenuItem((current) => ({
+                      ...current,
+                      isRecentlyUpdated,
                     }));
                   }}
                 />
@@ -7446,6 +7518,29 @@ export default function App() {
                               }}
                             />
                           </label>
+                          <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-200 p-4 lg:col-span-2">
+                            <span>
+                              <span className="block font-semibold">
+                                新品展示
+                              </span>
+                              <span className="text-sm opacity-70">
+                                手動控制是否出現在前台新品推出區，不再依照建立後 7 天自動判斷。
+                              </span>
+                            </span>
+                            <input
+                              className="toggle toggle-primary"
+                              type="checkbox"
+                              checked={newMenuItem.isRecentlyUpdated}
+                              onChange={(event) => {
+                                const isRecentlyUpdated =
+                                  event.currentTarget.checked;
+                                setNewMenuItem((current) => ({
+                                  ...current,
+                                  isRecentlyUpdated,
+                                }));
+                              }}
+                            />
+                          </label>
                           <div className="space-y-2 lg:col-span-2">
                             <span className="label-text block">照片</span>
                             <input
@@ -8240,6 +8335,20 @@ export default function App() {
                   />
                 </label>
                 <div className="mb-4 rounded-lg bg-base-100 p-4 shadow">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-lg font-bold">
+                      {editingPromotionId ? "編輯促銷" : "新增促銷"}
+                    </h3>
+                    {editingPromotionId ? (
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-outline"
+                        onClick={resetPromotionForm}
+                      >
+                        取消編輯
+                      </button>
+                    ) : null}
+                  </div>
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                     <label className="form-control">
                       <span className="label-text mb-1">活動名稱</span>
@@ -8387,7 +8496,7 @@ export default function App() {
                     onClick={() => void createAdminPromotion()}
                     disabled={Boolean(adminStoreCode)}
                   >
-                    新增促銷
+                    {editingPromotionId ? "更新促銷" : "新增促銷"}
                   </button>
                 </div>
                 <div className="space-y-3">
@@ -8425,6 +8534,13 @@ export default function App() {
                             }
                           >
                             刪除
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-outline mt-2"
+                            onClick={() => startEditPromotion(promotion)}
+                          >
+                            編輯
                           </button>
                         </div>
                       </article>

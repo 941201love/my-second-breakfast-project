@@ -743,64 +743,73 @@ body,
 .customer-panel-page,
 .customer-profile-modal,
 .customer-pickup-modal,
-.customer-confirm-modal {
-  background: var(--customer-surface);
-  color: var(--customer-heading);
+.customer-confirm-modal,
+.app-confirm-modal {
+  background: var(--customer-surface, #ffffff);
+  color: var(--customer-heading, #283618);
 }
 
-.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal) :where(h1, h2, h3, h4, p, span, label, strong, li) {
+.app-confirm-overlay {
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.app-confirm-modal {
+  border: 1px solid rgba(40, 54, 24, 0.16);
+}
+
+.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal, .app-confirm-modal) :where(h1, h2, h3, h4, p, span, label, strong, li) {
   color: inherit;
 }
 
-.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal) :where(.bg-base-100, .bg-base-200, .bg-base-300) {
+.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal, .app-confirm-modal) :where(.bg-base-100, .bg-base-200, .bg-base-300) {
   background-color: var(--customer-surface);
 }
 
-.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal) :where(.border-base-300) {
+.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal, .app-confirm-modal) :where(.border-base-300) {
   border-color: rgba(40, 54, 24, 0.16);
 }
 
-.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal) :where(.opacity-80, .opacity-75, .opacity-70, .opacity-60) {
+.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal, .app-confirm-modal) :where(.opacity-80, .opacity-75, .opacity-70, .opacity-60) {
   color: var(--customer-muted);
   opacity: 1;
 }
 
-.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal) :where(input, select, textarea) {
+.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal, .app-confirm-modal) :where(input, select, textarea) {
   border-color: rgba(40, 54, 24, 0.2);
   background: #ffffff;
   color: var(--customer-heading);
 }
 
-.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal) :where(input, select, textarea)::placeholder {
+.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal, .app-confirm-modal) :where(input, select, textarea)::placeholder {
   color: var(--customer-muted);
 }
 
-.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal) :where(.btn) {
+.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal, .app-confirm-modal) :where(.btn) {
   border-color: rgba(40, 54, 24, 0.22);
   background: #ffffff;
   color: var(--customer-heading);
   box-shadow: none;
 }
 
-.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal) :where(.btn:hover) {
+.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal, .app-confirm-modal) :where(.btn:hover) {
   border-color: var(--customer-brand-100);
   background: var(--customer-brand-50);
   color: var(--customer-heading);
 }
 
-.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal) :where(.btn-primary, .btn-primary:hover) {
+.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal, .app-confirm-modal) :where(.btn-primary, .btn-primary:hover) {
   border-color: var(--customer-brand);
   background: var(--customer-brand);
   color: var(--customer-brand-50);
 }
 
-.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal) :where(.btn-primary:hover) {
+.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal, .app-confirm-modal) :where(.btn-primary:hover) {
   border-color: var(--customer-brand-100);
   background: var(--customer-brand-100);
   color: var(--customer-heading);
 }
 
-.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal) :where(.badge-primary) {
+.customer-shell :where(.customer-panel-page, .customer-profile-modal, .customer-pickup-modal, .customer-confirm-modal, .app-confirm-modal) :where(.badge-primary) {
   border-color: var(--customer-accent);
   background: var(--customer-accent);
   color: var(--customer-heading);

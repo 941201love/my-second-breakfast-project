@@ -283,6 +283,8 @@ function normalizeMenuItem(item: LegacyMenuItem): MenuItem {
       fallbackTranslations(item.name ?? "", item.description ?? ""),
     imageUrl: item.imageUrl ?? item.image_url ?? "",
     isCurrentVersion: item.isCurrentVersion ?? true,
+    isRecommended: item.isRecommended ?? false,
+    isRecentlyUpdated: item.isRecentlyUpdated ?? false,
     testGroup: item.testGroup ?? "default",
     displayOrder: item.displayOrder ?? Number(logicalId),
   };
@@ -579,6 +581,7 @@ export class JsonFileStore implements Store {
     description?: string;
     imageUrl: string;
     isRecommended?: boolean;
+    isRecentlyUpdated?: boolean;
     translations?: MenuItem["translations"];
     createdBy?: string;
   }): Promise<MenuItem> {
@@ -604,6 +607,7 @@ export class JsonFileStore implements Store {
       imageUrl: input.imageUrl,
       isCurrentVersion: true,
       isRecommended: input.isRecommended ?? false,
+      isRecentlyUpdated: input.isRecentlyUpdated ?? false,
       testGroup: "default",
       displayOrder: Number(logicalId),
     };
@@ -628,6 +632,7 @@ export class JsonFileStore implements Store {
         description?: string;
         imageUrl?: string;
         isRecommended?: boolean;
+        isRecentlyUpdated?: boolean;
         translations?: MenuItem["translations"];
         testGroup?: string;
       };
@@ -677,6 +682,9 @@ export class JsonFileStore implements Store {
         patch.changes.description ?? zh?.description ?? menuItem.description,
       translations,
       imageUrl: patch.changes.imageUrl ?? menuItem.imageUrl,
+      isRecommended: patch.changes.isRecommended ?? menuItem.isRecommended,
+      isRecentlyUpdated:
+        patch.changes.isRecentlyUpdated ?? menuItem.isRecentlyUpdated,
       testGroup: patch.changes.testGroup ?? menuItem.testGroup,
       isCurrentVersion: true,
     };

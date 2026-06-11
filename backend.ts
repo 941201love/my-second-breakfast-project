@@ -41,6 +41,7 @@ import {
   updateMenuItemParamsSchema,
   updateOrderBodySchema,
   updateOrderParamsSchema,
+  updatePromotionBodySchema,
 } from "./shared/route-schemas.ts";
 import { createStore } from "./store/index.ts";
 import { auth, getCurrentUser } from "./auth/better-auth.ts";
@@ -624,6 +625,30 @@ app.post(
     body: createPromotionBodySchema,
     response: {
       201: activePromotionResponseSchema,
+    },
+  },
+);
+
+app.patch(
+  "/api/promotions/:id",
+  async ({ params, body, request, set }) => {
+    requireHeadquarter(request);
+    const promotion = await menuRepository.updatePromotion(
+      Number.parseInt(params.id, 10),
+      body,
+    );
+    if (!promotion) {
+      set.status = 404;
+      return { error: "Promotion not found" };
+    }
+    return { data: promotion };
+  },
+  {
+    params: promotionParamsSchema,
+    body: updatePromotionBodySchema,
+    response: {
+      200: activePromotionResponseSchema,
+      404: apiErrorResponseSchema,
     },
   },
 );

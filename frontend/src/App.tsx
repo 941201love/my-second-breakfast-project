@@ -4313,9 +4313,15 @@ export default function App() {
       setAdminMenuNotice("儲存商品失敗：四種語言的名稱與介紹都要填。");
       return;
     }
-    // 價格不能為 0（也不能為負數）
-    if (!newMenuItem.imageUrl.trim() || newMenuItem.price <= 0) {
-      setAdminMenuNotice("請輸入完整的商品價格與圖片，價格需大於 0。");
+    // 價格不能為 0（也不能為負數）；若填寫大份價格，該價格亦需大於 0
+    if (
+      !newMenuItem.imageUrl.trim() ||
+      newMenuItem.price <= 0 ||
+      (newMenuItem.largePrice !== "" && Number(newMenuItem.largePrice) <= 0)
+    ) {
+      setAdminMenuNotice(
+        "請輸入完整的商品價格與圖片，價格需大於 0；若填寫大份價格，亦需大於 0。",
+      );
       return;
     }
     if (

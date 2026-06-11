@@ -2953,7 +2953,9 @@ export default function App() {
   const currentPromotions = useMemo(
     () =>
       activePromotions.filter(
-        (promotion) => new Date(promotion.endsAt).getTime() >= Date.now(),
+        (promotion) =>
+          promotion.isActive !== false &&
+          new Date(promotion.endsAt).getTime() >= Date.now(),
       ),
     [activePromotions],
   );
@@ -2976,7 +2978,9 @@ export default function App() {
   const historicalPromotions = useMemo(
     () =>
       activePromotions.filter(
-        (promotion) => new Date(promotion.endsAt).getTime() < Date.now(),
+        (promotion) =>
+          promotion.isActive === false ||
+          new Date(promotion.endsAt).getTime() < Date.now(),
       ),
     [activePromotions],
   );
@@ -4313,8 +4317,15 @@ export default function App() {
       setAdminMenuNotice("儲存商品失敗：四種語言的名稱與介紹都要填。");
       return;
     }
-    if (!newMenuItem.imageUrl.trim() || newMenuItem.price < 0) {
-      setAdminMenuNotice("請輸入完整的商品價格與圖片。");
+    if (!newMenuItem.imageUrl.trim() || newMenuItem.price <= 0) {
+      setAdminMenuNotice("請輸入完整的商品圖片，價格必須大於 0。");
+      return;
+    }
+    if (
+      newMenuItem.largePrice !== "" &&
+      Number(newMenuItem.largePrice) <= 0
+    ) {
+      setAdminMenuNotice("大份價格如果有填，必須大於 0。");
       return;
     }
     if (
@@ -4412,8 +4423,8 @@ export default function App() {
 
     const item = priceAdjustItem;
     const price = Number(priceAdjustValue);
-    if (!Number.isFinite(price) || price < 0) {
-      setAdminError("請輸入正確的價格。");
+    if (!Number.isFinite(price) || price <= 0) {
+      setAdminError("請輸入大於 0 的價格。");
       return;
     }
 
@@ -5310,13 +5321,14 @@ export default function App() {
                     inputMode="numeric"
                     value={newMenuItem.price}
                     onChange={(event) => {
-                      const price = parseWholeNumber(event.currentTarget.value);
+                      const digits = onlyDigits(event.currentTarget.value);
+                      const price = digits ? Number(digits) : 0;
                       setNewMenuItem((current) => ({
                         ...current,
                         price,
                       }));
                     }}
-                    placeholder="例如 50"
+                    placeholder="例如 50（不可為 0）"
                   />
                 </label>
                 <label className="form-control">
@@ -5461,46 +5473,51 @@ export default function App() {
                   </ul>
                 </details>
               </div>
-              <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-200 p-4">
-                <span>
-                  <span className="block font-semibold">店長推薦</span>
-                  <span className="text-sm opacity-70">
-                    開啟後前台會顯示推薦星號，並可被店長推薦篩選找到。
-                  </span>
-                </span>
-                <input
-                  className="toggle toggle-primary"
-                  type="checkbox"
-                  checked={newMenuItem.isRecommended}
-                  onChange={(event) => {
-                    const isRecommended = event.currentTarget.checked;
-                    setNewMenuItem((current) => ({
-                      ...current,
-                      isRecommended,
-                    }));
-                  }}
-                />
-              </label>
-              <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-200 p-4">
-                <span>
-                  <span className="block font-semibold">新品展示</span>
-                  <span className="text-sm opacity-70">
-                    手動控制是否出現在前台新品推出區，不再依照建立後 7 天自動判斷。
-                  </span>
-                </span>
-                <input
-                  className="toggle toggle-primary"
-                  type="checkbox"
-                  checked={newMenuItem.isRecentlyUpdated}
-                  onChange={(event) => {
-                    const isRecentlyUpdated = event.currentTarget.checked;
-                    setNewMenuItem((current) => ({
-                      ...current,
-                      isRecentlyUpdated,
-                    }));
-                  }}
-                />
-              </label>
+              <section className="rounded-lg border border-base-300 bg-base-200 p-4">
+                <div className="mb-3 font-semibold">商品標籤</div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-100 p-4">
+                    <span>
+                      <span className="block font-semibold">店長推薦</span>
+                      <span className="text-sm opacity-70">
+                        前台顯示推薦星號，並可被推薦篩選找到。
+                      </span>
+                    </span>
+                    <input
+                      className="toggle toggle-primary"
+                      type="checkbox"
+                      checked={newMenuItem.isRecommended}
+                      onChange={(event) => {
+                        const isRecommended = event.currentTarget.checked;
+                        setNewMenuItem((current) => ({
+                          ...current,
+                          isRecommended,
+                        }));
+                      }}
+                    />
+                  </label>
+                  <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-100 p-4">
+                    <span>
+                      <span className="block font-semibold">新品展示</span>
+                      <span className="text-sm opacity-70">
+                        顯示在前台新品推出區，由後台手動控制。
+                      </span>
+                    </span>
+                    <input
+                      className="toggle toggle-primary"
+                      type="checkbox"
+                      checked={newMenuItem.isRecentlyUpdated}
+                      onChange={(event) => {
+                        const isRecentlyUpdated = event.currentTarget.checked;
+                        setNewMenuItem((current) => ({
+                          ...current,
+                          isRecentlyUpdated,
+                        }));
+                      }}
+                    />
+                  </label>
+                </div>
+              </section>
 
               <div className="divide-y divide-base-300 border-y border-base-300">
                 {menuLanguageOptions.map((option) => (
@@ -7458,15 +7475,16 @@ export default function App() {
                               inputMode="numeric"
                               value={newMenuItem.price}
                               onChange={(event) => {
-                                const price = parseWholeNumber(
+                                const digits = onlyDigits(
                                   event.currentTarget.value,
                                 );
+                                const price = digits ? Number(digits) : 0;
                                 setNewMenuItem((current) => ({
                                   ...current,
                                   price,
                                 }));
                               }}
-                              placeholder="例如 50"
+                              placeholder="例如 50（不可為 0）"
                             />
                           </label>
                           <div>
@@ -7495,52 +7513,57 @@ export default function App() {
                               </ul>
                             </details>
                           </div>
-                          <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-200 p-4 lg:col-span-2">
-                            <span>
-                              <span className="block font-semibold">
-                                店長推薦
-                              </span>
-                              <span className="text-sm opacity-70">
-                                開啟後前台會顯示推薦星號，並可被店長推薦篩選找到。
-                              </span>
-                            </span>
-                            <input
-                              className="toggle toggle-primary"
-                              type="checkbox"
-                              checked={newMenuItem.isRecommended}
-                              onChange={(event) => {
-                                const isRecommended =
-                                  event.currentTarget.checked;
-                                setNewMenuItem((current) => ({
-                                  ...current,
-                                  isRecommended,
-                                }));
-                              }}
-                            />
-                          </label>
-                          <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-200 p-4 lg:col-span-2">
-                            <span>
-                              <span className="block font-semibold">
-                                新品展示
-                              </span>
-                              <span className="text-sm opacity-70">
-                                手動控制是否出現在前台新品推出區，不再依照建立後 7 天自動判斷。
-                              </span>
-                            </span>
-                            <input
-                              className="toggle toggle-primary"
-                              type="checkbox"
-                              checked={newMenuItem.isRecentlyUpdated}
-                              onChange={(event) => {
-                                const isRecentlyUpdated =
-                                  event.currentTarget.checked;
-                                setNewMenuItem((current) => ({
-                                  ...current,
-                                  isRecentlyUpdated,
-                                }));
-                              }}
-                            />
-                          </label>
+                          <section className="rounded-lg border border-base-300 bg-base-200 p-4 lg:col-span-2">
+                            <div className="mb-3 font-semibold">商品標籤</div>
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-100 p-4">
+                                <span>
+                                  <span className="block font-semibold">
+                                    店長推薦
+                                  </span>
+                                  <span className="text-sm opacity-70">
+                                    前台顯示推薦星號，並可被推薦篩選找到。
+                                  </span>
+                                </span>
+                                <input
+                                  className="toggle toggle-primary"
+                                  type="checkbox"
+                                  checked={newMenuItem.isRecommended}
+                                  onChange={(event) => {
+                                    const isRecommended =
+                                      event.currentTarget.checked;
+                                    setNewMenuItem((current) => ({
+                                      ...current,
+                                      isRecommended,
+                                    }));
+                                  }}
+                                />
+                              </label>
+                              <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-100 p-4">
+                                <span>
+                                  <span className="block font-semibold">
+                                    新品展示
+                                  </span>
+                                  <span className="text-sm opacity-70">
+                                    顯示在前台新品推出區，由後台手動控制。
+                                  </span>
+                                </span>
+                                <input
+                                  className="toggle toggle-primary"
+                                  type="checkbox"
+                                  checked={newMenuItem.isRecentlyUpdated}
+                                  onChange={(event) => {
+                                    const isRecentlyUpdated =
+                                      event.currentTarget.checked;
+                                    setNewMenuItem((current) => ({
+                                      ...current,
+                                      isRecentlyUpdated,
+                                    }));
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          </section>
                           <div className="space-y-2 lg:col-span-2">
                             <span className="label-text block">照片</span>
                             <input
@@ -8571,7 +8594,11 @@ export default function App() {
                                 {formatTaipeiDateTime(promotion.endsAt)}
                               </div>
                             </div>
-                            <span className="badge badge-ghost">已過期</span>
+                            <span className="badge badge-ghost">
+                              {promotion.isActive === false
+                                ? "已刪除"
+                                : "已過期"}
+                            </span>
                           </div>
                         </div>
                       ))
@@ -9010,14 +9037,20 @@ export default function App() {
                                     {coupon.code} - {coupon.name}
                                   </div>
                                   <div className="text-xs opacity-70">
-                                    {coupon.expiresAt
-                                      ? `到期 ${formatTaipeiDateTime(coupon.expiresAt)}`
-                                      : "已停用"}
+                                    {coupon.isActive === false
+                                      ? "已刪除"
+                                      : coupon.expiresAt
+                                        ? `到期 ${formatTaipeiDateTime(coupon.expiresAt)}`
+                                        : "已停用"}
                                     {" · "}
                                     {couponStoreScopeText(coupon)}
                                   </div>
                                 </div>
-                                <span className="badge badge-ghost">歷史</span>
+                                <span className="badge badge-ghost">
+                                  {coupon.isActive === false
+                                    ? "已刪除"
+                                    : "歷史"}
+                                </span>
                               </div>
                             </div>
                           ))

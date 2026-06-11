@@ -4,6 +4,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { JsonFileStore } from "../store/json/JsonFileStore.ts";
 import { calculateOrderProgress } from "../order-progress.ts";
+import {
+  createMenuItemBodySchema,
+  updateMenuItemBodySchema,
+} from "../shared/route-schemas.ts";
 
 let tempDir = "";
 
@@ -130,6 +134,38 @@ test("new item showcase is controlled manually", async () => {
   expect(
     store.getMenu().find((item) => item.logicalId === created.logicalId)
       ?.isRecentlyUpdated,
+  ).toBe(false);
+});
+
+test("menu item prices must be greater than zero", () => {
+  const translations = {
+    "zh-TW": { name: "零元吐司", description: "不應通過" },
+    en: { name: "Zero Toast", description: "Should fail" },
+    ja: { name: "ゼロトースト", description: "失敗するべき" },
+    ko: { name: "제로 토스트", description: "실패해야 함" },
+  };
+
+  expect(
+    createMenuItemBodySchema.safeParse({
+      price: 0,
+      category: "吐司",
+      imageUrl: "/imgs/menu/zero.webp",
+      translations,
+    }).success,
+  ).toBe(false);
+  expect(
+    updateMenuItemBodySchema.safeParse({
+      changes: { price: 0 },
+      reason: "invalid zero price",
+      versionLevel: "minor",
+    }).success,
+  ).toBe(false);
+  expect(
+    updateMenuItemBodySchema.safeParse({
+      changes: { largePrice: 0 },
+      reason: "invalid zero large price",
+      versionLevel: "minor",
+    }).success,
   ).toBe(false);
 });
 
@@ -489,6 +525,35 @@ test("coupon store restrictions are enforced on submit", async () => {
     couponCode: "TAINANONLY",
   });
   expect(accepted.ok).toBe(true);
+});
+
+test("deleted coupons stay available for history", async () => {
+  const store = new JsonFileStore({
+    dataFilePath: join(tempDir, "store.json"),
+  });
+  await store.init();
+
+  await store.createCoupon({
+    code: "HISTORY10",
+    name: "歷史優惠券",
+    discountType: "amount",
+    discountValue: 10,
+    minSpend: 0,
+    maxDiscount: 0,
+    usageLimitPerUser: 1,
+    usageLimitTotal: 0,
+    applicableStoreCodes: [],
+    isActive: true,
+  });
+
+  const deleted = await store.deleteCoupon("HISTORY10");
+
+  expect(deleted).not.toBeNull();
+  expect(deleted!.isActive).toBe(false);
+  expect(
+    store.getCoupons().find((coupon) => coupon.code === "HISTORY10")
+      ?.isActive,
+  ).toBe(false);
 });
 
 test("order progress is filtered by selected branch", () => {

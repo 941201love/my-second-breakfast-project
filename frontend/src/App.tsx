@@ -2039,13 +2039,35 @@ export default function App() {
   }
 
   async function loadMenu(): Promise<void> {
-    const response = await fetch(buildApiUrl("/api/menu"));
+    const [response, promotionsResponse] = await Promise.all([
+      fetch(buildApiUrl("/api/menu")),
+      fetch(buildApiUrl("/api/promotions/active")).catch(() => null),
+    ]);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
 
     const payload = (await response.json()) as ApiDataResponse<MenuItem[]>;
-    setItems(Array.isArray(payload?.data) ? payload.data : []);
+    const menuItems = Array.isArray(payload?.data) ? payload.data : [];
+    let activePromotionByLogicalId = new Map<string, ActivePromotion>();
+    if (promotionsResponse?.ok) {
+      const promotionsPayload =
+        (await promotionsResponse.json()) as ApiDataResponse<ActivePromotion[]>;
+      activePromotionByLogicalId = new Map(
+        (Array.isArray(promotionsPayload?.data) ? promotionsPayload.data : [])
+          .filter((promotion) => promotion.isActive !== false)
+          .map((promotion) => [promotion.menuItemLogicalId, promotion]),
+      );
+    }
+
+    setItems(
+      menuItems.map((item) => ({
+        ...item,
+        activePromotion:
+          activePromotionByLogicalId.get(item.logicalId) ??
+          item.activePromotion,
+      })),
+    );
   }
 
   async function loadCoupons(): Promise<void> {

@@ -864,17 +864,12 @@ body,
   --admin-brand-50: #fefae0;
   --admin-brand-100: #dda15e;
   --admin-brand: #606c38;
-  --admin-accent: #bc6c25;
-  --admin-accent-50: #fff3dd;
-  --admin-mint: #e9f3dc;
-  --admin-sage: #eef2e4;
   --admin-heading: #283618;
   --admin-muted: #7f875f;
   --admin-surface: #ffffff;
-  --admin-page: #fbfbf2;
   --admin-soft: rgba(96, 108, 56, 0.08);
   --admin-line: rgba(221, 161, 94, 0.4);
-  background: var(--admin-page) !important;
+  background: var(--admin-surface) !important;
   color: var(--admin-heading) !important;
   color-scheme: light;
   font-family:
@@ -891,9 +886,7 @@ body,
 .admin-shell.bg-base-200,
 .admin-shell.bg-base-300,
 .admin-shell.min-h-screen {
-  background:
-    linear-gradient(180deg, rgba(254, 250, 224, 0.55), transparent 260px),
-    var(--admin-page) !important;
+  background: var(--admin-surface) !important;
   color: var(--admin-heading) !important;
 }
 
@@ -903,68 +896,24 @@ body,
   border-color: rgba(40, 54, 24, 0.14) !important;
 }
 
-.admin-shell :where(main > section.rounded-lg, main > details.collapse, .card, .stats, .collapse) {
-  border: 1px solid rgba(96, 108, 56, 0.16) !important;
-  background:
-    linear-gradient(135deg, rgba(254, 250, 224, 0.78), rgba(255, 255, 255, 0.96) 42%, rgba(233, 243, 220, 0.66)) !important;
-}
-
-.admin-shell :where(.card-body, .collapse-content) {
-  background: transparent !important;
-}
-
 .admin-shell :where(.bg-base-100\/40, .bg-base-100\/90, .bg-base-200\/40, .bg-base-200\/60, .bg-base-200\/80) {
   background-color: var(--admin-surface) !important;
   color: var(--admin-heading) !important;
 }
 
 .admin-shell :where(table, thead, tbody, tr, td, th) {
+  background-color: var(--admin-surface) !important;
   color: var(--admin-heading) !important;
   border-color: rgba(40, 54, 24, 0.2) !important;
 }
 
-.admin-shell :where(table) {
-  background:
-    linear-gradient(180deg, rgba(255, 243, 221, 0.55), rgba(255, 255, 255, 0.95)) !important;
-}
-
-.admin-shell :where(thead tr, thead th) {
-  background: var(--admin-sage) !important;
-}
-
-.admin-shell :where(tbody) {
-  background: #ffffff !important;
-}
-
-.admin-shell :where(tbody tr) {
-  background: #fffdfa !important;
-}
-
-.admin-shell :where(tbody tr:nth-child(even)) {
-  background: #f8faef !important;
-}
-
 .admin-shell :where(tbody tr:hover) {
-  background: var(--admin-brand-50) !important;
+  background-color: var(--admin-brand-50) !important;
 }
 
 .admin-shell :where(.collapse-title, .collapse-content) {
+  background-color: var(--admin-surface) !important;
   color: var(--admin-heading) !important;
-}
-
-.admin-shell :where(.collapse-title) {
-  background: linear-gradient(90deg, var(--admin-mint), var(--admin-accent-50)) !important;
-  border-bottom: 1px solid rgba(96, 108, 56, 0.16);
-}
-
-.admin-shell :where(tbody > tr.bg-base-300, tbody > tr.bg-base-200, tr.bg-base-300, tr.bg-base-200) {
-  background: linear-gradient(90deg, #f4e5c8, #eef2e4) !important;
-}
-
-.admin-shell :where(tbody > tr.bg-base-300 td, tbody > tr.bg-base-200 td, tr.bg-base-300 td, tr.bg-base-200 td) {
-  background: transparent !important;
-  color: var(--admin-heading) !important;
-  font-size: 1.05rem;
 }
 
 .admin-shell :where(.bg-neutral, .bg-slate-900, .bg-gray-900, .bg-zinc-900, .bg-black) {
@@ -980,14 +929,6 @@ body,
 .admin-shell :where(.bg-primary, .bg-secondary, .bg-accent, .bg-info) {
   background-color: var(--admin-brand) !important;
   color: var(--admin-brand-50) !important;
-}
-
-.admin-shell :where(.bg-secondary) {
-  background-color: var(--admin-accent) !important;
-}
-
-.admin-shell :where(.bg-accent, .bg-info) {
-  background-color: #8f7a2d !important;
 }
 
 .admin-shell :where(.bg-primary):hover,
@@ -1021,22 +962,6 @@ body,
 
 .admin-shell :where(.shadow, .shadow-lg, .shadow-xl, .shadow-2xl) {
   box-shadow: 0 10px 26px rgba(40, 54, 24, 0.08);
-}
-
-.admin-shell :where(.stats) {
-  overflow: hidden;
-}
-
-.admin-shell :where(.stat) {
-  background:
-    radial-gradient(circle at top right, rgba(221, 161, 94, 0.2), transparent 38%),
-    linear-gradient(135deg, #ffffff, #f4f8ec) !important;
-}
-
-.admin-shell :where(.stat:nth-child(2n)) {
-  background:
-    radial-gradient(circle at top right, rgba(188, 108, 37, 0.16), transparent 38%),
-    linear-gradient(135deg, #ffffff, #fff3dd) !important;
 }
 
 .admin-shell :where(.btn-primary, .btn-secondary, .btn-accent, .btn-info) {
@@ -1083,56 +1008,8 @@ body,
 
 .admin-shell :where(.input, .select, .textarea) {
   border-color: rgba(40, 54, 24, 0.22) !important;
-  background: #fffdfa !important;
+  background: #ffffff !important;
   color: var(--admin-heading) !important;
-}
-
-.admin-shell :where(.input:focus, .select:focus, .textarea:focus) {
-  border-color: var(--admin-accent) !important;
-  box-shadow: 0 0 0 3px rgba(221, 161, 94, 0.22) !important;
-}
-
-.admin-shell .admin-menu-table-wrap {
-  border-color: rgba(96, 108, 56, 0.24) !important;
-  background:
-    linear-gradient(180deg, #eef2e4 0, #eef2e4 56px, #fffdfa 56px) !important;
-}
-
-.admin-shell .admin-menu-table {
-  border-collapse: separate;
-  border-spacing: 0;
-  background: #fffdfa !important;
-}
-
-.admin-shell .admin-menu-table thead tr,
-.admin-shell .admin-menu-table thead th {
-  background: #e9f3dc !important;
-  color: var(--admin-heading) !important;
-}
-
-.admin-shell .admin-menu-table tbody {
-  background: transparent !important;
-}
-
-.admin-shell .admin-menu-table tbody tr.bg-base-300,
-.admin-shell .admin-menu-table tbody tr.bg-base-300 > td {
-  background: linear-gradient(90deg, #f3dfb8, #e7f0d6) !important;
-  color: var(--admin-heading) !important;
-}
-
-.admin-shell .admin-menu-table tbody tr:not(.bg-base-300),
-.admin-shell .admin-menu-table tbody tr:not(.bg-base-300) > td {
-  background: #fffaf0 !important;
-}
-
-.admin-shell .admin-menu-table tbody tr:not(.bg-base-300):nth-child(even),
-.admin-shell .admin-menu-table tbody tr:not(.bg-base-300):nth-child(even) > td {
-  background: #f4f8ec !important;
-}
-
-.admin-shell .admin-menu-table tbody tr:not(.bg-base-300):hover,
-.admin-shell .admin-menu-table tbody tr:not(.bg-base-300):hover > td {
-  background: #fefae0 !important;
 }
 
 .admin-shell :where(.input, .select, .textarea)::placeholder {

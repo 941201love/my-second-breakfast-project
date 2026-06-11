@@ -763,6 +763,18 @@ body,
   color: var(--customer-heading, #283618);
 }
 
+.customer-profile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483645;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.customer-profile-modal {
+  z-index: 2147483646;
+}
+
 .app-confirm-overlay {
   background: rgba(0, 0, 0, 0.62);
 }

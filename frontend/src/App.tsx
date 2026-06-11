@@ -9850,10 +9850,10 @@ export default function App() {
       {user && (isProfileOpen || isProfilePage) ? (
         <>
           <div
-            className="fixed inset-0 z-[2147483645] bg-black/35 pointer-events-none"
+            className="customer-profile-overlay"
             aria-hidden="true"
           />
-          <section className="customer-profile-modal fixed left-1/2 top-1/2 z-[2147483646] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-base-100 shadow-2xl">
+          <section className="customer-profile-modal fixed left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-base-100 shadow-2xl">
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
               <h2 className="text-xl font-bold">{text.profileTitle}</h2>
               <button

@@ -1692,6 +1692,28 @@ export default function App() {
     }
   }
 
+  const confirmDialogElement = confirmDialog ? (
+    <div className="fixed inset-0 z-[2147483647] flex items-center justify-center bg-black/60 px-4">
+      <section className="customer-confirm-modal w-full max-w-sm rounded-lg bg-base-100 p-5 shadow-2xl">
+        <p className="text-lg">{confirmDialog.message}</p>
+        <div className="mt-6 flex justify-end gap-2">
+          <button
+            className="btn btn-ghost"
+            onClick={() => void closeConfirmDialog(false)}
+          >
+            {text.cancel}
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => void closeConfirmDialog(true)}
+          >
+            {text.confirm}
+          </button>
+        </div>
+      </section>
+    </div>
+  ) : null;
+
   function resetNewMenuItemForm(): void {
     setEditingAdminMenuLogicalId(null);
     setNewMenuItem({
@@ -2421,7 +2443,7 @@ export default function App() {
     const shouldLockBody =
       Boolean(clockPickerTarget) ||
       Boolean(adminPriceHistoryModal) ||
-      (!isAdminPage && Boolean(confirmDialog)) ||
+      Boolean(confirmDialog) ||
       (!isAdminPage && isCustomerFullPage);
     if (!shouldLockBody) return;
 
@@ -5504,6 +5526,7 @@ export default function App() {
             </button>
           </div>
         </footer>
+        {confirmDialogElement}
       </div>
     );
   }
@@ -8931,6 +8954,7 @@ export default function App() {
             </section>
           </div>
         ) : null}
+        {confirmDialogElement}
       </div>
     );
   }
@@ -10872,27 +10896,7 @@ export default function App() {
         </div>
       ) : null}
 
-      {confirmDialog ? (
-        <div className="fixed inset-0 z-[2147483647] flex items-center justify-center bg-black/60 px-4">
-          <section className="customer-confirm-modal w-full max-w-sm rounded-lg bg-base-100 p-5 shadow-2xl">
-            <p className="text-lg">{confirmDialog.message}</p>
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                className="btn btn-ghost"
-                onClick={() => void closeConfirmDialog(false)}
-              >
-                {text.cancel}
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={() => void closeConfirmDialog(true)}
-              >
-                {text.confirm}
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
+      {confirmDialogElement}
     </div>
   );
 }

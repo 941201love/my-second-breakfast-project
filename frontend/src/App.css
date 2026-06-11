@@ -1317,10 +1317,6 @@ body,
     padding-top: 24px;
   }
 
-  .customer-brand-column {
-    padding-right: 122px;
-  }
-
   .customer-logout-button {
     position: absolute;
     top: 24px;
@@ -1329,6 +1325,10 @@ body,
     max-width: 108px;
     min-height: 42px;
     border-radius: 16px;
+  }
+
+  .customer-brand {
+    padding-right: 122px;
   }
 
   .customer-search-box {

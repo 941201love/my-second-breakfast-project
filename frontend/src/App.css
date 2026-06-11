@@ -870,6 +870,26 @@ body,
   border-color: rgba(40, 54, 24, 0.14) !important;
 }
 
+.admin-shell :where(.bg-base-100\/40, .bg-base-100\/90, .bg-base-200\/40, .bg-base-200\/60, .bg-base-200\/80) {
+  background-color: var(--admin-surface) !important;
+  color: var(--admin-heading) !important;
+}
+
+.admin-shell :where(table, thead, tbody, tr, td, th) {
+  background-color: var(--admin-surface) !important;
+  color: var(--admin-heading) !important;
+  border-color: rgba(40, 54, 24, 0.2) !important;
+}
+
+.admin-shell :where(tbody tr:hover) {
+  background-color: var(--admin-brand-50) !important;
+}
+
+.admin-shell :where(.collapse-title, .collapse-content) {
+  background-color: var(--admin-surface) !important;
+  color: var(--admin-heading) !important;
+}
+
 .admin-shell :where(.bg-neutral, .bg-slate-900, .bg-gray-900, .bg-zinc-900, .bg-black) {
   background-color: var(--admin-surface) !important;
   color: var(--admin-heading) !important;
@@ -983,6 +1003,18 @@ body,
   border-color: var(--admin-brand) !important;
   background: var(--admin-brand) !important;
   color: var(--admin-brand-50) !important;
+}
+
+.admin-shell :where(.badge:not(.badge-primary):not(.badge-success):not(.badge-accent):not(.badge-error), .badge-ghost, .badge-outline) {
+  border-color: rgba(40, 54, 24, 0.28) !important;
+  background: #f7f8f1 !important;
+  color: var(--admin-heading) !important;
+}
+
+.admin-shell :where(.badge-error) {
+  border-color: #ef4444 !important;
+  background: #fff5f5 !important;
+  color: #b42318 !important;
 }
 
 .admin-shell :where(.text-primary, .text-secondary, .text-accent, .text-success) {

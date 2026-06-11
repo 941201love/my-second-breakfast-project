@@ -12,8 +12,8 @@ export const menuItemSchema = z.object({
   majorVersion: z.number().int().min(1),
   minorVersion: z.number().int().min(0),
   name: z.string().min(1),
-  price: z.number().min(0),
-  largePrice: z.number().min(0).optional(),
+  price: z.number().min(1),
+  largePrice: z.number().min(1).optional(),
   eggPrice: z.number().min(0).optional(),
   cheesePrice: z.number().min(0).optional(),
   addonKeys: z.array(z.string().min(1)).optional(),
@@ -65,7 +65,7 @@ export const menuItemVersionHistorySchema = z.object({
   minorVersion: z.number().int().min(0),
   id: z.string().min(1),
   name: z.string().min(1),
-  price: z.number().min(0),
+  price: z.number().min(1),
   category: z.string().min(1),
   description: z.string(),
   imageUrl: z.string().min(1),
@@ -84,6 +84,7 @@ export const activePromotionSchema = z.object({
   discountValue: z.number().int().min(1),
   startsAt: z.string().min(1),
   endsAt: z.string().min(1),
+  isActive: z.boolean().optional(),
 });
 
 export const couponSchema = z.object({

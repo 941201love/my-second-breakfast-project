@@ -82,6 +82,7 @@ function toPromotion(
     discountValue: row.discountValue,
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
+    isActive: row.isActive,
   };
 }
 
@@ -406,7 +407,8 @@ export class MenuRepository {
 
   async deletePromotion(id: number): Promise<ActivePromotion | null> {
     const [row] = await db
-      .delete(promotionsTable)
+      .update(promotionsTable)
+      .set({ isActive: false })
       .where(eq(promotionsTable.id, id))
       .returning();
     return row ? toPromotion(row) : null;

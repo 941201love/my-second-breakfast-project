@@ -41,7 +41,7 @@ body,
 
 .customer-topbar-inner {
   display: grid;
-  grid-template-columns: minmax(220px, 420px) minmax(0, 1fr);
+  grid-template-columns: minmax(560px, 700px) minmax(0, 1fr);
   width: 100%;
   max-width: none;
   margin: 0 auto;
@@ -74,9 +74,9 @@ body,
 
 .customer-brand-text {
   min-width: 0;
-  max-width: clamp(180px, 24vw, 360px);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
   white-space: nowrap;
 }
 

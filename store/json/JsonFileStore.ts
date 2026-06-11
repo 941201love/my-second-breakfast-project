@@ -1134,7 +1134,7 @@ export class JsonFileStore implements Store {
     const coupon = this.coupons.find((item) => item.code === code);
     if (!coupon) return null;
 
-    this.coupons = this.coupons.filter((item) => item.code !== code);
+    coupon.isActive = false;
     await this.persist();
     return coupon;
   }

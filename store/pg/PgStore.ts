@@ -824,9 +824,12 @@ export class PgStore implements Store {
     const coupon = this.coupons.find((item) => item.code === code);
     if (!coupon) return null;
 
-    await db.delete(couponsTable).where(eq(couponsTable.code, code));
+    await db
+      .update(couponsTable)
+      .set({ isActive: false })
+      .where(eq(couponsTable.code, code));
     await this.reloadCoupons();
-    return coupon;
+    return { ...coupon, isActive: false };
   }
 
   getEmployees(): ReadonlyArray<Employee> {

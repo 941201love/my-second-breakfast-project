@@ -2953,7 +2953,9 @@ export default function App() {
   const currentPromotions = useMemo(
     () =>
       activePromotions.filter(
-        (promotion) => new Date(promotion.endsAt).getTime() >= Date.now(),
+        (promotion) =>
+          promotion.isActive !== false &&
+          new Date(promotion.endsAt).getTime() >= Date.now(),
       ),
     [activePromotions],
   );
@@ -2976,7 +2978,9 @@ export default function App() {
   const historicalPromotions = useMemo(
     () =>
       activePromotions.filter(
-        (promotion) => new Date(promotion.endsAt).getTime() < Date.now(),
+        (promotion) =>
+          promotion.isActive === false ||
+          new Date(promotion.endsAt).getTime() < Date.now(),
       ),
     [activePromotions],
   );
@@ -4313,15 +4317,12 @@ export default function App() {
       setAdminMenuNotice("儲存商品失敗：四種語言的名稱與介紹都要填。");
       return;
     }
-    // 價格不能為 0（也不能為負數）；若填寫大份價格，該價格亦需大於 0
-    if (
-      !newMenuItem.imageUrl.trim() ||
-      newMenuItem.price <= 0 ||
-      (newMenuItem.largePrice !== "" && Number(newMenuItem.largePrice) <= 0)
-    ) {
-      setAdminMenuNotice(
-        "請輸入完整的商品價格與圖片，價格需大於 0；若填寫大份價格，亦需大於 0。",
-      );
+    if (!newMenuItem.imageUrl.trim() || newMenuItem.price <= 0) {
+      setAdminMenuNotice("請輸入完整的商品圖片，價格必須大於 0。");
+      return;
+    }
+    if (newMenuItem.largePrice !== "" && Number(newMenuItem.largePrice) <= 0) {
+      setAdminMenuNotice("大份價格如果有填，必須大於 0。");
       return;
     }
     if (
@@ -4419,8 +4420,8 @@ export default function App() {
 
     const item = priceAdjustItem;
     const price = Number(priceAdjustValue);
-    if (!Number.isFinite(price) || price < 0) {
-      setAdminError("請輸入正確的價格。");
+    if (!Number.isFinite(price) || price <= 0) {
+      setAdminError("請輸入大於 0 的價格。");
       return;
     }
 
@@ -5323,7 +5324,7 @@ export default function App() {
                         price,
                       }));
                     }}
-                    placeholder="例如 50"
+                    placeholder="例如 50（不可為 0）"
                   />
                 </label>
                 <label className="form-control">
@@ -7473,7 +7474,7 @@ export default function App() {
                                   price,
                                 }));
                               }}
-                              placeholder="例如 50"
+                              placeholder="例如 50（不可為 0）"
                             />
                           </label>
                           <div>
@@ -8578,7 +8579,11 @@ export default function App() {
                                 {formatTaipeiDateTime(promotion.endsAt)}
                               </div>
                             </div>
-                            <span className="badge badge-ghost">已過期</span>
+                            <span className="badge badge-ghost">
+                              {promotion.isActive === false
+                                ? "已刪除"
+                                : "已過期"}
+                            </span>
                           </div>
                         </div>
                       ))
@@ -9017,14 +9022,18 @@ export default function App() {
                                     {coupon.code} - {coupon.name}
                                   </div>
                                   <div className="text-xs opacity-70">
-                                    {coupon.expiresAt
-                                      ? `到期 ${formatTaipeiDateTime(coupon.expiresAt)}`
-                                      : "已停用"}
+                                    {coupon.isActive === false
+                                      ? "已刪除"
+                                      : coupon.expiresAt
+                                        ? `到期 ${formatTaipeiDateTime(coupon.expiresAt)}`
+                                        : "已停用"}
                                     {" · "}
                                     {couponStoreScopeText(coupon)}
                                   </div>
                                 </div>
-                                <span className="badge badge-ghost">歷史</span>
+                                <span className="badge badge-ghost">
+                                  {coupon.isActive === false ? "已刪除" : "歷史"}
+                                </span>
                               </div>
                             </div>
                           ))

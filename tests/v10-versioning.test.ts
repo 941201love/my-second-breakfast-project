@@ -4,6 +4,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { JsonFileStore } from "../store/json/JsonFileStore.ts";
 import { calculateOrderProgress } from "../order-progress.ts";
+import {
+  createMenuItemBodySchema,
+  updateMenuItemBodySchema,
+} from "../shared/route-schemas.ts";
 
 let tempDir = "";
 
@@ -566,4 +570,66 @@ test("same user can keep separate pending carts per branch", async () => {
   expect(
     store.getCurrentOrderByUserId("user-branch-switch", "tainan")?.id,
   ).toBe(tainanOrder.id);
+});
+
+test("menu item prices must be greater than zero", () => {
+  const translations = {
+    "zh-TW": { name: "新品吐司", description: "測試商品" },
+    en: { name: "New Toast", description: "Test item" },
+    ja: { name: "新トースト", description: "テスト商品" },
+    ko: { name: "새 토스트", description: "테스트 상품" },
+  };
+
+  expect(
+    createMenuItemBodySchema.safeParse({
+      price: 0,
+      category: "吐司",
+      imageUrl: "https://example.com/toast.jpg",
+      translations,
+    }).success,
+  ).toBe(false);
+
+  expect(
+    updateMenuItemBodySchema.safeParse({
+      changes: { price: 0 },
+      reason: "測試 0 元價格",
+      versionLevel: "minor",
+    }).success,
+  ).toBe(false);
+
+  expect(
+    updateMenuItemBodySchema.safeParse({
+      changes: { largePrice: 0 },
+      reason: "測試 0 元大份價格",
+      versionLevel: "minor",
+    }).success,
+  ).toBe(false);
+});
+
+test("deleted coupons stay available for history", async () => {
+  const store = new JsonFileStore({
+    dataFilePath: join(tempDir, "store.json"),
+  });
+  await store.init();
+
+  await store.createCoupon({
+    code: "HISTORY10",
+    name: "歷史優惠券",
+    discountType: "amount",
+    discountValue: 10,
+    minSpend: 0,
+    maxDiscount: 0,
+    usageLimitPerUser: 1,
+    usageLimitTotal: 0,
+    applicableStoreCodes: [],
+    startsAt: new Date(Date.now() - 60_000).toISOString(),
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    isActive: true,
+  });
+
+  const deleted = await store.deleteCoupon("HISTORY10");
+  expect(deleted?.isActive).toBe(false);
+  expect(
+    store.getCoupons().find((coupon) => coupon.code === "HISTORY10"),
+  ).toMatchObject({ code: "HISTORY10", isActive: false });
 });

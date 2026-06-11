@@ -2420,7 +2420,7 @@ export default function App() {
       isPickupStatusOpen;
     const shouldLockBody =
       Boolean(adminPriceHistoryModal) ||
-      Boolean(confirmDialog) ||
+      (!isAdminPage && Boolean(confirmDialog)) ||
       (!isAdminPage && isCustomerFullPage);
     if (!shouldLockBody) return;
 
@@ -4165,6 +4165,12 @@ export default function App() {
     }
     const eggPrice = parseWholeNumber(addonSettingsDraft.eggPrice);
     const cheesePrice = parseWholeNumber(addonSettingsDraft.cheesePrice);
+    const addonItems = (addonSettingsDraft.items ?? []).map((item) => ({
+      ...item,
+      name: item.name.trim(),
+      price: Number(item.price) || 0,
+      isActive: item.isActive !== false,
+    }));
     if (
       !(await requestConfirm(
         "確定要更新共用加料價格嗎？新加入購物車的品項會套用新價格。",
@@ -4173,32 +4179,36 @@ export default function App() {
       return;
     }
 
-    const response = await fetch(buildApiUrl("/api/addons"), {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        eggPrice,
-        cheesePrice,
-        items: addonSettingsDraft.items ?? [],
-      }),
-    });
+    try {
+      const response = await fetch(buildApiUrl("/api/addons"), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          eggPrice,
+          cheesePrice,
+          items: addonItems,
+        }),
+      });
 
-    if (!response.ok) {
-      setAdminError("更新共用加料價格失敗。");
-      return;
+      if (!response.ok) {
+        setAdminError("更新共用加料價格失敗，請確認已使用總部後台登入。");
+        return;
+      }
+
+      const payload = (await response.json()) as ApiDataResponse<AddonSettings>;
+      const settings = normalizeAddonSettings(payload.data);
+      setAddonSettings(settings);
+      setAddonSettingsDraft({
+        eggPrice: String(settings.eggPrice),
+        cheesePrice: String(settings.cheesePrice),
+        items: settings.items,
+      });
+      await loadMenu();
+      setAdminError("共用加料價格已更新。");
+    } catch {
+      setAdminError("更新共用加料價格失敗，請稍後再試。");
     }
-
-    const payload = (await response.json()) as ApiDataResponse<AddonSettings>;
-    const settings = normalizeAddonSettings(payload.data);
-    setAddonSettings(settings);
-    setAddonSettingsDraft({
-      eggPrice: String(settings.eggPrice),
-      cheesePrice: String(settings.cheesePrice),
-      items: settings.items,
-    });
-    await loadMenu();
-    setAdminError("共用加料價格已更新。");
   }
 
   function addAddonDraft(): void {
@@ -5161,7 +5171,7 @@ export default function App() {
       previewCopy.description.trim() || "商品介紹會顯示在這裡";
 
     return (
-      <div className="min-h-screen bg-base-100">
+      <div className="admin-shell min-h-screen bg-base-100">
         {adminMenuNotice ? (
           <div className="fixed left-1/2 top-6 z-[2147483647] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 pointer-events-none">
             <div className="alert alert-warning shadow-lg justify-center">
@@ -5552,7 +5562,7 @@ export default function App() {
     ];
 
     return (
-      <div className="min-h-screen bg-base-200">
+      <div className="admin-shell min-h-screen bg-base-200">
         <div className="navbar bg-base-100 shadow-lg">
           <div className="flex-1">
             <a className="normal-case text-2xl font-bold px-2" href="/admin">
@@ -7170,6 +7180,7 @@ export default function App() {
                   </label>
                   <button
                     className="btn btn-primary"
+                    type="button"
                     onClick={() => {
                       void saveAddonSettings();
                     }}
@@ -7227,6 +7238,7 @@ export default function App() {
                           />
                           <button
                             className="btn btn-error btn-outline"
+                            type="button"
                             onClick={() => {
                               setAddonSettingsDraft((current) => ({
                                 ...current,

@@ -9155,6 +9155,16 @@ export default function App() {
               <span className="customer-brand-text" title={text.appTitle}>
                 {text.appTitle}
               </span>
+              {user ? (
+                <button
+                  className="customer-title-logout-button"
+                  onClick={() => {
+                    void handleLogout();
+                  }}
+                >
+                  {text.logout}
+                </button>
+              ) : null}
             </div>
             {!adminStoreCode ? (
               <div className="customer-store-control">

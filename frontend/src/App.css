@@ -184,6 +184,10 @@ body,
   min-width: 82px;
 }
 
+.customer-title-logout-button {
+  display: none;
+}
+
 .customer-nav-button:disabled {
   cursor: not-allowed;
   opacity: 0.42;
@@ -1006,15 +1010,21 @@ body,
   color: #b42318 !important;
 }
 
-.admin-shell :where(.input, .select, .textarea) {
+.admin-shell :where(.input, .select, .textarea, .file-input) {
   border-color: rgba(40, 54, 24, 0.22) !important;
   background: #ffffff !important;
   color: var(--admin-heading) !important;
 }
 
-.admin-shell :where(.input, .select, .textarea)::placeholder {
+.admin-shell :where(.input, .select, .textarea, .file-input)::placeholder {
   color: var(--admin-muted) !important;
   opacity: 0.9 !important;
+}
+
+.admin-shell :where(.file-input)::file-selector-button {
+  border-color: rgba(40, 54, 24, 0.16) !important;
+  background: var(--admin-brand) !important;
+  color: var(--admin-brand-50) !important;
 }
 
 .admin-shell :where(.label-text, .card-title, h1, h2, h3, h4, p, td, th, li) {
@@ -1312,23 +1322,34 @@ body,
     font-size: 28px;
   }
 
-  .customer-topbar-inner {
-    position: relative;
-    padding-top: 24px;
-  }
-
-  .customer-logout-button {
-    position: absolute;
-    top: 24px;
-    right: 22px;
-    width: 108px;
-    max-width: 108px;
-    min-height: 42px;
-    border-radius: 16px;
-  }
-
   .customer-brand {
-    padding-right: 122px;
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) 108px;
+    gap: 10px;
+    align-items: center;
+    padding-right: 0;
+  }
+
+  .customer-brand-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .customer-title-logout-button {
+    display: flex;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 16px;
+    background: var(--customer-brand);
+    color: var(--customer-brand-50);
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .customer-action-grid .customer-logout-button {
+    display: none;
   }
 
   .customer-search-box {

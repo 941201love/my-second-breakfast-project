@@ -552,6 +552,14 @@ body,
   white-space: nowrap;
 }
 
+.customer-pill + .customer-pill {
+  margin-left: 12px;
+}
+
+.customer-category-tab + .customer-pill {
+  margin-left: 18px;
+}
+
 .customer-pill.active {
   box-shadow: inset 0 0 0 2px var(--customer-brand-100);
 }

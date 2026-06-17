@@ -1104,6 +1104,22 @@ export class JsonFileStore implements Store {
     return order;
   }
 
+  async updateOrderReview(
+    orderId: number,
+    input: { userId: string; rating: number; review?: string },
+  ): Promise<Order | null> {
+    const order = this.orders.find((targetOrder) => targetOrder.id === orderId);
+    if (!order || order.userId !== input.userId || order.status === "pending") {
+      return null;
+    }
+
+    order.reviewRating = Math.min(5, Math.max(1, Math.round(input.rating)));
+    order.reviewText = input.review?.trim() || undefined;
+    order.reviewedAt = new Date().toISOString();
+    await this.persist();
+    return order;
+  }
+
   getCoupons(): ReadonlyArray<Coupon> {
     return this.coupons;
   }

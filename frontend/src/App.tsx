@@ -236,6 +236,22 @@ function promotionalMenuItemPrice(item: MenuItem, price = item.price) {
   return applyPromotionToPrice(price, item.activePromotion);
 }
 
+function customerMenuPriceDisplay(item: MenuItem) {
+  const currentPrice = promotionalMenuItemPrice(item);
+  const previousPrice =
+    item.priceChanged &&
+    typeof item.previousPrice === "number" &&
+    item.previousPrice > 0 &&
+    item.previousPrice !== item.price
+      ? item.previousPrice
+      : undefined;
+
+  return {
+    currentPrice,
+    oldPrice: item.activePromotion ? item.price : previousPrice,
+  };
+}
+
 function submittedOrderDate(order: Order) {
   return new Date(order.submittedAt ?? order.createdAt).toLocaleDateString(
     "sv-SE",
@@ -879,6 +895,13 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     card: "刷卡",
     total: "總額",
     buyAgain: "再買一次",
+    customerReview: "顧客評價",
+    reviewRating: "評分",
+    reviewPlaceholder: "留下這次餐點或服務的心得",
+    submitReview: "送出評價",
+    updateReview: "更新評價",
+    reviewSaved: "評價已儲存",
+    reviewFailed: "評價送出失敗，請稍後再試。",
     profileTitle: "個人資料",
     nicknamePlaceholder: "暱稱",
     phonePlaceholder: "電話",
@@ -1006,6 +1029,13 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     card: "Card",
     total: "Total",
     buyAgain: "Order again",
+    customerReview: "Review",
+    reviewRating: "Rating",
+    reviewPlaceholder: "Share feedback about this meal or service",
+    submitReview: "Submit review",
+    updateReview: "Update review",
+    reviewSaved: "Review saved",
+    reviewFailed: "Could not save the review. Please try again.",
     profileTitle: "Profile",
     nicknamePlaceholder: "Nickname",
     phonePlaceholder: "Phone",
@@ -1136,6 +1166,13 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     card: "カード",
     total: "合計",
     buyAgain: "もう一度買う",
+    customerReview: "レビュー",
+    reviewRating: "評価",
+    reviewPlaceholder: "今回の食事やサービスの感想を書いてください",
+    submitReview: "レビューを送信",
+    updateReview: "レビューを更新",
+    reviewSaved: "レビューを保存しました",
+    reviewFailed: "レビューを保存できませんでした。もう一度お試しください。",
     profileTitle: "個人情報",
     nicknamePlaceholder: "ニックネーム",
     phonePlaceholder: "電話",
@@ -1266,6 +1303,13 @@ const uiText: Record<UserProfile["language"], Record<string, string>> = {
     card: "카드",
     total: "합계",
     buyAgain: "다시 주문",
+    customerReview: "리뷰",
+    reviewRating: "평점",
+    reviewPlaceholder: "이번 식사나 서비스에 대한 의견을 남겨 주세요",
+    submitReview: "리뷰 보내기",
+    updateReview: "리뷰 수정",
+    reviewSaved: "리뷰가 저장되었습니다",
+    reviewFailed: "리뷰를 저장하지 못했습니다. 다시 시도해 주세요.",
     profileTitle: "개인 정보",
     nicknamePlaceholder: "닉네임",
     phonePlaceholder: "전화",
@@ -1412,6 +1456,9 @@ export default function App() {
   const [orderId, setOrderId] = useState<number | null>(null);
   const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [reviewDrafts, setReviewDrafts] = useState<
+    Record<number, { rating: number; review: string }>
+  >({});
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [profile, setProfile] = useState<UserProfile>({
@@ -2131,9 +2178,72 @@ export default function App() {
       }
 
       const payload = (await response.json()) as ApiDataResponse<Order[]>;
-      setHistoryOrders(Array.isArray(payload?.data) ? payload.data : []);
+      const orders = Array.isArray(payload?.data) ? payload.data : [];
+      setHistoryOrders(orders);
+      setReviewDrafts(
+        orders.reduce<Record<number, { rating: number; review: string }>>(
+          (drafts, order) => {
+            drafts[order.id] = {
+              rating: order.reviewRating ?? 5,
+              review: order.reviewText ?? "",
+            };
+            return drafts;
+          },
+          {},
+        ),
+      );
     } finally {
       setHistoryLoading(false);
+    }
+  }
+
+  async function submitOrderReview(order: Order): Promise<void> {
+    const draft = reviewDrafts[order.id] ?? {
+      rating: order.reviewRating ?? 5,
+      review: order.reviewText ?? "",
+    };
+    setActiveItemId(`review-${order.id}`);
+    setActionError("");
+
+    try {
+      const response = await fetch(
+        buildApiUrl(`/api/orders/${order.id}/review`),
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            rating: draft.rating,
+            review: draft.review.trim(),
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Review failed: HTTP ${response.status}`);
+      }
+
+      const payload = (await response.json()) as ApiDataResponse<Order>;
+      if (payload?.data) {
+        setHistoryOrders((orders) =>
+          orders.map((candidate) =>
+            candidate.id === payload.data.id ? payload.data : candidate,
+          ),
+        );
+        setReviewDrafts((drafts) => ({
+          ...drafts,
+          [payload.data.id]: {
+            rating: payload.data.reviewRating ?? draft.rating,
+            review: payload.data.reviewText ?? draft.review,
+          },
+        }));
+      }
+      setActionError(text.reviewSaved);
+    } catch (reviewError) {
+      console.error(reviewError);
+      setActionError(text.reviewFailed);
+    } finally {
+      setActiveItemId(null);
     }
   }
 
@@ -9317,6 +9427,7 @@ export default function App() {
               {promotionalItems.map((item) => {
                 const copy = menuCopy(item);
                 const period = promotionPeriodText(item.activePromotion);
+                const priceDisplay = customerMenuPriceDisplay(item);
                 return (
                   <div
                     key={`promotion-${item.id}`}
@@ -9333,11 +9444,13 @@ export default function App() {
                       </small>
                     </span>
                     <span className="customer-price-inline">
-                      <span className="customer-old-price">
-                        {formatMoney(item.price)}
-                      </span>
+                      {priceDisplay.oldPrice !== undefined ? (
+                        <span className="customer-old-price">
+                          {formatMoney(priceDisplay.oldPrice)}
+                        </span>
+                      ) : null}
                       <strong>
-                        {formatMoney(promotionalMenuItemPrice(item))}
+                        {formatMoney(priceDisplay.currentPrice)}
                       </strong>
                     </span>
                   </div>
@@ -9443,6 +9556,7 @@ export default function App() {
                 <div className="customer-menu-list">
                   {grouped.items.map((item) => {
                     const copy = menuCopy(item);
+                    const priceDisplay = customerMenuPriceDisplay(item);
                     return (
                       <article
                         key={item.id}
@@ -9493,11 +9607,11 @@ export default function App() {
                         </div>
                         <div className="customer-card-actions">
                           <div className="customer-card-price">
-                            {item.activePromotion ? (
-                              <span>{formatMoney(item.price)}</span>
+                            {priceDisplay.oldPrice !== undefined ? (
+                              <span>{formatMoney(priceDisplay.oldPrice)}</span>
                             ) : null}
                             <strong>
-                              {formatMoney(promotionalMenuItemPrice(item))}
+                              {formatMoney(priceDisplay.currentPrice)}
                             </strong>
                           </div>
                           <button
@@ -9630,6 +9744,83 @@ export default function App() {
                         <span>
                           {text.total} {formatMoney(order.total)}
                         </span>
+                      </div>
+                      <div className="customer-review-box">
+                        <div className="customer-review-header">
+                          <span>{text.customerReview}</span>
+                          {order.reviewedAt ? (
+                            <small>{formatTaipeiDateTime(order.reviewedAt)}</small>
+                          ) : null}
+                        </div>
+                        <div
+                          className="customer-review-stars"
+                          aria-label={text.reviewRating}
+                        >
+                          {[1, 2, 3, 4, 5].map((rating) => {
+                            const draft = reviewDrafts[order.id] ?? {
+                              rating: order.reviewRating ?? 5,
+                              review: order.reviewText ?? "",
+                            };
+                            return (
+                              <button
+                                key={`${order.id}-rating-${rating}`}
+                                type="button"
+                                className={
+                                  rating <= draft.rating ? "active" : ""
+                                }
+                                onClick={() =>
+                                  setReviewDrafts((drafts) => ({
+                                    ...drafts,
+                                    [order.id]: {
+                                      rating,
+                                      review:
+                                        drafts[order.id]?.review ??
+                                        order.reviewText ??
+                                        "",
+                                    },
+                                  }))
+                                }
+                              >
+                                ★
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <textarea
+                          className="customer-review-input"
+                          value={
+                            reviewDrafts[order.id]?.review ??
+                            order.reviewText ??
+                            ""
+                          }
+                          placeholder={text.reviewPlaceholder}
+                          maxLength={500}
+                          onChange={(event) =>
+                            setReviewDrafts((drafts) => ({
+                              ...drafts,
+                              [order.id]: {
+                                rating:
+                                  drafts[order.id]?.rating ??
+                                  order.reviewRating ??
+                                  5,
+                                review: event.currentTarget.value,
+                              },
+                            }))
+                          }
+                        />
+                        <button
+                          className="btn btn-sm btn-primary w-full"
+                          onClick={() => {
+                            void submitOrderReview(order);
+                          }}
+                          disabled={activeItemId === `review-${order.id}`}
+                        >
+                          {activeItemId === `review-${order.id}`
+                            ? text.submitting
+                            : order.reviewRating
+                              ? text.updateReview
+                              : text.submitReview}
+                        </button>
                       </div>
                       <button
                         className="btn btn-sm btn-outline w-full customer-buy-again-button"

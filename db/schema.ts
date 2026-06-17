@@ -151,6 +151,9 @@ export const ordersTable = appSchema.table("orders", {
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   pickedUpAt: timestamp("picked_up_at", { withTimezone: true }),
+  reviewRating: integer("review_rating"),
+  reviewText: text("review_text"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
 });
 
 export const orderItemsTable = appSchema.table(

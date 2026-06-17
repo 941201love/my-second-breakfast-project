@@ -41,6 +41,8 @@ import {
   updateMenuItemParamsSchema,
   updateOrderBodySchema,
   updateOrderParamsSchema,
+  updateOrderReviewBodySchema,
+  updateOrderReviewParamsSchema,
   updatePromotionBodySchema,
 } from "./shared/route-schemas.ts";
 import { createStore } from "./store/index.ts";
@@ -1107,6 +1109,42 @@ app.get(
       200: orderResponseEnvelopeSchema,
       401: apiErrorResponseSchema,
       403: apiErrorResponseSchema,
+      404: apiErrorResponseSchema,
+    },
+  },
+);
+
+// 新增或更新歷史訂單顧客評價
+app.patch(
+  "/api/orders/:id/review",
+  async ({ params, body, request, set }) => {
+    const user = await requireUser(request);
+    const orderId = parseInt(params.id, 10);
+    const order = await store.updateOrderReview(orderId, {
+      userId: user.id,
+      rating: body.rating,
+      review: body.review,
+    });
+
+    if (!order) {
+      set.status = 404;
+      return { error: "Order not found or not reviewable" };
+    }
+
+    return { data: toOrderResponse(order) };
+  },
+  {
+    params: updateOrderReviewParamsSchema,
+    body: updateOrderReviewBodySchema,
+    detail: {
+      tags: ["orders"],
+      summary: "Review an order",
+      description:
+        "Create or update the customer's rating and review for a submitted order.",
+    },
+    response: {
+      200: orderResponseEnvelopeSchema,
+      401: apiErrorResponseSchema,
       404: apiErrorResponseSchema,
     },
   },

@@ -189,6 +189,16 @@ export const submitOrderBodySchema = z.object({
   pickupTime: z.string().optional(),
 });
 
+/** PATCH /api/orders/:id/review */
+export const updateOrderReviewParamsSchema = z.object({
+  id: z.string().regex(/^[0-9]+$/),
+});
+
+export const updateOrderReviewBodySchema = z.object({
+  rating: z.number().int().min(1).max(5),
+  review: z.string().max(500).optional(),
+});
+
 export const createCouponBodySchema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),

@@ -201,6 +201,38 @@ test("checkout contact details are stored on submitted orders", async () => {
   }
 });
 
+test("submitted orders can store a customer review", async () => {
+  const store = new JsonFileStore({
+    dataFilePath: join(tempDir, "store.json"),
+  });
+  await store.init();
+
+  const item = store.getMenu()[0]!;
+  const order = await store.createOrder({ userId: "user-1" });
+  await store.updateOrderItem(order.id, {
+    userId: "user-1",
+    itemId: item.id,
+    qty: 1,
+  });
+
+  const submitResult = await store.submitOrder(order.id, {
+    userId: "user-1",
+  });
+  expect(submitResult.ok).toBe(true);
+
+  const reviewed = await store.updateOrderReview(order.id, {
+    userId: "user-1",
+    rating: 4,
+    review: "吐司很香，取餐也很快",
+  });
+
+  expect(reviewed).not.toBeNull();
+  expect(reviewed?.reviewRating).toBe(4);
+  expect(reviewed?.reviewText).toBe("吐司很香，取餐也很快");
+  expect(reviewed?.reviewedAt).toBeDefined();
+  expect(store.getOrderHistoryByUserId("user-1")[0]?.reviewRating).toBe(4);
+});
+
 test("cart can keep separate option lines and clear all items", async () => {
   const store = new JsonFileStore({
     dataFilePath: join(tempDir, "store.json"),

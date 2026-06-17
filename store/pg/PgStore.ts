@@ -148,6 +148,7 @@ export class PgStore implements Store {
     await this.ensureProductOptionColumns();
     await this.ensureOrderPickupColumn();
     await this.ensureOrderStoreCodeColumn();
+    await this.ensureOrderReviewColumns();
     await this.ensureAddonSettingsTable();
     await this.ensureCouponRuleColumns();
     await this.seedFromJsonIfEmpty();
@@ -764,6 +765,41 @@ export class PgStore implements Store {
     return order;
   }
 
+  async updateOrderReview(
+    orderId: number,
+    input: { userId: string; rating: number; review?: string },
+  ): Promise<Order | null> {
+    const reviewedAt = new Date().toISOString();
+    const reviewText = input.review?.trim() || null;
+    const rating = Math.min(5, Math.max(1, Math.round(input.rating)));
+    const [updated] = await db
+      .update(ordersTable)
+      .set({
+        reviewRating: rating,
+        reviewText,
+        reviewedAt: new Date(reviewedAt),
+      })
+      .where(
+        and(
+          eq(ordersTable.id, orderId),
+          eq(ordersTable.userId, input.userId),
+          ne(ordersTable.status, "pending"),
+        ),
+      )
+      .returning();
+    if (!updated) return null;
+
+    const order = this.orders.find((o) => o.id === orderId);
+    if (!order) {
+      await this.reloadFromDatabase();
+      return this.orders.find((o) => o.id === orderId) ?? null;
+    }
+    order.reviewRating = rating;
+    order.reviewText = reviewText ?? undefined;
+    order.reviewedAt = reviewedAt;
+    return order;
+  }
+
   getCoupons(): ReadonlyArray<Coupon> {
     return this.coupons;
   }
@@ -970,6 +1006,9 @@ export class PgStore implements Store {
       submittedAt: row.submittedAt ? toIsoString(row.submittedAt) : undefined,
       completedAt: row.completedAt ? toIsoString(row.completedAt) : undefined,
       pickedUpAt: row.pickedUpAt ? toIsoString(row.pickedUpAt) : undefined,
+      reviewRating: row.reviewRating ?? undefined,
+      reviewText: row.reviewText ?? undefined,
+      reviewedAt: row.reviewedAt ? toIsoString(row.reviewedAt) : undefined,
     }));
   }
 
@@ -1142,6 +1181,21 @@ export class PgStore implements Store {
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS "orders_store_status_created_at_idx"
       ON ${sql.raw(`"${schemaName}"`)}."orders" ("store_code", "status", "created_at")
+    `);
+  }
+
+  private async ensureOrderReviewColumns(): Promise<void> {
+    await db.execute(sql`
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."orders"
+      ADD COLUMN IF NOT EXISTS "review_rating" integer
+    `);
+    await db.execute(sql`
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."orders"
+      ADD COLUMN IF NOT EXISTS "review_text" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE ${sql.raw(`"${schemaName}"`)}."orders"
+      ADD COLUMN IF NOT EXISTS "reviewed_at" timestamp with time zone
     `);
   }
 

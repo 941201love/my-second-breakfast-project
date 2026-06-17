@@ -767,16 +767,42 @@ body,
 }
 
 .customer-review-input {
+  appearance: none;
+  color-scheme: light;
   min-height: 74px;
   width: 100%;
   resize: vertical;
   border: 1px solid var(--customer-line);
   border-radius: 8px;
-  background: #ffffff;
+  background: #ffffff !important;
   padding: 10px 12px;
-  color: var(--customer-heading);
+  color: var(--customer-heading) !important;
+  caret-color: var(--customer-heading);
+  -webkit-text-fill-color: var(--customer-heading);
   font: inherit;
   font-size: 14px;
+}
+
+.customer-review-input:focus,
+.customer-review-input:focus-visible,
+.customer-review-input:active {
+  border-color: var(--customer-brand);
+  background: #ffffff !important;
+  color: var(--customer-heading) !important;
+  outline: 2px solid rgba(96, 108, 56, 0.18);
+  outline-offset: 2px;
+  -webkit-text-fill-color: var(--customer-heading);
+}
+
+.customer-review-input::placeholder {
+  color: var(--customer-muted);
+  opacity: 1;
+  -webkit-text-fill-color: var(--customer-muted);
+}
+
+.customer-review-input::selection {
+  background: rgba(221, 161, 94, 0.35);
+  color: var(--customer-heading);
 }
 
 .customer-add-button {

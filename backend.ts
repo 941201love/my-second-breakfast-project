@@ -46,6 +46,7 @@ import {
   updatePromotionBodySchema,
 } from "./shared/route-schemas.ts";
 import { createStore } from "./store/index.ts";
+import type { MenuItem } from "./shared/contracts.ts";
 import { auth, getCurrentUser } from "./auth/better-auth.ts";
 import { menuRepository } from "./db/repositories/menuRepository.ts";
 import { calculateOrderProgress } from "./order-progress.ts";
@@ -86,6 +87,7 @@ const adminSessionSecret =
 const store = createStore({ dataFilePath: "./data/store.json" });
 const hasPublicAssets =
   existsSync("./public") && existsSync("./public/index.html");
+const deferredMenuImagePathPattern = /^\/api\/menu\/[^/]+\/image(?:\?.*)?$/;
 
 if (isProduction && !adminSessionSecret) {
   throw new Error(
@@ -244,6 +246,41 @@ function canAdminAccessOrder(request: Request, order: { storeCode?: string }) {
 function adminCookie(value: string, maxAge: number) {
   const secure = isProduction ? "; Secure" : "";
   return `admin_session=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secure}`;
+}
+
+function isDataImageUrl(value: string | undefined): value is string {
+  return Boolean(value?.startsWith("data:image/"));
+}
+
+function menuImageUrl(item: MenuItem): string {
+  if (!isDataImageUrl(item.imageUrl)) return item.imageUrl;
+  return `/api/menu/${encodeURIComponent(item.id)}/image?v=${item.version}`;
+}
+
+function toCompactMenuItem(item: MenuItem): MenuItem {
+  const imageUrl = menuImageUrl(item);
+  return imageUrl === item.imageUrl ? item : { ...item, imageUrl };
+}
+
+function toCompactMenuItems(items: ReadonlyArray<MenuItem>): MenuItem[] {
+  return items.map(toCompactMenuItem);
+}
+
+function isDeferredMenuImageUrl(value: string | undefined): boolean {
+  return Boolean(value && deferredMenuImagePathPattern.test(value));
+}
+
+function dataImageResponse(imageUrl: string): Response | null {
+  const match = imageUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) return null;
+
+  const [, contentType, base64] = match;
+  return new Response(Buffer.from(base64, "base64"), {
+    headers: {
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "Content-Type": contentType,
+    },
+  });
 }
 
 function clientIp(request: Request) {
@@ -468,7 +505,7 @@ app.get("/api/admin/session", ({ request }) => {
 });
 
 // 菜單路由
-app.get("/api/menu", () => ({ data: [...store.getMenu()] }), {
+app.get("/api/menu", () => ({ data: toCompactMenuItems(store.getMenu()) }), {
   detail: {
     tags: ["menu"],
     summary: "List menu items",
@@ -477,6 +514,24 @@ app.get("/api/menu", () => ({ data: [...store.getMenu()] }), {
   response: {
     200: menuListResponseSchema,
   },
+});
+
+app.get("/api/menu/:id/image", ({ params, set }) => {
+  const menuItem = store
+    .getMenu()
+    .find((item) => item.id === params.id || item.logicalId === params.id);
+  if (!menuItem || !isDataImageUrl(menuItem.imageUrl)) {
+    set.status = 404;
+    return { error: "Menu image not found" };
+  }
+
+  const response = dataImageResponse(menuItem.imageUrl);
+  if (!response) {
+    set.status = 404;
+    return { error: "Menu image not found" };
+  }
+
+  return response;
 });
 
 app.get("/api/addons", () => ({ data: store.getAddonSettings() }), {
@@ -505,7 +560,7 @@ app.post(
     requireAdmin(request);
     const newMenuItem = await store.createMenuItem(body);
     set.status = 201;
-    return { data: newMenuItem };
+    return { data: toCompactMenuItem(newMenuItem) };
   },
   {
     body: createMenuItemBodySchema,
@@ -525,7 +580,7 @@ app.patch(
   async ({ body, request }) => {
     requireAdmin(request);
     await menuRepository.updateDisplayOrder(body.items);
-    return { data: await menuRepository.getCurrentMenu() };
+    return { data: toCompactMenuItems(await menuRepository.getCurrentMenu()) };
   },
   {
     body: updateMenuDisplayOrderBodySchema,
@@ -544,14 +599,21 @@ app.patch(
   "/api/menu/:id",
   async ({ params, body, request, set }) => {
     requireAdmin(request);
-    const menuItem = await store.updateMenuItem(params.id, body);
+    const patch =
+      isDeferredMenuImageUrl(body.changes.imageUrl)
+        ? {
+            ...body,
+            changes: { ...body.changes, imageUrl: undefined },
+          }
+        : body;
+    const menuItem = await store.updateMenuItem(params.id, patch);
 
     if (!menuItem) {
       set.status = 404;
       return { error: "Menu item not found" };
     }
 
-    return { data: menuItem };
+    return { data: toCompactMenuItem(menuItem) };
   },
   {
     params: updateMenuItemParamsSchema,
@@ -804,7 +866,7 @@ app.delete(
       return { error: "Menu item not found" };
     }
 
-    return { data: removedMenuItem };
+    return { data: toCompactMenuItem(removedMenuItem) };
   },
   {
     params: deleteMenuItemParamsSchema,

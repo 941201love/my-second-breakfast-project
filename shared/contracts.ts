@@ -60,6 +60,16 @@ export const menuItemSchema = z.object({
   reviewAverage: z.number().min(0).max(5).optional(),
   reviewCount: z.number().int().min(0).optional(),
   lowReviewCount: z.number().int().min(0).optional(),
+  reviewSamples: z
+    .array(
+      z.object({
+        rating: z.number().int().min(1).max(5),
+        text: z.string().optional(),
+        reviewedAt: z.string().min(1).optional(),
+        storeCode: z.string().min(1).optional(),
+      }),
+    )
+    .optional(),
 });
 
 export const menuItemVersionHistorySchema = z.object({

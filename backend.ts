@@ -271,17 +271,32 @@ function menuLogicalIdFromOrderItemId(menuItemId: string): string | null {
   return match?.[1] ?? null;
 }
 
-function withMenuReviewStats(items: ReadonlyArray<MenuItem>): MenuItem[] {
+function withMenuReviewStats(
+  items: ReadonlyArray<MenuItem>,
+  storeCode?: string,
+): MenuItem[] {
   const logicalIdByMenuVersionId = new Map(
     items.map((item) => [item.id, item.logicalId]),
   );
   const stats = new Map<
     string,
-    { ratingTotal: number; reviewCount: number; lowReviewCount: number }
+    {
+      ratingTotal: number;
+      reviewCount: number;
+      lowReviewCount: number;
+      samples: NonNullable<MenuItem["reviewSamples"]>;
+    }
   >();
+  const normalizedStoreCode = storeCode?.trim();
 
   for (const order of store.getOrders()) {
     if (!order.reviewRating || order.status === "pending") continue;
+    if (
+      normalizedStoreCode &&
+      (order.storeCode ?? "default") !== normalizedStoreCode
+    ) {
+      continue;
+    }
 
     const reviewedLogicalIds = new Set<string>();
     for (const item of order.items) {
@@ -296,10 +311,25 @@ function withMenuReviewStats(items: ReadonlyArray<MenuItem>): MenuItem[] {
         ratingTotal: 0,
         reviewCount: 0,
         lowReviewCount: 0,
+        samples: [],
       };
       current.ratingTotal += order.reviewRating;
       current.reviewCount += 1;
       if (order.reviewRating < 3) current.lowReviewCount += 1;
+      if (order.reviewText?.trim()) {
+        current.samples.push({
+          rating: order.reviewRating,
+          text: order.reviewText.trim(),
+          reviewedAt: order.reviewedAt,
+          storeCode: order.storeCode,
+        });
+        current.samples.sort(
+          (a, b) =>
+            new Date(b.reviewedAt ?? 0).getTime() -
+            new Date(a.reviewedAt ?? 0).getTime(),
+        );
+        current.samples = current.samples.slice(0, 3);
+      }
       stats.set(logicalId, current);
     }
   }
@@ -317,6 +347,7 @@ function withMenuReviewStats(items: ReadonlyArray<MenuItem>): MenuItem[] {
         10,
       reviewCount: reviewStats.reviewCount,
       lowReviewCount: reviewStats.lowReviewCount,
+      reviewSamples: reviewStats.samples,
     };
   });
 }
@@ -562,7 +593,16 @@ app.get("/api/admin/session", ({ request }) => {
 // 菜單路由
 app.get(
   "/api/menu",
-  () => ({ data: toCompactMenuItems(withMenuReviewStats(store.getMenu())) }),
+  ({ request }) => {
+    const storeCode = new URL(request.url).searchParams
+      .get("storeCode")
+      ?.trim();
+    return {
+      data: toCompactMenuItems(
+        withMenuReviewStats(store.getMenu(), storeCode || undefined),
+      ),
+    };
+  },
   {
   detail: {
     tags: ["menu"],

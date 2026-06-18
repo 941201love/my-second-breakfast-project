@@ -2094,8 +2094,11 @@ export default function App() {
     setIsCartOpen(false);
   }
 
-  async function loadMenu(): Promise<void> {
-    const response = await fetch(buildApiUrl("/api/menu"));
+  async function loadMenu(storeCode = selectedStoreCode): Promise<void> {
+    const query = storeCode
+      ? `?storeCode=${encodeURIComponent(storeCode)}`
+      : "";
+    const response = await fetch(buildApiUrl(`/api/menu${query}`));
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -2306,6 +2309,7 @@ export default function App() {
     if (!adminStoreCode) {
       navigate(customerRoute("/", storeCode));
     }
+    void loadMenu(storeCode);
     void loadOrderProgress(storeCode);
   }
 
@@ -2364,6 +2368,7 @@ export default function App() {
       current && orderStoreCodeOf(current) !== routeStoreCode ? null : current,
     );
     resetOrderProgress();
+    void loadMenu(routeStoreCode);
     void loadOrderProgress(routeStoreCode);
   }, [routeStoreCode]);
 
@@ -2371,7 +2376,7 @@ export default function App() {
     if (!user) return;
     setMenuLoading(true);
     setError("");
-    Promise.all([loadMenu(), loadCoupons(), loadAddonSettings()])
+    Promise.all([loadMenu(selectedStoreCode), loadCoupons(), loadAddonSettings()])
       .catch((fetchError) => {
         setError("無法取得菜單資料，請稍後再試。");
         console.error(fetchError);
@@ -2379,7 +2384,7 @@ export default function App() {
       .finally(() => {
         setMenuLoading(false);
       });
-  }, [user]);
+  }, [selectedStoreCode, user]);
 
   useEffect(() => {
     resetOrderProgress();
@@ -9811,6 +9816,25 @@ export default function App() {
                                   {(item.reviewAverage ?? 0).toFixed(1)}
                                 </strong>
                                 <span>（{item.reviewCount} 則評價）</span>
+                              </div>
+                            ) : null}
+                            {item.reviewSamples?.length ? (
+                              <div className="customer-menu-review-samples">
+                                {item.reviewSamples.map((review, index) => (
+                                  <div
+                                    key={`${item.id}-review-${index}-${review.reviewedAt ?? "latest"}`}
+                                    className={
+                                      isLowReviewRating(review.rating)
+                                        ? "low"
+                                        : ""
+                                    }
+                                  >
+                                    <span className="customer-menu-review-sample-stars">
+                                      {reviewStars(review.rating)}
+                                    </span>
+                                    <span>{review.text}</span>
+                                  </div>
+                                ))}
                               </div>
                             ) : null}
                           </div>

@@ -692,6 +692,37 @@ body,
   color: #b91c1c;
 }
 
+.customer-menu-review-samples {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+  color: var(--customer-brand);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.customer-menu-review-samples > div {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+}
+
+.customer-menu-review-samples > div > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.customer-menu-review-samples > div.low {
+  color: #b91c1c;
+}
+
+.customer-menu-review-sample-stars {
+  flex-shrink: 0;
+  color: #d79b18;
+  font-weight: 800;
+}
+
 .customer-menu-meta {
   display: flex;
   min-height: 22px;
@@ -831,8 +862,9 @@ body,
 
 .customer-add-button {
   min-height: 34px;
-  width: 124px;
-  max-width: 124px;
+  min-width: 132px;
+  width: auto;
+  max-width: 100%;
   border: 0;
   border-radius: 12px;
   background: var(--customer-brand);
@@ -840,8 +872,7 @@ body,
   color: var(--customer-brand-50);
   cursor: pointer;
   font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
   white-space: nowrap;
 }
 
@@ -1559,8 +1590,8 @@ body,
   }
 
   .customer-add-button {
-    width: 150px;
-    max-width: 150px;
+    width: auto;
+    max-width: 100%;
   }
 }
 
@@ -1575,7 +1606,8 @@ body,
   }
 
   .customer-add-button {
-    width: 132px;
-    max-width: 132px;
+    min-width: 132px;
+    width: auto;
+    max-width: 100%;
   }
 }

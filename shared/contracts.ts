@@ -57,6 +57,9 @@ export const menuItemSchema = z.object({
   isRecentlyUpdated: z.boolean().optional(),
   priceChanged: z.boolean().optional(),
   previousPrice: z.number().optional(),
+  reviewAverage: z.number().min(0).max(5).optional(),
+  reviewCount: z.number().int().min(0).optional(),
+  lowReviewCount: z.number().int().min(0).optional(),
 });
 
 export const menuItemVersionHistorySchema = z.object({

@@ -668,6 +668,30 @@ body,
   -webkit-line-clamp: 2;
 }
 
+.customer-menu-review {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  color: #d79b18;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.customer-menu-review strong {
+  color: var(--customer-heading);
+}
+
+.customer-menu-review span:last-child {
+  color: var(--customer-muted);
+  font-weight: 700;
+}
+
+.customer-menu-review-low {
+  color: #b91c1c;
+}
+
 .customer-menu-meta {
   display: flex;
   min-height: 22px;

@@ -266,6 +266,61 @@ function toCompactMenuItems(items: ReadonlyArray<MenuItem>): MenuItem[] {
   return items.map(toCompactMenuItem);
 }
 
+function menuLogicalIdFromOrderItemId(menuItemId: string): string | null {
+  const match = menuItemId.match(/^(.+)-\d+$/);
+  return match?.[1] ?? null;
+}
+
+function withMenuReviewStats(items: ReadonlyArray<MenuItem>): MenuItem[] {
+  const logicalIdByMenuVersionId = new Map(
+    items.map((item) => [item.id, item.logicalId]),
+  );
+  const stats = new Map<
+    string,
+    { ratingTotal: number; reviewCount: number; lowReviewCount: number }
+  >();
+
+  for (const order of store.getOrders()) {
+    if (!order.reviewRating || order.status === "pending") continue;
+
+    const reviewedLogicalIds = new Set<string>();
+    for (const item of order.items) {
+      const logicalId =
+        logicalIdByMenuVersionId.get(item.menuItemId) ??
+        menuLogicalIdFromOrderItemId(item.menuItemId);
+      if (logicalId) reviewedLogicalIds.add(logicalId);
+    }
+
+    for (const logicalId of reviewedLogicalIds) {
+      const current = stats.get(logicalId) ?? {
+        ratingTotal: 0,
+        reviewCount: 0,
+        lowReviewCount: 0,
+      };
+      current.ratingTotal += order.reviewRating;
+      current.reviewCount += 1;
+      if (order.reviewRating < 3) current.lowReviewCount += 1;
+      stats.set(logicalId, current);
+    }
+  }
+
+  return items.map((item) => {
+    const reviewStats = stats.get(item.logicalId);
+    if (!reviewStats || reviewStats.reviewCount === 0) {
+      return item;
+    }
+
+    return {
+      ...item,
+      reviewAverage:
+        Math.round((reviewStats.ratingTotal / reviewStats.reviewCount) * 10) /
+        10,
+      reviewCount: reviewStats.reviewCount,
+      lowReviewCount: reviewStats.lowReviewCount,
+    };
+  });
+}
+
 function isDeferredMenuImageUrl(value: string | undefined): boolean {
   return Boolean(value && deferredMenuImagePathPattern.test(value));
 }
@@ -505,7 +560,10 @@ app.get("/api/admin/session", ({ request }) => {
 });
 
 // 菜單路由
-app.get("/api/menu", () => ({ data: toCompactMenuItems(store.getMenu()) }), {
+app.get(
+  "/api/menu",
+  () => ({ data: toCompactMenuItems(withMenuReviewStats(store.getMenu())) }),
+  {
   detail: {
     tags: ["menu"],
     summary: "List menu items",
@@ -514,7 +572,8 @@ app.get("/api/menu", () => ({ data: toCompactMenuItems(store.getMenu()) }), {
   response: {
     200: menuListResponseSchema,
   },
-});
+  },
+);
 
 app.get("/api/menu/:id/image", ({ params, set }) => {
   const menuItem = store

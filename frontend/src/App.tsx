@@ -9797,6 +9797,22 @@ export default function App() {
                             <p>
                               {copy.description}
                             </p>
+                            {item.reviewCount ? (
+                              <div
+                                className={`customer-menu-review ${
+                                  isLowReviewRating(item.reviewAverage)
+                                    ? "customer-menu-review-low"
+                                    : ""
+                                }`}
+                                title="顧客評價"
+                              >
+                                <span aria-hidden="true">★</span>
+                                <strong>
+                                  {(item.reviewAverage ?? 0).toFixed(1)}
+                                </strong>
+                                <span>（{item.reviewCount} 則評價）</span>
+                              </div>
+                            ) : null}
                           </div>
                           <div className="customer-menu-meta">
                             {item.isRecentlyUpdated ? (

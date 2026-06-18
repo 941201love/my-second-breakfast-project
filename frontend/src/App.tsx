@@ -9795,7 +9795,8 @@ export default function App() {
                           }
                           placeholder={text.reviewPlaceholder}
                           maxLength={500}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            const review = event.currentTarget.value;
                             setReviewDrafts((drafts) => ({
                               ...drafts,
                               [order.id]: {
@@ -9803,10 +9804,10 @@ export default function App() {
                                   drafts[order.id]?.rating ??
                                   order.reviewRating ??
                                   5,
-                                review: event.currentTarget.value,
+                                review,
                               },
-                            }))
-                          }
+                            }));
+                          }}
                         />
                         <button
                           className="btn btn-sm btn-primary w-full"

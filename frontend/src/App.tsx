@@ -7585,7 +7585,9 @@ export default function App() {
                   <section className="fixed inset-0 z-[9999] h-[100dvh] w-screen overflow-hidden bg-base-100 flex flex-col isolate">
                     <div className="px-6 py-4 border-b border-base-300 flex items-center justify-between">
                       <div>
-                        <h2 className="text-2xl font-bold">新增商品</h2>
+                        <h2 className="text-2xl font-bold">
+                          {editingAdminMenuLogicalId ? "編輯商品" : "新增商品"}
+                        </h2>
                         <p className="text-sm opacity-60">
                           填寫商品資料後，右側會即時顯示前台效果。
                         </p>
@@ -7674,6 +7676,131 @@ export default function App() {
                               </ul>
                             </details>
                           </div>
+                          <section className="rounded-lg border border-base-300 bg-base-200 p-4 lg:col-span-3">
+                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <div className="text-sm font-bold">
+                                  可選加料
+                                </div>
+                                <div className="text-sm opacity-70">
+                                  勾選後，顧客客製化時可以選這些加料。
+                                </div>
+                              </div>
+                              <div className="text-sm font-semibold opacity-70">
+                                {[
+                                  newMenuItem.allowEgg ? "加蛋" : "",
+                                  newMenuItem.allowCheese ? "加起司" : "",
+                                  ...(addonSettings.items ?? [])
+                                    .filter((addon) =>
+                                      newMenuItem.addonKeys.includes(addon.key),
+                                    )
+                                    .map((addon) => addon.name),
+                                ]
+                                  .filter(Boolean)
+                                  .join("、") || "尚未選擇"}
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                              <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-100 p-4">
+                                <span className="flex items-center gap-3">
+                                  <input
+                                    className="checkbox checkbox-primary"
+                                    type="checkbox"
+                                    checked={newMenuItem.allowEgg}
+                                    onChange={(event) => {
+                                      const allowEgg =
+                                        event.currentTarget.checked;
+                                      setNewMenuItem((current) => ({
+                                        ...current,
+                                        allowEgg,
+                                      }));
+                                    }}
+                                  />
+                                  <span className="font-semibold">允許加蛋</span>
+                                </span>
+                                <span className="text-sm opacity-70">
+                                  {formatMoney(addonSettings.eggPrice)}
+                                </span>
+                              </label>
+                              <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-100 p-4">
+                                <span className="flex items-center gap-3">
+                                  <input
+                                    className="checkbox checkbox-primary"
+                                    type="checkbox"
+                                    checked={newMenuItem.allowCheese}
+                                    onChange={(event) => {
+                                      const allowCheese =
+                                        event.currentTarget.checked;
+                                      setNewMenuItem((current) => ({
+                                        ...current,
+                                        allowCheese,
+                                      }));
+                                    }}
+                                  />
+                                  <span className="font-semibold">
+                                    允許加起司
+                                  </span>
+                                </span>
+                                <span className="text-sm opacity-70">
+                                  {formatMoney(addonSettings.cheesePrice)}
+                                </span>
+                              </label>
+                              {(addonSettings.items ?? [])
+                                .filter(
+                                  (addon) =>
+                                    addon.key !== "egg" &&
+                                    addon.key !== "cheese" &&
+                                    addon.isActive,
+                                )
+                                .map((addon) => (
+                                  <label
+                                    key={addon.key}
+                                    className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-100 p-4"
+                                  >
+                                    <span className="flex items-center gap-3">
+                                      <input
+                                        className="checkbox checkbox-primary"
+                                        type="checkbox"
+                                        checked={newMenuItem.addonKeys.includes(
+                                          addon.key,
+                                        )}
+                                        onChange={(event) => {
+                                          const checked =
+                                            event.currentTarget.checked;
+                                          setNewMenuItem((current) => ({
+                                            ...current,
+                                            addonKeys: checked
+                                              ? [
+                                                  ...current.addonKeys,
+                                                  addon.key,
+                                                ]
+                                              : current.addonKeys.filter(
+                                                  (key) => key !== addon.key,
+                                                ),
+                                          }));
+                                        }}
+                                      />
+                                      <span className="font-semibold">
+                                        {addon.name}
+                                      </span>
+                                    </span>
+                                    <span className="text-sm opacity-70">
+                                      {formatMoney(addon.price)}
+                                    </span>
+                                  </label>
+                                ))}
+                            </div>
+                            {(addonSettings.items ?? []).filter(
+                              (addon) =>
+                                addon.key !== "egg" &&
+                                addon.key !== "cheese" &&
+                                addon.isActive,
+                            ).length === 0 ? (
+                              <p className="mt-3 text-sm opacity-70">
+                                其他加料請先在上方「其他加料」新增並按更新加料價格。
+                              </p>
+                            ) : null}
+                          </section>
                           <section className="rounded-lg border border-base-300 bg-base-200 p-4 lg:col-span-3">
                             <div className="mb-3 text-sm font-bold">
                               商品標籤
@@ -7849,7 +7976,7 @@ export default function App() {
                           void saveAdminMenuItem();
                         }}
                       >
-                        新增商品
+                        {editingAdminMenuLogicalId ? "更新商品" : "新增商品"}
                       </button>
                     </div>
                   </section>

@@ -127,6 +127,15 @@ function formatMoney(amount: number) {
   return `NT$${amount}`;
 }
 
+function reviewStars(rating?: number) {
+  if (!rating) return "尚未評價";
+  return `${"★".repeat(rating)}${"☆".repeat(5 - rating)}`;
+}
+
+function isLowReviewRating(rating?: number) {
+  return typeof rating === "number" && rating < 3;
+}
+
 function formatWorkMinutes(minutes: number) {
   const safeMinutes = Math.max(0, Math.round(minutes));
   const hours = Math.floor(safeMinutes / 60);
@@ -2969,6 +2978,8 @@ export default function App() {
           order.customerPhone,
           order.note,
           order.couponCode,
+          order.reviewRating ? `${order.reviewRating}星` : "",
+          order.reviewText,
           formatMoney(order.total),
           order.items.map((item) => item.menuItemName).join(" "),
         ]),
@@ -8012,6 +8023,39 @@ export default function App() {
                                   ? formatTaipeiDateTime(order.completedAt)
                                   : "-"}
                               </div>
+                              <div
+                                className={`admin-review-summary ${
+                                  isLowReviewRating(order.reviewRating)
+                                    ? "admin-review-summary-low"
+                                    : ""
+                                }`}
+                              >
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-semibold">
+                                    顧客評價
+                                  </span>
+                                  {isLowReviewRating(order.reviewRating) ? (
+                                    <span className="badge badge-error badge-sm">
+                                      低分需追蹤
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className="admin-review-stars">
+                                  {reviewStars(order.reviewRating)}
+                                </div>
+                                {order.reviewText ? (
+                                  <div className="admin-review-text">
+                                    {order.reviewText}
+                                  </div>
+                                ) : (
+                                  <div className="opacity-60">尚未評價</div>
+                                )}
+                                {order.reviewedAt ? (
+                                  <div className="text-xs opacity-60">
+                                    {formatTaipeiDateTime(order.reviewedAt)}
+                                  </div>
+                                ) : null}
+                              </div>
                             </div>
                           </div>
 
@@ -8100,6 +8144,7 @@ export default function App() {
                             <th>門市</th>
                             <th>訂購人</th>
                             <th>品項</th>
+                            <th>顧客評價</th>
                             <th>優惠券</th>
                             <th>付款</th>
                             <th>時間</th>
@@ -8109,7 +8154,7 @@ export default function App() {
                         <tbody>
                           {adminHistoryOrders.length === 0 ? (
                             <tr>
-                              <td colSpan={9} className="opacity-60">
+                              <td colSpan={10} className="opacity-60">
                                 這天目前沒有歷史訂單。
                               </td>
                             </tr>
@@ -8168,6 +8213,40 @@ export default function App() {
                                       </li>
                                     ))}
                                   </ul>
+                                </td>
+                                <td>
+                                  <div
+                                    className={`admin-review-summary min-w-56 ${
+                                      isLowReviewRating(order.reviewRating)
+                                        ? "admin-review-summary-low"
+                                        : ""
+                                    }`}
+                                  >
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="admin-review-stars">
+                                        {reviewStars(order.reviewRating)}
+                                      </span>
+                                      {isLowReviewRating(order.reviewRating) ? (
+                                        <span className="badge badge-error badge-sm">
+                                          低分
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    {order.reviewText ? (
+                                      <div className="admin-review-text">
+                                        {order.reviewText}
+                                      </div>
+                                    ) : (
+                                      <div className="text-sm opacity-60">
+                                        尚未評價
+                                      </div>
+                                    )}
+                                    {order.reviewedAt ? (
+                                      <div className="text-xs opacity-60">
+                                        {formatTaipeiDateTime(order.reviewedAt)}
+                                      </div>
+                                    ) : null}
+                                  </div>
                                 </td>
                                 <td>
                                   {order.couponCode ? (

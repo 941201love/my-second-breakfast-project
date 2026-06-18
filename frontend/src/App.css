@@ -1038,6 +1038,36 @@ body,
   border-color: var(--admin-brand) !important;
 }
 
+.admin-review-summary {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  border: 1px solid rgba(40, 54, 24, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 10px;
+  color: var(--admin-heading);
+}
+
+.admin-review-summary-low {
+  border-color: rgba(220, 38, 38, 0.45);
+  background: rgba(254, 226, 226, 0.82);
+}
+
+.admin-review-stars {
+  color: #d79b18;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.admin-review-text {
+  max-width: 28rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--admin-heading);
+  font-size: 0.875rem;
+}
+
 .admin-shell :where(.text-primary-content, .text-secondary-content, .text-accent-content, .text-info-content) {
   color: var(--admin-brand-50) !important;
 }
